@@ -1,0 +1,39 @@
+name: Bug Report
+description: Report a bug or issue with the SpeQA plugin
+labels: ["bug"]
+assignees: ["barsia"]
+
+body:
+  - type: input
+    id: environment
+    attributes:
+      label: Plugin Version and IDE
+      description: E.g., SpeQA 0.1.0 | IntelliJ IDEA 2026.1.1
+      placeholder: "SpeQA 0.1.0 | IntelliJ IDEA 2026.1.1"
+    validations:
+      required: false
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: Please describe the issue
+      value: |
+        **Description:**
+        <!-- Please describe the issue you encountered -->
+
+        **Steps to Reproduce:**
+        1.
+        2.
+        3.
+
+        **Expected Result:**
+        <!-- What did you expect to happen? -->
+
+        **Actual Result:**
+        <!-- What actually happened? -->
+
+        **Screenshots / Screencast:**
+        <!-- Drag and drop screenshots or screencast here -->
+    validations:
+      required: true

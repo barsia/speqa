@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <!-- Q ring — grey (blocked) -->
+  <path
+    d="M 10.4 11.5
+       A 4.5 4.5 0 1 1 11.8 10.2
+       L 10.9 9.6
+       A 3.5 3.5 0 1 0 9.9 10.6
+       Z"
+    fill="#9E9E9E"/>
+  <!-- Tail — grey -->
+  <path
+    d="M 10.3 10.3
+       L 10.6 10.1
+       L 13.0 12.2
+       L 11.7 12.7
+       Z"
+    fill="#9E9E9E"/>
+  <!-- Minus inside Q — grey -->
+  <line x1="6.3" y1="7.5" x2="9.9" y2="7.5"
+    stroke="#9E9E9E" stroke-width="1.1" stroke-linecap="round"/>
+</svg>

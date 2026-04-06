@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <!-- Q ring — red (failed) -->
+  <path
+    d="M 10.4 11.5
+       A 4.5 4.5 0 1 1 11.8 10.2
+       L 10.9 9.6
+       A 3.5 3.5 0 1 0 9.9 10.6
+       Z"
+    fill="#DB5860"/>
+  <!-- Tail — red -->
+  <path
+    d="M 10.3 10.3
+       L 10.6 10.1
+       L 13.0 12.2
+       L 11.7 12.7
+       Z"
+    fill="#DB5860"/>
+  <!-- Cross inside Q — red -->
+  <line x1="6.5" y1="5.8" x2="9.7" y2="9.2"
+    stroke="#DB5860" stroke-width="1.1" stroke-linecap="round"/>
+  <line x1="9.7" y1="5.8" x2="6.5" y2="9.2"
+    stroke="#DB5860" stroke-width="1.1" stroke-linecap="round"/>
+</svg>

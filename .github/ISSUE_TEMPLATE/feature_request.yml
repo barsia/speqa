@@ -1,0 +1,22 @@
+name: Feature Request
+description: Suggest a new feature or enhancement for the SpeQA plugin
+labels: ["enhancement"]
+assignees: ["barsia"]
+
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: Please describe the feature
+      value: |
+        **Feature Description:**
+        <!-- Describe the feature you'd like to see -->
+
+        **Use Case:**
+        <!-- Why would this feature be useful? What problem does it solve? -->
+
+        **Proposed Solution:**
+        <!-- If you have ideas on how this could be implemented, share them here -->
+    validations:
+      required: true

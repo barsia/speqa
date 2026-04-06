@@ -1,0 +1,79 @@
+<idea-plugin>
+    <id>io.github.barsia.speqa</id>
+    <name>SpeQA - Test Management System</name>
+    <vendor url="https://barsia.github.io">Siarhei Baradulia</vendor>
+    <description><![CDATA[
+        <p>Write and run manual test cases right inside your IDE. No external services, no vendor lock-in.</p>
+        <p>Test cases are Markdown files stored in your project and versioned with Git. Your test history stays with the repo forever.
+        No database, no sync, no export headaches. Your tests are still readable Markdown.</p>
+        <ul>
+            <li><b>Visual editor</b> — split view with native text editor on the left and interactive preview on the right</li>
+            <li><b>Test runs</b> — step-by-step execution with verdicts and comments</li>
+            <li>Priority, status, environment, tags, attachments, and external links are supported</li>
+            <li><b>Full history in Git</b> — every change is a commit you can diff, blame, or revert</li>
+            <li><b>Status at a glance</b> — color-coded file icons in the project tree</li>
+            <li><b>Validation</b> — warnings for missing titles, empty steps, and duplicate IDs</li>
+            <li><b>Works offline</b> — everything runs locally, no internet needed</li>
+        </ul>
+        <p><a href="https://github.com/barsia/speqa">Source code</a> | <a href="https://github.com/barsia/speqa/blob/main/PRIVACY_POLICY.md">Privacy Policy</a> | <a href="https://github.com/barsia/speqa/issues/new?template=bug_report.yml">Report a bug</a> | <a href="https://github.com/barsia/speqa/issues/new?template=feature_request.yml">Request a feature</a></p>
+    ]]></description>
+
+    <depends>com.intellij.modules.platform</depends>
+    <depends>com.intellij.modules.compose</depends>
+    <depends>org.intellij.plugins.markdown</depends>
+    <depends>com.intellij.modules.json</depends>
+    <resource-bundle>messages.SpeqaBundle</resource-bundle>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <iconProvider implementation="io.github.barsia.speqa.filetype.SpeqaIconProvider"/>
+
+        <fileEditorProvider implementation="io.github.barsia.speqa.editor.SpeqaEditorProvider"/>
+        <fileEditorProvider implementation="io.github.barsia.speqa.run.TestRunEditorProvider"/>
+
+        <annotator language="Markdown" implementationClass="io.github.barsia.speqa.validation.SpeqaAnnotator"/>
+
+        <projectConfigurable parentId="tools"
+                             instance="io.github.barsia.speqa.settings.SpeqaSettingsConfigurable"
+                             id="io.github.barsia.speqa.settings"
+                             key="settings.Speqa.displayName"
+                             bundle="messages.SpeqaBundle"/>
+
+        <internalFileTemplate name="SpeQA Test Case.tc.md"/>
+
+        <postStartupActivity implementation="io.github.barsia.speqa.registry.SpeqaIdRegistryStartup"/>
+
+        <newProjectWizard.generator implementation="io.github.barsia.speqa.wizard.SpeqaNewProjectWizard"/>
+        <directoryProjectGenerator implementation="io.github.barsia.speqa.wizard.SpeqaProjectGenerator"/>
+
+        <errorHandler implementation="io.github.barsia.speqa.error.SpeqaErrorReportSubmitter"/>
+
+        <psi.referenceContributor language="Markdown"
+                                  implementation="io.github.barsia.speqa.editor.SpeqaLinkDestinationReferenceContributor"/>
+    </extensions>
+
+    <extensions defaultExtensionNs="JavaScript.JsonSchema">
+        <ProviderFactory implementation="io.github.barsia.speqa.filetype.SpeqaFrontmatterSchemaProviderFactory"/>
+    </extensions>
+
+    <actions>
+        <action id="Speqa.CreateTestCase"
+                class="io.github.barsia.speqa.actions.CreateTestCaseAction"
+                icon="/icons/testCaseDraft.svg">
+            <add-to-group group-id="NewGroup" anchor="last"/>
+        </action>
+        <action id="Speqa.RunTestCase"
+                class="io.github.barsia.speqa.run.RunTestCaseAction">
+            <add-to-group group-id="ProjectViewPopupMenu" anchor="last"/>
+        </action>
+        <action id="Speqa.ToggleScrollSync"
+                class="io.github.barsia.speqa.actions.ToggleScrollSyncAction"
+                icon="AllIcons.Actions.SynchronizeScrolling">
+            <add-to-group group-id="EditorTabsEntryPoint" anchor="last"/>
+        </action>
+        <action id="Speqa.About"
+                class="io.github.barsia.speqa.actions.AboutSpeqaAction"
+                icon="/icons/aboutSpeqa.svg">
+            <add-to-group group-id="EditorTabsEntryPoint" anchor="last"/>
+        </action>
+    </actions>
+</idea-plugin>

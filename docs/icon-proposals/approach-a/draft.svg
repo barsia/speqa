@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <!-- Approach A: Scalloped-edge stamp with inner pencil nib (draft) -->
+  <g transform="translate(8,8) rotate(-10) translate(-8,-8)">
+    <!-- Scalloped stamp outline - one continuous path -->
+    <path d="
+      M4.2,2.5 Q4.8,2 5.4,2.5 Q6,2 6.6,2.5 Q7.2,2 7.8,2.5 Q8.4,2 9,2.5 Q9.6,2 10.2,2.5 Q10.8,2 11.4,2.5 Q11.8,2 12,2.5
+      Q12.5,2.8 12,3.4 Q12.5,4 12,4.6 Q12.5,5.2 12,5.8 Q12.5,6.4 12,7 Q12.5,7.6 12,8.2 Q12.5,8.8 12,9.4 Q12.5,10 12,10.6 Q12.5,11.2 12,11.8 Q12.5,12.4 12,13
+      Q11.4,13.5 10.8,13 Q10.2,13.5 9.6,13 Q9,13.5 8.4,13 Q7.8,13.5 7.2,13 Q6.6,13.5 6,13 Q5.4,13.5 4.8,13 Q4.2,13.5 4,13
+      Q3.5,12.4 4,11.8 Q3.5,11.2 4,10.6 Q3.5,10 4,9.4 Q3.5,8.8 4,8.2 Q3.5,7.6 4,7 Q3.5,6.4 4,5.8 Q3.5,5.2 4,4.6 Q3.5,4 4,3.4 Q3.5,2.8 4.2,2.5
+      Z"
+      fill="none" stroke="#C4A000" stroke-width="0.5"/>
+    <!-- Small pencil nib icon (draft indicator) -->
+    <path d="M7,6 L9.5,8.5 L9,9 L6.5,6.5 Z M9.5,8.5 L10,8 L10.5,8.5 L10,9 Z M6.5,6.5 L6.2,7.3 L7,7 Z"
+      fill="none" stroke="#C4A000" stroke-width="0.4" stroke-linejoin="round"/>
+  </g>
+</svg>

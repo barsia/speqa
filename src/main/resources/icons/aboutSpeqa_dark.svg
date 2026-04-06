@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <!-- Q ring — thicker stroke, non-palette grey for dark theme -->
+  <path
+    d="M 10.4 11.5
+       A 4.5 4.5 0 1 1 11.8 10.2
+       L 10.6 9.3
+       A 3.2 3.2 0 1 0 9.6 10.3
+       Z"
+    fill="#AFB0B3"/>
+  <!-- Tail — wider -->
+  <path
+    d="M 10.1 10.1
+       L 10.7 9.9
+       L 13.2 12.1
+       L 11.7 12.9
+       Z"
+    fill="#AFB0B3"/>
+</svg>

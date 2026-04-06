@@ -1,0 +1,13 @@
+---
+id: ${ID}
+title: "${NAME}"
+priority: normal
+status: draft
+---
+
+Preconditions:
+
+Scenario:
+
+1. Action
+   > Result

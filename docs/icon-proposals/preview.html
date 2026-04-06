@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>MarQA Icon Proposals — 16x16 File Icons</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 2rem; }
+  h1 { font-size: 1.4rem; margin-bottom: 0.3rem; }
+  h2 { font-size: 1.1rem; color: #555; margin-top: 2rem; }
+  .subtitle { color: #888; font-size: 0.85rem; margin-bottom: 2rem; }
+  .grid { display: grid; grid-template-columns: 120px repeat(3, 1fr); gap: 0; border: 1px solid #ddd; border-radius: 8px; overflow: hidden; margin-bottom: 2rem; }
+  .grid > div { padding: 12px 16px; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .header { background: #f5f5f5; font-weight: 600; font-size: 0.8rem; color: #666; justify-content: center; }
+  .label { background: #fafafa; font-weight: 500; font-size: 0.75rem; color: #888; justify-content: center; }
+  .cell { border-top: 1px solid #eee; }
+  .row-label { border-right: 1px solid #eee; }
+  .icon-actual { image-rendering: auto; }
+  .icon-zoomed { image-rendering: auto; width: 64px; height: 64px; border: 1px dashed #ddd; border-radius: 4px; }
+  .size-note { font-size: 0.65rem; color: #aaa; }
+  .bg-dark { background: #2b2b2b !important; }
+  .bg-dark .size-note { color: #666; }
+
+  .theme-row { display: flex; gap: 2rem; align-items: center; margin: 8px 0; }
+  .theme-label { font-size: 0.7rem; color: #999; width: 40px; }
+
+  table { border-collapse: collapse; width: 100%; margin-bottom: 2rem; }
+  th { background: #f5f5f5; padding: 8px 12px; text-align: center; font-size: 0.8rem; color: #666; border: 1px solid #ddd; }
+  td { padding: 12px; text-align: center; border: 1px solid #eee; vertical-align: middle; }
+  td.label-cell { background: #fafafa; font-weight: 500; font-size: 0.8rem; color: #666; text-align: left; width: 100px; }
+  .dark-bg { background: #2b2b2b; }
+  .icon-pair { display: flex; gap: 16px; align-items: center; justify-content: center; }
+  img.actual { width: 16px; height: 16px; }
+  img.zoomed { width: 80px; height: 80px; border: 1px dashed #ddd; border-radius: 4px; padding: 4px; }
+  .dark-bg img.zoomed { border-color: #555; }
+  .comparison { display: flex; gap: 8px; align-items: flex-end; justify-content: center; }
+  .comparison span { font-size: 0.6rem; color: #aaa; }
+</style>
+</head>
+<body>
+
+<h1>MarQA 16x16 File Icon Proposals</h1>
+<p class="subtitle">3 approaches x 3 status variants. Each shown at actual 16px and at 5x zoom on light and dark backgrounds.</p>
+
+<h2>Approach A: Scalloped-Edge Stamp Outline</h2>
+<p style="font-size:0.8rem; color:#777;">Uses a continuous scalloped/wavy path for the stamp edge (no individual perforation circles). Inner element: pencil (draft), checkmark (ready), strikethrough (deprecated).</p>
+<table>
+  <tr>
+    <th></th><th>Draft (#C4A000)</th><th>Ready (#3E9B4F)</th><th>Deprecated (#6E6E6E)</th>
+  </tr>
+  <tr>
+    <td class="label-cell">Light</td>
+    <td>
+      <div class="comparison">
+        <div><img class="actual" src="approach-a/draft.svg"><span>16px</span></div>
+        <div><img class="zoomed" src="approach-a/draft.svg"><span>5x</span></div>
+      </div>
+    </td>
+    <td>
+      <div class="comparison">
+        <div><img class="actual" src="approach-a/ready.svg"><span>16px</span></div>
+        <div><img class="zoomed" src="approach-a/ready.svg"><span>5x</span></div>
+      </div>
+    </td>
+    <td>
+      <div class="comparison">
+        <div><img class="actual" src="approach-a/deprecated.svg"><span>16px</span></div>
+        <div><img class="zoomed" src="approach-a/deprecated.svg"><span>5x</span></div>
+      </div>
+    </td>
+  </tr>
+  <tr>
+    <td class="label-cell dark-bg" style="color:#aaa;">Dark</td>
+    <td class="dark-bg">
+      <div class="comparison">
+        <div><img class="actual" src="approach-a/draft.svg"><span>16px</span></div>
+        <div><img class="zoomed" src="approach-a/draft.svg" style="border-color:#555"><span>5x</span></div>
+      </div>
+    </td>
+    <td class="dark-bg">
+      <div class="comparison">
+        <div><img class="actual" src="approach-a/ready.svg"><span>16px</span></div>
+        <div><img class="zoomed" src="approach-a/ready.svg" style="border-color:#555"><span>5x</span></div>
+      </div>
+    </td>
+    <td class="dark-bg">
+      <div class="comparison">
+        <div><img class="actual" src="approach-a/deprecated.svg"><span>16px</span></div>
+        <div><img class="zoomed" src="approach-a/deprecated.svg" style="border-color:#555"><span>5x</span></div>
+      </div>
+    </td>
+  </tr>
+</table>
+
+<h2>Approach B: Perforation Dots + Status Badge Overlay</h2>
+<p style="font-size:0.8rem; color:#777;">Keeps individual perforation dots (like current icons) but adds content lines inside and a small colored badge in the bottom-right corner with a white glyph (pencil, checkmark, X). Badge sits outside the rotation for crispness. Follows the IntelliJ convention of status overlays.</p>
+<table>
+  <tr>
+    <th></th><th>Draft (#C4A000)</th><th>Ready (#3E9B4F)</th><th>Deprecated (#6E6E6E)</th>
+  </tr>
+  <tr>
+    <td class="label-cell">Light</td>
+    <td>
+      <div class="comparison">
+        <div><img class="actual" src="approach-b/draft.svg"><span>16px</span></div>
+        <div><img class="zoomed" src="approach-b/draft.svg"><span>5x</span></div>
+      </div>
+    </td>
+    <td>
+      <div class="comparison">
+        <div><img class="actual" src="approach-b/ready.svg"><span>16px</span></div>
+        <div><img class="zoomed" src="approach-b/ready.svg"><span>5x</span></div>
+      </div>
+    </td>
+    <td>
+      <div class="comparison">
+        <div><img class="actual" src="approach-b/deprecated.svg"><span>16px</span></div>
+        <div><img class="zoomed" src="approach-b/deprecated.svg"><span>5x</span></div>
+      </div>
+    </td>
+  </tr>
+  <tr>
+    <td class="label-cell dark-bg" style="color:#aaa;">Dark</td>
+    <td class="dark-bg">
+      <div class="comparison">
+        <div><img class="actual" src="approach-b/draft.svg"><span>16px</span></div>
+        <div><img class="zoomed" src="approach-b/draft.svg" style="border-color:#555"><span>5x</span></div>
+      </div>
+    </td>
+    <td class="dark-bg">
+      <div class="comparison">
+        <div><img class="actual" src="approach-b/ready.svg"><span>16px</span></div>
+        <div><img class="zoomed" src="approach-b/ready.svg" style="border-color:#555"><span>5x</span></div>
+      </div>
+    </td>
+    <td class="dark-bg">
+      <div class="comparison">
+        <div><img class="actual" src="approach-b/deprecated.svg"><span>16px</span></div>
+        <div><img class="zoomed" src="approach-b/deprecated.svg" style="border-color:#555"><span>5x</span></div>
+      </div>
+    </td>
+  </tr>
+</table>
+
+<h2>Approach C: Scalloped Stamp + Postal Wavy Cancel Lines</h2>
+<p style="font-size:0.8rem; color:#777;">Uses the scalloped edge from Approach A, but instead of status glyphs, the inner area shows wavy postal cancellation lines. Dashed = draft (not yet cancelled), solid = ready (approved/cancelled), faded + strikethrough = deprecated. This is the most "postal" of the three.</p>
+<table>
+  <tr>
+    <th></th><th>Draft (#C4A000)</th><th>Ready (#3E9B4F)</th><th>Deprecated (#6E6E6E)</th>
+  </tr>
+  <tr>
+    <td class="label-cell">Light</td>
+    <td>
+      <div class="comparison">
+        <div><img class="actual" src="approach-c/draft.svg"><span>16px</span></div>
+        <div><img class="zoomed" src="approach-c/draft.svg"><span>5x</span></div>
+      </div>
+    </td>
+    <td>
+      <div class="comparison">
+        <div><img class="actual" src="approach-c/ready.svg"><span>16px</span></div>
+        <div><img class="zoomed" src="approach-c/ready.svg"><span>5x</span></div>
+      </div>
+    </td>
+    <td>
+      <div class="comparison">
+        <div><img class="actual" src="approach-c/deprecated.svg"><span>16px</span></div>
+        <div><img class="zoomed" src="approach-c/deprecated.svg"><span>5x</span></div>
+      </div>
+    </td>
+  </tr>
+  <tr>
+    <td class="label-cell dark-bg" style="color:#aaa;">Dark</td>
+    <td class="dark-bg">
+      <div class="comparison">
+        <div><img class="actual" src="approach-c/draft.svg"><span>16px</span></div>
+        <div><img class="zoomed" src="approach-c/draft.svg" style="border-color:#555"><span>5x</span></div>
+      </div>
+    </td>
+    <td class="dark-bg">
+      <div class="comparison">
+        <div><img class="actual" src="approach-c/ready.svg"><span>16px</span></div>
+        <div><img class="zoomed" src="approach-c/ready.svg" style="border-color:#555"><span>5x</span></div>
+      </div>
+    </td>
+    <td class="dark-bg">
+      <div class="comparison">
+        <div><img class="actual" src="approach-c/deprecated.svg"><span>16px</span></div>
+        <div><img class="zoomed" src="approach-c/deprecated.svg" style="border-color:#555"><span>5x</span></div>
+      </div>
+    </td>
+  </tr>
+</table>
+
+<h2>Current Icons (for comparison)</h2>
+<table>
+  <tr>
+    <th></th><th>Draft</th><th>Ready</th><th>Deprecated</th>
+  </tr>
+  <tr>
+    <td class="label-cell">Light</td>
+    <td>
+      <div class="comparison">
+        <div><img class="actual" src="../../src/main/resources/icons/testCaseDraft.svg"><span>16px</span></div>
+        <div><img class="zoomed" src="../../src/main/resources/icons/testCaseDraft.svg"><span>5x</span></div>
+      </div>
+    </td>
+    <td>
+      <div class="comparison">
+        <div><img class="actual" src="../../src/main/resources/icons/testCaseReady.svg"><span>16px</span></div>
+        <div><img class="zoomed" src="../../src/main/resources/icons/testCaseReady.svg"><span>5x</span></div>
+      </div>
+    </td>
+    <td>
+      <div class="comparison">
+        <div><img class="actual" src="../../src/main/resources/icons/testCaseDeprecated.svg"><span>16px</span></div>
+        <div><img class="zoomed" src="../../src/main/resources/icons/testCaseDeprecated.svg"><span>5x</span></div>
+      </div>
+    </td>
+  </tr>
+  <tr>
+    <td class="label-cell dark-bg" style="color:#aaa;">Dark</td>
+    <td class="dark-bg">
+      <div class="comparison">
+        <div><img class="actual" src="../../src/main/resources/icons/testCaseDraft.svg"><span>16px</span></div>
+        <div><img class="zoomed" src="../../src/main/resources/icons/testCaseDraft.svg" style="border-color:#555"><span>5x</span></div>
+      </div>
+    </td>
+    <td class="dark-bg">
+      <div class="comparison">
+        <div><img class="actual" src="../../src/main/resources/icons/testCaseReady.svg"><span>16px</span></div>
+        <div><img class="zoomed" src="../../src/main/resources/icons/testCaseReady.svg" style="border-color:#555"><span>5x</span></div>
+      </div>
+    </td>
+    <td class="dark-bg">
+      <div class="comparison">
+        <div><img class="actual" src="../../src/main/resources/icons/testCaseDeprecated.svg"><span>16px</span></div>
+        <div><img class="zoomed" src="../../src/main/resources/icons/testCaseDeprecated.svg" style="border-color:#555"><span>5x</span></div>
+      </div>
+    </td>
+  </tr>
+</table>
+
+<hr style="margin-top:2rem;">
+<h2 style="font-size:0.9rem;">Design Notes</h2>
+<ul style="font-size:0.8rem; color:#555; line-height:1.6;">
+  <li><strong>Approach A</strong> — Cleanest. Single-path scalloped edge is crisp at 16px. Status is conveyed by both color AND an inner glyph (pencil/check/strike). Most readable at actual size. Recommended if you want maximum clarity.</li>
+  <li><strong>Approach B</strong> — Most similar to current icons (keeps perforation dots). Adds content lines inside for visual weight, plus a badge overlay in the IntelliJ style. The badge makes status immediately obvious even without parsing color. Best if you want to follow IntelliJ's overlay convention.</li>
+  <li><strong>Approach C</strong> — Most thematically "postal". The wavy cancellation lines are a recognizable postal motif. Status is conveyed through line style (dashed/solid/faded). Most creative but potentially hardest to read at actual 16px. Best if brand identity matters more than instant status recognition.</li>
+</ul>
+
+</body>
+</html>

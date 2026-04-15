@@ -677,6 +677,13 @@ The patcher preserves all whitespace in unchanged parts of the document — edit
 2. All occurrences of the string `<defaultAttachmentsFolder>/<oldStem>/` in the markdown document are replaced with `<defaultAttachmentsFolder>/<newStem>/` using `CommandProcessor.executeCommand` with name `"Speqa: Update attachment paths"`.
 If the stem did not change (e.g. only case differs in an OS-insensitive rename that Speqa detects as equal stems) the listener is a no-op. `SpeqaIdRegistryStartup` subscribes `AttachmentRefactoringListener` via `project.messageBus.connect().subscribe(VirtualFileManager.VFS_CHANGES, ...)` after initializing the ID registry.
 
+**Compound extension rename selection:** `.tc.md` and `.tr.md` are compound extensions — IntelliJ treats the last segment (`.md`) as the extension and pre-selects everything before it (e.g. `login-flow.tc`) in the Rename dialog. SpeQA overrides this so only the base name (`login-flow`) is selected:
+- `SpeqaRenamePsiFileProcessor` (a `RenamePsiElementProcessor`) intercepts Refactor → Rename for files whose name ends with `.tc.md` or `.tr.md` via `canProcessElement()`. It overrides `createRenameDialog()` to return `SpeqaRenameDialog`.
+- `SpeqaRenameDialog` extends `RenameDialog` and overrides `createCenterPanel()`. After `super.createCenterPanel()` initializes the name suggestions field, it calls `preselectExtension(0, stem.length)` where `stem` is the filename without the compound extension (computed by `SpeqaDefaults.speqaStem()`). This ensures the text cursor selects only the base name portion.
+- `SpeqaRenameInputValidator` (a `RenameInputValidatorEx`) prevents the user from accidentally removing the compound extension during rename. It matches `PsiFile` elements and validates that the new name still ends with the original `.tc.md` or `.tr.md` extension. The error message uses bundle key `rename.error.extensionChanged`.
+- `SpeqaDefaults.speqaExtension(fileName)` returns `"tc.md"` or `"tr.md"` if the filename has a Speqa compound extension, `null` otherwise. `SpeqaDefaults.speqaStem(fileName)` returns the base name without the compound extension. Both are tested in `SpeqaDefaultsTest`. Rename processor and validator are tested in `SpeqaRenameTest` (a `BasePlatformTestCase`).
+- All three classes live in `io.github.barsia.speqa.refactoring` and are registered in `plugin.xml` as `renamePsiElementProcessor` and `renameInputValidator`. The utility functions live in `SpeqaDefaults`.
+
 ### Data Flow
 
 1. User opens `.tc.md` -> `SpeqaEditorProvider` opens a split editor built on `TextEditorWithPreview`

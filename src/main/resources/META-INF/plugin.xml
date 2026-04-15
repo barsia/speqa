@@ -45,6 +45,11 @@
         <psi.referenceContributor language="Markdown"
                                   implementation="io.github.barsia.speqa.editor.SpeqaLinkDestinationReferenceContributor"/>
 
+        <renamePsiElementProcessor
+            implementation="io.github.barsia.speqa.refactoring.SpeqaRenamePsiFileProcessor"/>
+        <renameInputValidator
+            implementation="io.github.barsia.speqa.refactoring.SpeqaRenameInputValidator"/>
+
         <notificationGroup id="SpeQA" displayType="BALLOON"/>
     </extensions>
 

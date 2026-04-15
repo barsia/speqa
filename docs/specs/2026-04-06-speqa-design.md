@@ -1302,6 +1302,18 @@ SpeQA files (`.tc.md`, `.tr.md`) are ordinary Markdown files again. That means I
 
 ---
 
+### Install Test Case Writer Skill
+
+- **Tools > SpeQA > Add Test Case Writer Skill** copies bundled `test-case-writer-skill.md` to `.claude/skills/test-case-writer/SKILL.md` in the current project.
+- `SpeqaProjectScaffold.installSkill(baseDir)` copies the bundled skill to `.claude/skills/test-case-writer/SKILL.md` relative to `baseDir`.
+- If the file already exists, shows a confirmation dialog before overwriting.
+- Shows a balloon notification on success or failure.
+- Action is only enabled when a project is open.
+- WebStorm/PyCharm DirectoryProjectGenerator: always installs the skill during project creation (no checkbox UI available in this wizard type).
+- IntelliJ New Project Wizard: SpeqaAssetsStep shows a checkbox (default: checked), aligned with Git checkbox via `row("")`. Reuses `action.Speqa.InstallSkill.text` bundle key. When checked, calls `SpeqaProjectScaffold.installSkill(baseDir)` during project setup.
+
+---
+
 ## 16. Out of Scope (Future)
 
 - Integration with external TMS (TestRail, Zephyr, qase.io)

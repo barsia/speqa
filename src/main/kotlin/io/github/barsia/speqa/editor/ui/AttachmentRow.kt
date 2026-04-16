@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.focusable
 import androidx.compose.ui.focus.focusTarget
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
@@ -48,6 +49,7 @@ internal fun AttachmentRow(
     onDelete: (() -> Unit)?,
     isMissing: Boolean = false,
     onRelink: (() -> Unit)? = null,
+    compact: Boolean = false,
     modifier: Modifier = Modifier,
     actionModifier: Modifier = Modifier,
     deleteModifier: Modifier = Modifier,
@@ -78,7 +80,7 @@ internal fun AttachmentRow(
     ) {
         Box(
             modifier = actionModifier
-                .weight(1f)
+                .then(if (!compact) Modifier.weight(1f) else Modifier)
                 .semantics { role = Role.Button }
                 .border(1.dp, if (hoverFocus.isFocused) SpeqaThemeColors.accent else Color.Transparent, RoundedCornerShape(4.dp))
                 .onFocusChanged { hoverFocus.updateFocus(it.isFocused) }
@@ -91,7 +93,7 @@ internal fun AttachmentRow(
                 }
                 .hoverable(hoverFocus.interactionSource)
                 .handOnHover()
-                .focusTarget()
+                .focusable()
                 .pointerInput(rowAction) { detectTapGestures { rowAction() } },
         ) {
             Tooltip(tooltip = { Text(tooltipText) }) {
@@ -112,8 +114,10 @@ internal fun AttachmentRow(
             }
         }
         if (onDelete != null) {
-            // Spacer matching LinkRow's edit button width so trash icons align vertically
-            Spacer(modifier = Modifier.size(24.dp))
+            if (!compact) {
+                // Spacer matching LinkRow's edit button width so trash icons align vertically
+                Spacer(modifier = Modifier.size(24.dp))
+            }
             val trashHoverFocus = rememberHoverFocusState()
             val trashTint = if (trashHoverFocus.isHovered || trashHoverFocus.isFocused) deleteColor else SpeqaThemeColors.mutedForeground
             Tooltip(tooltip = { Text(SpeqaBundle.message("tooltip.removeAttachment")) }) {

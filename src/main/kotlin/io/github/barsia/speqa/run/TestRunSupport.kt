@@ -75,6 +75,7 @@ internal object TestRunSupport {
                     expected = step.expected.orEmpty(),
                     actionAttachments = rebaseAttachments(step.actionAttachments, sourceFilePath, targetDirectoryPath),
                     expectedAttachments = rebaseAttachments(step.expectedAttachments, sourceFilePath, targetDirectoryPath),
+                    ticket = step.ticket,
                 )
             },
         )

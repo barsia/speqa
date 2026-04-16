@@ -35,6 +35,7 @@ data class TestStep(
     val expectedGroupSize: Int = 1,
     val actionAttachments: List<Attachment> = emptyList(),
     val expectedAttachments: List<Attachment> = emptyList(),
+    val ticket: String? = null,
 )
 
 enum class PreconditionsMarkerStyle(val marker: String) {

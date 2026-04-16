@@ -126,6 +126,55 @@ internal fun rememberHoverFocusState(): HoverFocusState {
     }
 }
 
+@OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
+@Composable
+internal fun DeletableArea(
+    onDelete: () -> Unit,
+    tooltip: String,
+    isContentFocused: Boolean = false,
+    trashFocusRequester: FocusRequester? = null,
+    trashPreviousFocusRequester: FocusRequester? = null,
+    trashNextFocusRequester: FocusRequester? = null,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) {
+    val hoverSource = remember { MutableInteractionSource() }
+    val isHovered by hoverSource.collectIsHoveredAsState()
+    var isTrashFocused by remember { mutableStateOf(false) }
+    val showTrash = isHovered || isContentFocused || isTrashFocused
+    val removeIcon = IntelliJIconKey.fromPlatformIcon(AllIcons.Actions.GC, SpeqaLayout::class.java)
+
+    Box(modifier.hoverable(hoverSource)) {
+        content()
+        Box(
+            Modifier
+                .align(Alignment.TopEnd)
+                .alpha(if (showTrash) 1f else 0f),
+        ) {
+            Tooltip(tooltip = { Text(tooltip) }) {
+                SpeqaIconButton(
+                    focusable = true,
+                    onClick = onDelete,
+                    modifier = Modifier
+                        .then(trashFocusRequester?.let { Modifier.focusRequester(it) } ?: Modifier)
+                        .focusProperties {
+                            if (trashPreviousFocusRequester != null) previous = trashPreviousFocusRequester
+                            if (trashNextFocusRequester != null) next = trashNextFocusRequester
+                        }
+                        .onFocusChanged { isTrashFocused = it.hasFocus },
+                ) {
+                    Icon(
+                        removeIcon,
+                        contentDescription = tooltip,
+                        modifier = Modifier.size(16.dp),
+                        tint = SpeqaThemeColors.destructive,
+                    )
+                }
+            }
+        }
+    }
+}
+
 /**
  * Show hand cursor on hover. Apply to any interactive element —
  * custom clickable areas, wrappers around Jewel components, etc.
@@ -515,6 +564,7 @@ internal fun PlainTextInput(
 ) {
     val focusManager = LocalFocusManager.current
     var isFocused by remember { mutableStateOf(false) }
+    val state = remember { androidx.compose.foundation.text.input.TextFieldState(value) }
     val resolvedMinHeight = if (minHeight > 40) minHeight.dp else SpeqaLayout.controlHeight
     val inputModifier = if (singleLine) {
         modifier.fillMaxWidth().heightIn(min = resolvedMinHeight)
@@ -527,13 +577,29 @@ internal fun PlainTextInput(
             onFocusStateChange?.invoke(focused)
         }
         .onPreviewKeyEvent { event ->
-            if (event.type == KeyEventType.KeyDown && event.key == Key.Tab) {
-                focusManager.moveFocus(if (event.isShiftPressed) FocusDirection.Previous else FocusDirection.Next)
-                true
-            } else false
+            if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+            when (event.key) {
+                Key.Tab -> {
+                    focusManager.moveFocus(if (event.isShiftPressed) FocusDirection.Previous else FocusDirection.Next)
+                    true
+                }
+                Key.Enter -> if (!singleLine) {
+                    val result = ListContinuation.onEnter(
+                        text = state.text.toString(),
+                        cursor = state.selection.start,
+                    )
+                    if (result != null) {
+                        state.edit {
+                            replace(0, length, result.text)
+                            selection = TextRange(result.cursor)
+                        }
+                        true
+                    } else false
+                } else false
+                else -> false
+            }
         }
 
-    val state = remember { androidx.compose.foundation.text.input.TextFieldState(value) }
     val currentValue by androidx.compose.runtime.rememberUpdatedState(value)
     val currentOnValueChange by androidx.compose.runtime.rememberUpdatedState(onValueChange)
 
@@ -602,6 +668,7 @@ internal fun QuietActionText(
     onClick: () -> Unit,
     enabled: Boolean,
     modifier: Modifier = Modifier,
+    icon: IconKey? = null,
     uppercase: Boolean = true,
     previousFocusRequester: FocusRequester? = null,
     nextFocusRequester: FocusRequester? = null,
@@ -640,17 +707,34 @@ internal fun QuietActionText(
             .clickableWithPointer(interactionSource = hoverFocus.interactionSource, enabled = enabled, onClick = onClick)
             .padding(horizontal = 7.dp, vertical = 4.dp),
     ) {
-        Text(
-            if (uppercase) label.uppercase() else label,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.SemiBold,
-            letterSpacing = 0.8.sp,
-            color = when {
-                !enabled -> SpeqaThemeColors.mutedForeground.copy(alpha = 0.45f)
-                hoverFocus.isHovered || hoverFocus.isFocused -> SpeqaThemeColors.foreground
-                else -> SpeqaThemeColors.mutedForeground
-            },
-        )
+        val textColor = when {
+            !enabled -> SpeqaThemeColors.mutedForeground.copy(alpha = 0.45f)
+            hoverFocus.isHovered || hoverFocus.isFocused -> SpeqaThemeColors.foreground
+            else -> SpeqaThemeColors.mutedForeground
+        }
+        if (icon != null) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Icon(icon, contentDescription = null, modifier = Modifier.size(14.dp), tint = textColor)
+                Text(
+                    if (uppercase) label.uppercase() else label,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    letterSpacing = 0.8.sp,
+                    color = textColor,
+                )
+            }
+        } else {
+            Text(
+                if (uppercase) label.uppercase() else label,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+                letterSpacing = 0.8.sp,
+                color = textColor,
+            )
+        }
     }
 }
 

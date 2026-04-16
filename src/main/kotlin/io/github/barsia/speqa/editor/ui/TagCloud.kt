@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -109,113 +110,124 @@ internal fun TagCloud(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(SpeqaLayout.tightGap),
     ) {
-        if (showLabel) {
+        // Header row: label + divider + [+] button
+        if (showLabel || onTagsChange != null) {
             Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(SpeqaLayout.blockPadding),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                SectionLabel(label)
-            }
-        }
-
-        val chipSpacing = SpeqaLayout.tightGap
-        FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(chipSpacing),
-            verticalArrangement = Arrangement.spacedBy(chipSpacing),
-        ) {
-            tags.forEach { tag ->
-                TagChip(
-                    tag = tag,
-                    colored = coloredChips,
-                    onClick = onChipClick?.let { click -> { click(tag) } },
-                    tooltipText = chipTooltip?.invoke(tag),
-                    contextActions = chipContextActions?.invoke(tag).orEmpty(),
+                if (showLabel) {
+                    SectionLabel(label)
+                }
+                Box(
+                    Modifier.weight(1f).height(1.dp).background(SpeqaThemeColors.divider)
                 )
-            }
-
-            if (onTagsChange != null) {
-                var buttonHeightPx by remember { mutableStateOf(0) }
-                val gapPx = with(LocalDensity.current) { chipSpacing.roundToPx() }
-                Box(modifier = Modifier.onGloballyPositioned { buttonHeightPx = it.size.height }) {
-                    var addFocused by remember { mutableStateOf(false) }
-                    val addHoverSource = remember { MutableInteractionSource() }
-                    val addHovered by addHoverSource.collectIsHoveredAsState()
-                    val addBorder = if (addFocused) SpeqaThemeColors.accent else Color.Transparent
-                    val addBg = if (addHovered || addFocused) SpeqaThemeColors.actionHover else Color.Transparent
-                    val addTagDescription = addItemLabel
-                    Box(
-                        modifier = Modifier
-                            .size(24.dp)
-                            .focusRequester(addButtonFocusRequester)
-                            .semantics {
-                                role = Role.Button
-                                contentDescription = addTagDescription
-                            }
-                            .background(addBg, RoundedCornerShape(4.dp))
-                            .border(1.dp, addBorder, RoundedCornerShape(4.dp))
-                            .hoverable(addHoverSource)
-                            .onFocusChanged { addFocused = it.isFocused }
-                            .onPreviewKeyEvent { event ->
-                                if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
-                                when (event.key) {
-                                    Key.Enter, Key.NumPadEnter, Key.Spacebar -> {
+                if (onTagsChange != null) {
+                    var buttonHeightPx by remember { mutableStateOf(0) }
+                    val gapPx = with(LocalDensity.current) { SpeqaLayout.tightGap.roundToPx() }
+                    Box(modifier = Modifier.onGloballyPositioned { buttonHeightPx = it.size.height }) {
+                        var addFocused by remember { mutableStateOf(false) }
+                        val addHoverSource = remember { MutableInteractionSource() }
+                        val addHovered by addHoverSource.collectIsHoveredAsState()
+                        val addBorder = if (addFocused) SpeqaThemeColors.accent else Color.Transparent
+                        val addBg = if (addHovered || addFocused) SpeqaThemeColors.actionHover else Color.Transparent
+                        val addTagDescription = addItemLabel
+                        Tooltip(tooltip = { Text(addItemLabel) }) {
+                            Box(
+                                modifier = Modifier
+                                    .size(24.dp)
+                                    .focusRequester(addButtonFocusRequester)
+                                    .semantics {
+                                        role = Role.Button
+                                        contentDescription = addTagDescription
+                                    }
+                                    .background(addBg, RoundedCornerShape(4.dp))
+                                    .border(1.dp, addBorder, RoundedCornerShape(4.dp))
+                                    .hoverable(addHoverSource)
+                                    .onFocusChanged { addFocused = it.isFocused }
+                                    .onPreviewKeyEvent { event ->
+                                        if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                                        when (event.key) {
+                                            Key.Enter, Key.NumPadEnter, Key.Spacebar -> {
+                                                focusManager.clearFocus()
+                                                isAdding = true
+                                                textFieldState.edit { replace(0, length, "") }
+                                                true
+                                            }
+                                            Key.Tab -> {
+                                                focusManager.moveFocus(if (event.isShiftPressed) FocusDirection.Previous else FocusDirection.Next)
+                                                true
+                                            }
+                                            else -> false
+                                        }
+                                    }
+                                    .handOnHover()
+                                    .clickableWithPointer(focusable = true) {
                                         focusManager.clearFocus()
                                         isAdding = true
                                         textFieldState.edit { replace(0, length, "") }
-                                        true
-                                    }
-                                    Key.Tab -> {
-                                        focusManager.moveFocus(if (event.isShiftPressed) FocusDirection.Previous else FocusDirection.Next)
-                                        true
-                                    }
-                                    else -> false
-                                }
+                                    },
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(
+                                    key = addIcon,
+                                    contentDescription = addItemLabel,
+                                    modifier = Modifier.size(14.dp),
+                                    tint = if (addHovered || addFocused) SpeqaThemeColors.foreground else SpeqaThemeColors.mutedForeground,
+                                )
                             }
-                            .handOnHover()
-                            .clickableWithPointer(focusable = true) {
-                                focusManager.clearFocus()
-                                isAdding = true
-                                textFieldState.edit { replace(0, length, "") }
-                            },
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(
-                            key = addIcon,
-                            contentDescription = addItemLabel,
-                            modifier = Modifier.size(14.dp),
-                            tint = if (addHovered || addFocused) SpeqaThemeColors.foreground else SpeqaThemeColors.mutedForeground,
-                        )
-                    }
+                        }
 
-                    if (isAdding) {
-                        Popup(
-                            offset = androidx.compose.ui.unit.IntOffset(0, buttonHeightPx + gapPx),
-                            onDismissRequest = ::dismissInput,
-                            properties = androidx.compose.ui.window.PopupProperties(focusable = true),
-                        ) {
-                            TagInput(
-                                textFieldState = textFieldState,
-                                allKnownTags = allKnownTags,
-                                currentTags = tags,
-                                onAdd = ::addTag,
-                                onDismiss = ::dismissAndRestoreAnchor,
-                                onTabDismiss = { direction -> dismissAndContinueTraversal(direction) },
-                                placeholder = addItemLabel,
-                            )
+                        if (isAdding) {
+                            Popup(
+                                offset = androidx.compose.ui.unit.IntOffset(0, buttonHeightPx + gapPx),
+                                onDismissRequest = ::dismissInput,
+                                properties = androidx.compose.ui.window.PopupProperties(focusable = true),
+                            ) {
+                                TagInput(
+                                    textFieldState = textFieldState,
+                                    allKnownTags = allKnownTags,
+                                    currentTags = tags,
+                                    onAdd = ::addTag,
+                                    onDismiss = ::dismissAndRestoreAnchor,
+                                    onTabDismiss = { direction -> dismissAndContinueTraversal(direction) },
+                                    placeholder = addItemLabel,
+                                )
+                            }
                         }
                     }
                 }
-            } else if (tags.isEmpty()) {
-                Text(
-                    text = when (label) {
-                        SpeqaBundle.message("label.tags") -> SpeqaBundle.message("label.noTags")
-                        SpeqaBundle.message("label.environment") -> SpeqaBundle.message("label.noEnvironments")
-                        else -> SpeqaBundle.message("label.notSet")
-                    },
-                    color = SpeqaThemeColors.mutedForeground,
-                    fontSize = 13.sp,
-                )
             }
+        }
+
+        // Chips or empty state
+        if (tags.isNotEmpty()) {
+            val chipSpacing = SpeqaLayout.tightGap
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(chipSpacing),
+                verticalArrangement = Arrangement.spacedBy(chipSpacing),
+            ) {
+                tags.forEach { tag ->
+                    TagChip(
+                        tag = tag,
+                        colored = coloredChips,
+                        onClick = onChipClick?.let { click -> { click(tag) } },
+                        tooltipText = chipTooltip?.invoke(tag),
+                        contextActions = chipContextActions?.invoke(tag).orEmpty(),
+                    )
+                }
+            }
+        } else {
+            Text(
+                text = when (label) {
+                    SpeqaBundle.message("label.tags") -> SpeqaBundle.message("label.noTags")
+                    SpeqaBundle.message("label.environment") -> SpeqaBundle.message("label.noEnvironments")
+                    else -> SpeqaBundle.message("label.notSet")
+                },
+                color = SpeqaThemeColors.mutedForeground,
+                fontSize = 13.sp,
+            )
         }
     }
 }
@@ -341,17 +353,31 @@ private fun TagInput(
     Column(
         modifier = Modifier
             .widthIn(min = 140.dp, max = 220.dp)
+            .background(SpeqaThemeColors.surface, RoundedCornerShape(8.dp))
+            .border(1.dp, SpeqaThemeColors.border, RoundedCornerShape(8.dp))
+            .padding(SpeqaLayout.compactGap)
             .onFocusChanged { state ->
                 if (state.hasFocus) wasFocused = true
                 if (!state.hasFocus && wasFocused) onDismiss()
             }
             .focusTarget(),
     ) {
-        org.jetbrains.jewel.ui.component.TextField(
+        var isFieldFocused by remember { mutableStateOf(false) }
+        val fieldBorderColor = if (isFieldFocused) SpeqaThemeColors.accent else SpeqaThemeColors.border
+        androidx.compose.foundation.text.BasicTextField(
             state = textFieldState,
+            textStyle = androidx.compose.ui.text.TextStyle(
+                fontSize = 12.sp,
+                color = SpeqaThemeColors.foreground,
+            ),
+            cursorBrush = androidx.compose.ui.graphics.SolidColor(SpeqaThemeColors.accent),
             modifier = Modifier
                 .fillMaxWidth()
+                .background(SpeqaThemeColors.fieldSurface, RoundedCornerShape(4.dp))
+                .border(1.dp, fieldBorderColor, RoundedCornerShape(4.dp))
+                .padding(horizontal = 8.dp, vertical = 6.dp)
                 .focusRequester(inputFocusRequester)
+                .onFocusChanged { isFieldFocused = it.isFocused }
                 .onPreviewKeyEvent { event ->
                     if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                     when (event.key) {
@@ -386,7 +412,12 @@ private fun TagInput(
                         else -> false
                     }
                 },
-            placeholder = { Text(placeholder, fontSize = 12.sp) },
+            decorator = { innerTextField ->
+                if (textFieldState.text.isEmpty()) {
+                    Text(placeholder, fontSize = 12.sp, color = SpeqaThemeColors.mutedForeground)
+                }
+                innerTextField()
+            },
         )
         if (suggestions.isNotEmpty()) {
             Column(

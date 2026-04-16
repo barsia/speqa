@@ -31,6 +31,7 @@ data class StepLayout(
     val actionAttachmentsRange: TextRange?,
     val expectedRange: TextRange?,
     val expectedAttachmentsRange: TextRange?,
+    val ticketRange: TextRange?,
 )
 
 data class DocumentLayout(
@@ -55,6 +56,7 @@ object DocumentRangeLocator {
     private val STEP_PATTERN = Regex("""^(\d+)\.\s(.*)$""")
     private val EXPECTED_PATTERN = Regex("""^>\s?(.*)$""")
     private val ATTACHMENT_LINE = Regex("""^\[.+]\(.+\)$|^!\[.*]\(.+\)$|^\[.+]$""")
+    private val TICKET_LINE = Regex("""^\s*Ticket:\s*.+$""", RegexOption.IGNORE_CASE)
 
     fun locate(rawText: String): DocumentLayout {
         val text = SpeqaMarkdown.normalizeLineEndings(rawText)
@@ -364,12 +366,22 @@ object DocumentRangeLocator {
             var expectedEnd: Int? = null
             var expectedAttStart: Int? = null
             var expectedAttEnd: Int? = null
+            var ticketStart: Int? = null
+            var ticketEnd: Int? = null
 
             for (i in (stepLine + 1)..lastContentLine) {
                 if (lines[i].isBlank()) continue
                 val trimmed = lines[i].trim()
                 val isExpected = EXPECTED_PATTERN.matches(trimmed)
                 val isAttachment = ATTACHMENT_LINE.matches(trimmed)
+                val isTicket = TICKET_LINE.matches(trimmed)
+
+                if (isTicket) {
+                    ticketStart = lineStarts[i]
+                    ticketEnd = lineStarts.endOfLine(i, text)
+                    phase = "ticket"
+                    continue
+                }
 
                 when (phase) {
                     "action" -> {
@@ -432,6 +444,9 @@ object DocumentRangeLocator {
                 } else null,
                 expectedAttachmentsRange = if (expectedAttStart != null && expectedAttEnd != null) {
                     TextRange(expectedAttStart, expectedAttEnd)
+                } else null,
+                ticketRange = if (ticketStart != null && ticketEnd != null) {
+                    TextRange(ticketStart, ticketEnd)
                 } else null,
             )
         }

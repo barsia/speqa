@@ -491,4 +491,39 @@ class TestCaseSerializerTest {
         )
         assertTrue(result.contains("[f.pdf]\n\nScenario:"))
     }
+
+    @Test
+    fun `step with ticket serializes Ticket line`() {
+        val tc = TestCase(
+            title = "Test",
+            steps = listOf(TestStep(action = "Do something", expected = "Result", ticket = "PROJ-123, PROJ-456")),
+        )
+        val md = TestCaseSerializer.serialize(tc)
+        assertTrue("Should contain Ticket line, got:\n$md", md.contains("   Ticket: PROJ-123, PROJ-456"))
+    }
+
+    @Test
+    fun `step without ticket omits Ticket line`() {
+        val tc = TestCase(
+            title = "Test",
+            steps = listOf(TestStep(action = "Do something", expected = "Result")),
+        )
+        val md = TestCaseSerializer.serialize(tc)
+        assertFalse("Should not contain Ticket, got:\n$md", md.contains("Ticket:"))
+    }
+
+    @Test
+    fun `ticket round-trips through parse and serialize`() {
+        val tc = TestCase(
+            title = "Test",
+            steps = listOf(
+                TestStep(action = "Step one", expected = "Expected one", ticket = "BUG-42"),
+                TestStep(action = "Step two", expected = "Expected two"),
+            ),
+        )
+        val md = TestCaseSerializer.serialize(tc)
+        val parsed = TestCaseParser.parse(md)
+        assertEquals("BUG-42", parsed.steps[0].ticket)
+        assertNull(parsed.steps[1].ticket)
+    }
 }

@@ -22,6 +22,10 @@ class SpeqaSettingsConfigurable(private val project: Project) : Configurable {
     private val statusCombo = JComboBox(Status.entries.toTypedArray())
     private val environmentsField = JTextField(24)
     private val attachmentsFolderField = JTextField(24)
+    private val ticketTrackerCombo = JComboBox(SpeqaSettings.TRACKER_OPTIONS.toTypedArray())
+    private val customTicketUrlField = JTextField(24).apply {
+        toolTipText = "https://your-tracker.example.com/issue/"
+    }
     private var rootPanel: JPanel? = null
 
     override fun getDisplayName(): String = SpeqaBundle.message("settings.Speqa.displayName")
@@ -44,6 +48,16 @@ class SpeqaSettingsConfigurable(private val project: Project) : Configurable {
         addRow(panel, constraints, SpeqaBundle.message("settings.defaultStatus"), statusCombo, SpeqaBundle.message("settings.defaultStatus.comment"))
         addRow(panel, constraints, SpeqaBundle.message("settings.defaultEnvironments"), environmentsField, SpeqaBundle.message("settings.defaultEnvironments.comment"))
         addRow(panel, constraints, SpeqaBundle.message("settings.defaultAttachmentsFolder"), attachmentsFolderField, SpeqaBundle.message("settings.defaultAttachmentsFolder.comment"))
+        val ticketRow = JPanel(java.awt.FlowLayout(java.awt.FlowLayout.LEFT, 8, 0)).apply {
+            add(ticketTrackerCombo)
+            add(customTicketUrlField)
+        }
+        ticketTrackerCombo.addActionListener {
+            val isCustom = ticketTrackerCombo.selectedItem == SpeqaSettings.TRACKER_CUSTOM
+            customTicketUrlField.isVisible = isCustom
+            ticketRow.revalidate()
+        }
+        addRow(panel, constraints, SpeqaBundle.message("settings.ticketTracker"), ticketRow, SpeqaBundle.message("settings.ticketTracker.comment"))
 
         rootPanel = JPanel(BorderLayout()).apply { add(panel, BorderLayout.NORTH) }
         reset()
@@ -54,7 +68,9 @@ class SpeqaSettingsConfigurable(private val project: Project) : Configurable {
         return priorityCombo.selectedItem != settings.defaultPriority ||
             statusCombo.selectedItem != settings.defaultStatus ||
             environmentsField.text != settings.defaultEnvironments.joinToString(", ") ||
-            attachmentsFolderField.text != settings.defaultAttachmentsFolder
+            attachmentsFolderField.text != settings.defaultAttachmentsFolder ||
+            ticketTrackerCombo.selectedItem != settings.ticketTracker ||
+            customTicketUrlField.text != settings.customTicketUrl
     }
 
     override fun apply() {
@@ -65,6 +81,8 @@ class SpeqaSettingsConfigurable(private val project: Project) : Configurable {
             .map { it.trim() }
             .filter { it.isNotEmpty() }
         settings.defaultAttachmentsFolder = attachmentsFolderField.text.trim().ifEmpty { SpeqaSettings.DEFAULT_ATTACHMENTS_FOLDER }
+        settings.ticketTracker = ticketTrackerCombo.selectedItem as? String ?: SpeqaSettings.TRACKER_YOUTRACK
+        settings.customTicketUrl = customTicketUrlField.text.trim()
     }
 
     override fun reset() {
@@ -72,6 +90,9 @@ class SpeqaSettingsConfigurable(private val project: Project) : Configurable {
         statusCombo.selectedItem = settings.defaultStatus
         environmentsField.text = settings.defaultEnvironments.joinToString(", ")
         attachmentsFolderField.text = settings.defaultAttachmentsFolder
+        ticketTrackerCombo.selectedItem = settings.ticketTracker
+        customTicketUrlField.text = settings.customTicketUrl
+        customTicketUrlField.isVisible = settings.ticketTracker == SpeqaSettings.TRACKER_CUSTOM
     }
 
     override fun disposeUIResources() {
@@ -103,6 +124,9 @@ class SpeqaSettingsConfigurable(private val project: Project) : Configurable {
         val commentConstraints = constraints.clone() as GridBagConstraints
         commentConstraints.gridx = 1
         commentConstraints.gridy = row + 1
+        commentConstraints.weightx = 1.0
+        commentConstraints.anchor = GridBagConstraints.WEST
+        commentConstraints.fill = GridBagConstraints.NONE
         commentConstraints.insets = Insets(0, 0, 10, 0)
         panel.add(JLabel("<html><span style='color:#808080'>$comment</span></html>"), commentConstraints)
 

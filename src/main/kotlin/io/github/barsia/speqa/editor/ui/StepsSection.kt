@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.mutableFloatStateOf
@@ -56,10 +57,14 @@ internal fun StepsSection(
     val stepExpectedReverseEntryFocusRequesters = remember(testCase.steps.size) {
         List(testCase.steps.size) { FocusRequester() }
     }
-    val stepActionReverseEntryFocusRequesters = remember(testCase.steps.size) {
-        List(testCase.steps.size) { FocusRequester() }
-    }
     val addStepFocusRequester = remember { FocusRequester() }
+    var pendingAddStepFocus by remember { mutableStateOf(false) }
+    LaunchedEffect(pendingAddStepFocus) {
+        if (pendingAddStepFocus) {
+            addStepFocusRequester.requestFocus()
+            pendingAddStepFocus = false
+        }
+    }
 
     fun onDragEnd() {
         val fromIndex = draggedIndex
@@ -144,6 +149,12 @@ internal fun StepsSection(
                             onDelete = {
                                 val tc = currentTestCase
                                 currentOnPatch(tc.copy(steps = tc.steps.filterIndexed { current, _ -> current != index }), PatchOperation.DeleteStep(index))
+                                val remaining = tc.steps.size - 1
+                                if (remaining > 0) {
+                                    onFocusRequestStepIndexChange((index - 1).coerceAtLeast(0))
+                                } else {
+                                    pendingAddStepFocus = true
+                                }
                             },
                             actionAttachments = step.actionAttachments,
                             expectedAttachments = step.expectedAttachments,
@@ -157,6 +168,12 @@ internal fun StepsSection(
                                 val s = tc.steps.getOrNull(index) ?: return@StepCard
                                 currentOnPatch(tc.copy(steps = tc.steps.updated(index, s.copy(expectedAttachments = newAttachments))), PatchOperation.SetStepExpectedAttachments(index, newAttachments))
                             },
+                            ticket = step.ticket,
+                            onTicketChange = { newTicket ->
+                                val tc = currentTestCase
+                                val s = tc.steps.getOrNull(index) ?: return@StepCard
+                                currentOnPatch(tc.copy(steps = tc.steps.updated(index, s.copy(ticket = newTicket))), PatchOperation.SetStepTicket(index, newTicket))
+                            },
                             project = project,
                             tcFile = tcFile,
                             onOpenFile = { attachment ->
@@ -168,11 +185,9 @@ internal fun StepsSection(
                             },
                             attachmentRevision = attachmentRevision,
                             actionFocusRequester = stepActionFocusRequesters[index],
-                            actionReverseEntryFocusRequester = stepActionReverseEntryFocusRequesters[index],
                             previousActionFocusRequester = when {
                                 index == 0 -> null
-                                testCase.steps[index - 1].expected != null -> stepExpectedReverseEntryFocusRequesters[index - 1]
-                                else -> stepActionReverseEntryFocusRequesters[index - 1]
+                                else -> stepExpectedReverseEntryFocusRequesters[index - 1]
                             },
                             nextExpectedExitFocusRequester = stepActionFocusRequesters.getOrNull(index + 1) ?: addStepFocusRequester,
                             expectedReverseEntryFocusRequester = stepExpectedReverseEntryFocusRequesters[index],

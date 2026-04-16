@@ -1,7 +1,18 @@
 package io.github.barsia.speqa.editor.ui
 
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -9,6 +20,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.key
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.mutableFloatStateOf
@@ -45,10 +59,20 @@ internal fun StepsSection(
     onFocusRequestStepIndexChange: (Int) -> Unit = {},
     onStepDragActiveChange: (Boolean) -> Unit = {},
     attachmentRevision: Long = 0L,
+    scrollState: ScrollState? = null,
+    viewportBounds: () -> Rect? = { null },
 ) {
     var draggedIndex by remember { mutableStateOf(-1) }
     var dragOffsetY by remember { mutableFloatStateOf(0f) }
     var itemHeights by remember { mutableStateOf(mapOf<Int, Int>()) }
+    // Plain (non-observable) map — read each frame from the auto-scroll LaunchedEffect.
+    // `onGloballyPositioned` fires only on layout, not on `graphicsLayer.translationY`
+    // changes, so we must hold a live LayoutCoordinates handle for every item (not just
+    // the dragged one) so that when drag starts we already have its handle.
+    val itemCoordinates = remember(testCase.steps.size) { mutableMapOf<Int, LayoutCoordinates>() }
+    val density = LocalDensity.current
+    val edgeZonePx = with(density) { DragAutoScroll.DEFAULT_EDGE_ZONE_DP.dp.toPx() }
+    val maxSpeedPxPerFrame = with(density) { DragAutoScroll.DEFAULT_MAX_SPEED_DP_PER_FRAME.dp.toPx() }
     val currentTestCase by rememberUpdatedState(testCase)
     val currentOnPatch by rememberUpdatedState(onPatch)
     val stepActionFocusRequesters = remember(testCase.steps.size) {
@@ -63,6 +87,35 @@ internal fun StepsSection(
         if (pendingAddStepFocus) {
             addStepFocusRequester.requestFocus()
             pendingAddStepFocus = false
+        }
+    }
+
+    LaunchedEffect(draggedIndex) {
+        if (draggedIndex < 0) return@LaunchedEffect
+        val state = scrollState ?: return@LaunchedEffect
+        while (true) {
+            withFrameNanos { }
+            if (draggedIndex < 0) break
+            val itemBounds = itemCoordinates[draggedIndex]
+                ?.takeIf { it.isAttached }
+                ?.boundsInWindow()
+                ?: continue
+            val viewport = viewportBounds() ?: continue
+            // `boundsInWindow()` returns layout bounds — `graphicsLayer.translationY`
+            // (the drag offset) is NOT reflected there. Add it manually to get visual Y.
+            val delta = DragAutoScroll.computeScrollDelta(
+                itemTop = itemBounds.top + dragOffsetY,
+                itemBottom = itemBounds.bottom + dragOffsetY,
+                viewportTop = viewport.top,
+                viewportBottom = viewport.bottom,
+                edgeZonePx = edgeZonePx,
+                maxSpeedPxPerFrame = maxSpeedPxPerFrame,
+            )
+            if (delta == 0f) continue
+            val consumed = state.scrollBy(delta)
+            if (consumed != 0f) {
+                dragOffsetY += consumed
+            }
         }
     }
 
@@ -97,20 +150,54 @@ internal fun StepsSection(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(SpeqaThemeColors.blockSurface, RoundedCornerShape(SpeqaLayout.blockRadius))
-                    .padding(start = 0.dp, top = SpeqaLayout.blockPadding, end = 0.dp, bottom = SpeqaLayout.blockPadding),
+                    .padding(start = 0.dp, top = 0.dp, end = 0.dp, bottom = SpeqaLayout.blockPadding),
                 verticalArrangement = Arrangement.spacedBy(SpeqaLayout.blockGap),
             ) {
                 val dropTargetIndex = if (draggedIndex >= 0) {
                     calculateTargetIndex(draggedIndex, dragOffsetY, itemHeights, testCase.steps.size)
                 } else -1
+                // Inter-step layout in the Column: Arrangement.spacedBy(blockGap) + 1dp
+                // SurfaceDivider between boxes — so the distance from one step's top to the
+                // next step's top is (itemHeight + 2*blockGap + 1dp). Neighbours must shift by
+                // exactly that much to fully close the dragged item's slot; anything less
+                // leaves a visible residual gap around the dragged item's former bottom border.
+                val blockGapPx = with(density) { SpeqaLayout.blockGap.toPx() }
+                val dividerPx = with(density) { 1.dp.toPx() }
+                val interStepPaddingPx = 2f * blockGapPx + dividerPx
+                val draggedSlotHeight = if (draggedIndex >= 0) {
+                    (itemHeights[draggedIndex] ?: 0) + interStepPaddingPx
+                } else 0f
 
                 testCase.steps.forEachIndexed { index, step ->
+                 key(System.identityHashCode(step)) {
                     val isDragging = draggedIndex == index
                     val isDropTarget = draggedIndex >= 0 && index == dropTargetIndex && index != draggedIndex
+                    val shiftTarget = when {
+                        isDragging || draggedIndex < 0 -> 0f
+                        // Dragging down: items in (draggedIndex, dropTargetIndex] move up.
+                        dropTargetIndex > draggedIndex && index in (draggedIndex + 1)..dropTargetIndex -> -draggedSlotHeight
+                        // Dragging up: items in [dropTargetIndex, draggedIndex) move down.
+                        dropTargetIndex < draggedIndex && index in dropTargetIndex until draggedIndex -> draggedSlotHeight
+                        else -> 0f
+                    }
+                    val springShift by animateFloatAsState(
+                        targetValue = shiftTarget,
+                        animationSpec = spring(
+                            dampingRatio = Spring.DampingRatioNoBouncy,
+                            stiffness = Spring.StiffnessMediumLow,
+                        ),
+                        label = "stepReorderShift",
+                    )
+                    // Bypass the spring as soon as the drag ends. `animateFloatAsState` snaps
+                    // to the new target only on the next frame, which otherwise flashes the
+                    // pre-reorder shifted position for one frame before settling. Reading 0
+                    // directly when there is no drag avoids that frame entirely.
+                    val animatedShift = if (draggedIndex < 0) 0f else springShift
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
                             .onGloballyPositioned { coordinates ->
+                                itemCoordinates[index] = coordinates
                                 if (draggedIndex >= 0) return@onGloballyPositioned
                                 val h = coordinates.size.height
                                 if (itemHeights[index] != h) {
@@ -118,18 +205,44 @@ internal fun StepsSection(
                                 }
                             }
                             .graphicsLayer {
-                                translationY = if (isDragging) dragOffsetY else 0f
+                                translationY = if (isDragging) dragOffsetY else animatedShift
                                 alpha = if (isDragging) 0.7f else 1f
                             }
                             .drawWithContent {
+                                drawContent()
                                 if (isDropTarget) {
+                                    // Keep the drop-box anchored to the final landing screen
+                                    // position through the whole shift animation — otherwise it
+                                    // appears to slide in from outside as `animatedShift` ramps up.
+                                    //
+                                    // Landing position (= dropped item's layoutTop after reorder):
+                                    //  - drag UP:   landingY = dropTarget.layoutTop
+                                    //  - drag DOWN: landingY = dropTarget.layoutTop + (dropTargetH − draggedH)
+                                    //
+                                    // `drawWithContent` runs inside `graphicsLayer { translationY = animatedShift }`,
+                                    // so screenY = layoutTop + animatedShift + localY. Cancel the
+                                    // `animatedShift` term to keep localY independent of the animation.
+                                    val draggingDown = dropTargetIndex > draggedIndex
+                                    val draggedHeightPx = (itemHeights[draggedIndex] ?: 0).toFloat()
+                                    val yOffset = if (draggingDown) {
+                                        size.height - draggedHeightPx - animatedShift
+                                    } else {
+                                        -animatedShift
+                                    }
+                                    val slotSize = Size(size.width, draggedHeightPx)
+                                    val slotTopLeft = Offset(0f, yOffset)
+                                    drawRect(
+                                        color = SpeqaThemeColors.dropTarget.copy(alpha = 0.18f),
+                                        topLeft = slotTopLeft,
+                                        size = slotSize,
+                                    )
                                     drawRect(
                                         color = SpeqaThemeColors.dropTarget,
-                                        topLeft = androidx.compose.ui.geometry.Offset(0f, -4f),
-                                        size = androidx.compose.ui.geometry.Size(size.width, 4f),
+                                        topLeft = slotTopLeft,
+                                        size = slotSize,
+                                        style = Stroke(width = 2f),
                                     )
                                 }
-                                drawContent()
                             },
                     ) {
                         StepCard(
@@ -203,8 +316,9 @@ internal fun StepsSection(
                         )
                     }
                     if (index < testCase.steps.lastIndex) {
-                        SurfaceDivider()
+                        SurfaceDivider(visible = draggedIndex < 0)
                     }
+                 }
                 }
 
                 QuietActionText(
@@ -236,14 +350,20 @@ private fun calculateTargetIndex(
     val absOffset = abs(offsetY)
     var accumulated = 0f
 
+    // Fraction of the adjacent step's height that must be crossed before the drop-target
+    // flips to the next slot. 0.5 = midpoint (original snappy behaviour). Higher values make
+    // the current target "stickier" — the user has to commit further into the next slot
+    // before it takes over, which prevents accidental target flips from small overshoots.
+    val commitFraction = 0.7f
+
     var i = fromIndex
     while (if (direction > 0) i < totalItems - 1 else i > 0) {
         val nextIndex = i + direction
         val nextHeight = heights[nextIndex] ?: 100
-        accumulated += nextHeight / 2f
+        accumulated += nextHeight * commitFraction
         if (absOffset > accumulated) {
             target = nextIndex
-            accumulated += nextHeight / 2f
+            accumulated += nextHeight * (1f - commitFraction)
         } else {
             break
         }

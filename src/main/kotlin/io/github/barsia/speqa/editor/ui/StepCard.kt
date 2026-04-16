@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -110,9 +111,23 @@ fun StepCard(
 ) {
     val dragHandleIcon = IntelliJIconKey("/icons/dragHandle.svg", "/icons/dragHandle.svg", iconClass = SpeqaLayout::class.java)
     val resolvedActionFocusRequester = actionFocusRequester ?: remember { FocusRequester() }
-    val stepTrashFocusRequester = remember { FocusRequester() }
     val expectedForwardEntryFocusRequester = remember { FocusRequester() }
-    val expectedTrashFocusRequester = remember { FocusRequester() }
+    val deleteStepAction: () -> Unit = {
+        if (!expected.isNullOrBlank()) {
+            val result = Messages.showOkCancelDialog(
+                SpeqaBundle.message("dialog.deleteStep.message"),
+                SpeqaBundle.message("dialog.deleteStep.title"),
+                Messages.getOkButton(),
+                Messages.getCancelButton(),
+                Messages.getWarningIcon(),
+            )
+            if (result == Messages.OK) onDelete()
+        } else {
+            onDelete()
+        }
+    }
+    val deleteIcon: javax.swing.Icon = AllIcons.Actions.GC
+    val stepContextMenuItems = { listOf(IconMenuItem(SpeqaBundle.message("tooltip.deleteStep"), deleteIcon, deleteStepAction)) }
     var pendingExpectedFocus by remember { mutableStateOf(false) }
     var pendingExpectedButtonFocus by remember { mutableStateOf(false) }
     LaunchedEffect(pendingExpectedButtonFocus) {
@@ -146,93 +161,72 @@ fun StepCard(
     // Always on AddAttachmentButton — the last focusable element in the step
     val resolvedExpectedAttachFocusRequester = expectedReverseEntryFocusRequester ?: expectedAttachFocusRequester
 
-    Row(
+    val expectedIcon = IntelliJIconKey.fromPlatformIcon(AllIcons.RunConfigurations.TestCustom, SpeqaLayout::class.java)
+    val gutterWidth = SpeqaLayout.stepNumberColumnWidth
+    val gutterGap = 4.dp
+
+    Column(
         modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-        verticalAlignment = Alignment.Top,
+        verticalArrangement = Arrangement.spacedBy(SpeqaLayout.compactGap),
     ) {
-        // Left column: step number + drag handle
-        Column(
-            modifier = Modifier
-                .width(SpeqaLayout.stepNumberColumnWidth)
-                .padding(top = 1.dp),
-            horizontalAlignment = Alignment.Start,
-            verticalArrangement = Arrangement.spacedBy(4.dp),
+        // === Action row: gutter(number + drag) | action field ===
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(gutterGap),
+            verticalAlignment = Alignment.Top,
         ) {
-            Text(
-                text = (index + 1).toString().padStart(2, '0'),
-                color = SpeqaThemeColors.mutedForeground,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold,
-                letterSpacing = 0.6.sp,
-            )
-            Tooltip(tooltip = { Text(SpeqaBundle.message("tooltip.dragToReorder")) }) {
-                Icon(
-                    dragHandleIcon,
-                    contentDescription = SpeqaBundle.message("tooltip.dragToReorder"),
-                    modifier = Modifier
-                        .size(16.dp)
-                        .semantics { role = Role.Button }
-                        .handOnHover()
-                        .pointerInput(index) {
-                            detectVerticalDragGestures(
-                                onDragStart = { onDragStart() },
-                                onDragEnd = { onDragEnd() },
-                                onDragCancel = { onDragEnd() },
-                                onVerticalDrag = { _, dragAmount -> onDrag(dragAmount) },
-                            )
-                        },
-                    tint = SpeqaThemeColors.mutedForeground,
+            Column(
+                modifier = Modifier
+                    .width(gutterWidth)
+                    .padding(top = 1.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                Text(
+                    text = (index + 1).toString().padStart(2, '0'),
+                    color = SpeqaThemeColors.mutedForeground,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    letterSpacing = 0.6.sp,
                 )
+                Tooltip(tooltip = { Text(SpeqaBundle.message("tooltip.dragToReorder")) }) {
+                    Icon(
+                        dragHandleIcon,
+                        contentDescription = SpeqaBundle.message("tooltip.dragToReorder"),
+                        modifier = Modifier
+                            .size(16.dp)
+                            .semantics { role = Role.Button }
+                            .handOnHover()
+                            .contextMenuWithIcon(items = stepContextMenuItems)
+                            .pointerInput(index) {
+                                detectVerticalDragGestures(
+                                    onDragStart = { onDragStart() },
+                                    onDragEnd = { onDragEnd() },
+                                    onDragCancel = { onDragEnd() },
+                                    onVerticalDrag = { _, dragAmount -> onDrag(dragAmount) },
+                                )
+                            },
+                        tint = SpeqaThemeColors.mutedForeground,
+                    )
+                }
             }
+            PlainTextInput(
+                value = action,
+                onValueChange = onActionChange,
+                placeholder = SpeqaBundle.message("placeholder.action"),
+                modifier = Modifier
+                    .weight(1f)
+                    .focusRequester(resolvedActionFocusRequester)
+                    .focusProperties {
+                        previous = previousActionFocusRequester ?: FocusRequester.Default
+                        next = expectedForwardEntryFocusRequester
+                    },
+                singleLine = false,
+            )
         }
 
-        // Main column: flat layout, all content at same indent
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(SpeqaLayout.compactGap),
-        ) {
-            // === 1. Action area with overlay trash ===
-            var isActionFocused by remember { mutableStateOf(false) }
-            DeletableArea(
-                onDelete = {
-                    if (!expected.isNullOrBlank()) {
-                        val result = Messages.showOkCancelDialog(
-                            SpeqaBundle.message("dialog.deleteStep.message"),
-                            SpeqaBundle.message("dialog.deleteStep.title"),
-                            Messages.getOkButton(),
-                            Messages.getCancelButton(),
-                            Messages.getWarningIcon(),
-                        )
-                        if (result == Messages.OK) onDelete()
-                    } else {
-                        onDelete()
-                    }
-                },
-                tooltip = SpeqaBundle.message("tooltip.deleteStep"),
-                isContentFocused = isActionFocused,
-                trashFocusRequester = stepTrashFocusRequester,
-                trashPreviousFocusRequester = resolvedActionFocusRequester,
-                trashNextFocusRequester = expectedForwardEntryFocusRequester,
-            ) {
-                PlainTextInput(
-                    value = action,
-                    onValueChange = onActionChange,
-                    placeholder = SpeqaBundle.message("placeholder.action"),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .focusRequester(resolvedActionFocusRequester)
-                        .onFocusChanged { isActionFocused = it.isFocused }
-                        .focusProperties {
-                            previous = previousActionFocusRequester ?: FocusRequester.Default
-                            next = stepTrashFocusRequester
-                        },
-                    singleLine = false,
-                )
-            }
-
-            // === 2. Action attachments ===
-            if (project != null && tcFile != null && actionAttachments.isNotEmpty()) {
+        // === Action attachments (indented) ===
+        if (project != null && tcFile != null && actionAttachments.isNotEmpty()) {
+            Box(modifier = Modifier.padding(start = gutterWidth + gutterGap)) {
                 AttachmentList(
                     attachments = actionAttachments,
                     project = project,
@@ -243,9 +237,45 @@ fun StepCard(
                     attachmentRevision = attachmentRevision,
                 )
             }
+        }
 
-            // === Slot 1: Expected ===
-            // Always present — shows field or add button, never disappears
+        // === Expected row: gutter(icon) | expected field/button ===
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(gutterGap),
+            verticalAlignment = Alignment.Top,
+        ) {
+            Box(
+                modifier = Modifier
+                    .width(gutterWidth)
+                    .padding(top = 1.dp),
+                contentAlignment = Alignment.TopCenter,
+            ) {
+                if (expected != null) {
+                    Tooltip(tooltip = { Text(SpeqaBundle.message("tooltip.expectedContextMenu")) }) {
+                        Icon(
+                            expectedIcon,
+                            contentDescription = SpeqaBundle.message("label.expectedResult"),
+                            modifier = Modifier
+                                .size(16.dp)
+                                .handOnHover()
+                                .contextMenuWithIcon(items = {
+                                    listOf(IconMenuItem(SpeqaBundle.message("tooltip.deleteExpected"), deleteIcon) {
+                                        pendingExpectedButtonFocus = true
+                                        onExpectedChange(null)
+                                    })
+                                }),
+                            tint = SpeqaThemeColors.mutedForeground,
+                        )
+                    }
+                } else {
+                    Icon(
+                        expectedIcon,
+                        contentDescription = SpeqaBundle.message("label.expectedResult"),
+                        modifier = Modifier.size(16.dp),
+                        tint = SpeqaThemeColors.mutedForeground,
+                    )
+                }
+            }
             if (expected != null) {
                 val expectedFieldFocusRequester = remember { FocusRequester() }
                 LaunchedEffect(pendingExpectedFocus) {
@@ -254,45 +284,24 @@ fun StepCard(
                         pendingExpectedFocus = false
                     }
                 }
-                var isExpectedFocused by remember { mutableStateOf(false) }
-                Column(verticalArrangement = Arrangement.spacedBy(SpeqaLayout.tightGap)) {
-                    Text(
-                        SpeqaBundle.message("label.expectedResult"),
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = SpeqaThemeColors.mutedForeground,
-                    )
-                    DeletableArea(
-                        onDelete = {
-                            pendingExpectedButtonFocus = true
-                            onExpectedChange(null)
+                PlainTextInput(
+                    value = expected,
+                    onValueChange = { onExpectedChange(it) },
+                    placeholder = SpeqaBundle.message("placeholder.expected"),
+                    modifier = Modifier
+                        .weight(1f)
+                        .focusRequester(expectedFieldFocusRequester)
+                        .focusRequester(expectedForwardEntryFocusRequester)
+                        .focusProperties {
+                            previous = resolvedActionFocusRequester
+                            next = ticketTextFocusRequester
                         },
-                        tooltip = SpeqaBundle.message("tooltip.deleteExpected"),
-                        isContentFocused = isExpectedFocused,
-                        trashFocusRequester = expectedTrashFocusRequester,
-                        trashPreviousFocusRequester = expectedForwardEntryFocusRequester,
-                        trashNextFocusRequester = ticketTextFocusRequester,
-                    ) {
-                        PlainTextInput(
-                            value = expected,
-                            onValueChange = { onExpectedChange(it) },
-                            placeholder = SpeqaBundle.message("placeholder.expected"),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .focusRequester(expectedFieldFocusRequester)
-                                .focusRequester(expectedForwardEntryFocusRequester)
-                                .onFocusChanged { isExpectedFocused = it.isFocused }
-                                .focusProperties {
-                                    previous = stepTrashFocusRequester
-                                    next = expectedTrashFocusRequester
-                                },
-                            singleLine = false,
-                        )
-                    }
-                }
+                    singleLine = false,
+                )
             } else {
                 QuietActionText(
                     label = SpeqaBundle.message("form.addExpected"),
+                    icon = expectedIcon,
                     onClick = {
                         pendingExpectedFocus = true
                         onExpectedChange("")
@@ -300,111 +309,110 @@ fun StepCard(
                     enabled = true,
                     modifier = Modifier
                         .focusRequester(expectedForwardEntryFocusRequester)
-                        // Only attach reverse entry here if there's no ticket+attach row below
                         .then(if (project == null || tcFile == null) {
                             expectedReverseEntryFocusRequester?.let { Modifier.focusRequester(it) } ?: Modifier
                         } else Modifier),
-                    previousFocusRequester = stepTrashFocusRequester,
+                    previousFocusRequester = resolvedActionFocusRequester,
                     nextFocusRequester = ticketTextFocusRequester,
                 )
             }
+        }
 
-            // === Ticket + Attachments row (side by side) ===
-            if (project != null && tcFile != null) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(SpeqaLayout.compactGap),
-                    verticalAlignment = Alignment.Top,
-                ) {
-                    // Left column: Ticket slot
-                    Column(modifier = Modifier.weight(1f)) {
-                        if (!ticket.isNullOrBlank() || isTicketEditing) {
-                            TicketRow(
-                                ticket = ticket.orEmpty(),
-                                project = project,
-                                isEditing = isTicketEditing,
-                                onTicketCommit = { value ->
-                                    val normalized = value
-                                        .split(Regex("[,;\\s]+"))
-                                        .filter { it.isNotBlank() }
-                                        .joinToString(", ")
-                                    onTicketChange(normalized.ifBlank { null })
-                                    isTicketEditing = false
-                                },
-                                onCancel = { isTicketEditing = false },
-                                onEditToggle = { isTicketEditing = !isTicketEditing },
-                                textFocusRequester = ticketTextFocusRequester,
-                                pencilFocusRequester = ticketFocusRequester,
-                                previousFocusRequester = if (expected != null) expectedTrashFocusRequester else expectedForwardEntryFocusRequester,
-                                // pencil → first attachment row if exists, else add button, else next step
-                                nextFocusRequester = expectedAttachmentPrimaryFocusRequesters.firstOrNull()
-                                    ?: resolvedExpectedAttachFocusRequester,
-                            )
-                        } else {
-                            TicketLinkButton(
-                                onClick = { isTicketEditing = true },
-                                modifier = Modifier
-                                    .focusRequester(ticketTextFocusRequester)
-                                    .focusProperties {
-                                        previous = if (expected != null) expectedTrashFocusRequester else expectedForwardEntryFocusRequester
-                                        next = expectedAttachmentPrimaryFocusRequesters.firstOrNull()
-                                            ?: resolvedExpectedAttachFocusRequester
-                                    },
-                            )
-                        }
-                    }
-
-                    // Right column: Attachments slot (right-aligned)
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        horizontalAlignment = Alignment.End,
-                    ) {
-                        // Chain: ticket → att[0].primary → att[0].delete → att[1].primary → ... → addButton → next step
-                        val lastTicketRequester = if (!ticket.isNullOrBlank()) ticketFocusRequester else ticketTextFocusRequester
-                        expectedAttachments.forEachIndexed { attachmentIndex, attachment ->
-                            val missing = AttachmentSupport.resolveFile(project, tcFile, attachment) == null
-                            AttachmentRow(
-                                attachment = attachment,
-                                onClick = { onOpenFile(attachment) },
-                                onDelete = {
-                                    onExpectedAttachmentsChange(expectedAttachments - attachment)
-                                },
-                                isMissing = missing,
-                                onRelink = null,
-                                compact = true,
-                                actionModifier = Modifier
-                                    .focusRequester(expectedAttachmentPrimaryFocusRequesters[attachmentIndex])
-                                    .focusProperties {
-                                        previous = if (attachmentIndex == 0) {
-                                            lastTicketRequester
-                                        } else {
-                                            expectedAttachmentDeleteFocusRequesters[attachmentIndex - 1]
-                                        }
-                                        next = expectedAttachmentDeleteFocusRequesters[attachmentIndex]
-                                    },
-                                deleteModifier = Modifier
-                                    .focusRequester(expectedAttachmentDeleteFocusRequesters[attachmentIndex])
-                                    .focusProperties {
-                                        previous = expectedAttachmentPrimaryFocusRequesters[attachmentIndex]
-                                        next = expectedAttachmentPrimaryFocusRequesters.getOrNull(attachmentIndex + 1)
-                                            ?: resolvedExpectedAttachFocusRequester
-                                    },
-                            )
-                        }
-                        AddAttachmentButton(
-                            project,
-                            tcFile,
-                            expectedAttachments,
-                            onExpectedAttachmentsChange,
+        // === Ticket + Attachments row (indented, side by side) ===
+        if (project != null && tcFile != null) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = gutterWidth + gutterGap),
+                horizontalArrangement = Arrangement.spacedBy(SpeqaLayout.compactGap),
+                verticalAlignment = Alignment.Top,
+            ) {
+                // Left column: Ticket slot
+                Column(modifier = Modifier.weight(1f)) {
+                    if (!ticket.isNullOrBlank() || isTicketEditing) {
+                        TicketRow(
+                            ticket = ticket.orEmpty(),
+                            project = project,
+                            isEditing = isTicketEditing,
+                            onTicketCommit = { value ->
+                                val normalized = value
+                                    .split(Regex("[,;\\s]+"))
+                                    .filter { it.isNotBlank() }
+                                    .joinToString(", ")
+                                onTicketChange(normalized.ifBlank { null })
+                                isTicketEditing = false
+                            },
+                            onCancel = { isTicketEditing = false },
+                            onEditToggle = { isTicketEditing = !isTicketEditing },
+                            textFocusRequester = ticketTextFocusRequester,
+                            pencilFocusRequester = ticketFocusRequester,
+                            previousFocusRequester = expectedForwardEntryFocusRequester,
+                            nextFocusRequester = expectedAttachmentPrimaryFocusRequesters.firstOrNull()
+                                ?: resolvedExpectedAttachFocusRequester,
+                        )
+                    } else {
+                        TicketLinkButton(
+                            onClick = { isTicketEditing = true },
                             modifier = Modifier
-                                .focusRequester(resolvedExpectedAttachFocusRequester)
+                                .focusRequester(ticketTextFocusRequester)
                                 .focusProperties {
-                                    previous = expectedAttachmentDeleteFocusRequesters.lastOrNull()
-                                        ?: lastTicketRequester
-                                    next = nextExpectedExitFocusRequester ?: FocusRequester.Default
+                                    previous = expectedForwardEntryFocusRequester
+                                    next = expectedAttachmentPrimaryFocusRequesters.firstOrNull()
+                                        ?: resolvedExpectedAttachFocusRequester
                                 },
                         )
                     }
+                }
+
+                // Right column: Attachments slot (right-aligned)
+                Column(
+                    modifier = Modifier.weight(1f),
+                    horizontalAlignment = Alignment.End,
+                ) {
+                    val lastTicketRequester = if (!ticket.isNullOrBlank()) ticketFocusRequester else ticketTextFocusRequester
+                    expectedAttachments.forEachIndexed { attachmentIndex, attachment ->
+                        val missing = AttachmentSupport.resolveFile(project, tcFile, attachment) == null
+                        AttachmentRow(
+                            attachment = attachment,
+                            onClick = { onOpenFile(attachment) },
+                            onDelete = {
+                                onExpectedAttachmentsChange(expectedAttachments - attachment)
+                            },
+                            isMissing = missing,
+                            onRelink = null,
+                            compact = true,
+                            actionModifier = Modifier
+                                .focusRequester(expectedAttachmentPrimaryFocusRequesters[attachmentIndex])
+                                .focusProperties {
+                                    previous = if (attachmentIndex == 0) {
+                                        lastTicketRequester
+                                    } else {
+                                        expectedAttachmentDeleteFocusRequesters[attachmentIndex - 1]
+                                    }
+                                    next = expectedAttachmentDeleteFocusRequesters[attachmentIndex]
+                                },
+                            deleteModifier = Modifier
+                                .focusRequester(expectedAttachmentDeleteFocusRequesters[attachmentIndex])
+                                .focusProperties {
+                                    previous = expectedAttachmentPrimaryFocusRequesters[attachmentIndex]
+                                    next = expectedAttachmentPrimaryFocusRequesters.getOrNull(attachmentIndex + 1)
+                                        ?: resolvedExpectedAttachFocusRequester
+                                },
+                        )
+                    }
+                    AddAttachmentButton(
+                        project,
+                        tcFile,
+                        expectedAttachments,
+                        onExpectedAttachmentsChange,
+                        modifier = Modifier
+                            .focusRequester(resolvedExpectedAttachFocusRequester)
+                            .focusProperties {
+                                previous = expectedAttachmentDeleteFocusRequesters.lastOrNull()
+                                    ?: lastTicketRequester
+                                next = nextExpectedExitFocusRequester ?: FocusRequester.Default
+                            },
+                    )
                 }
             }
         }

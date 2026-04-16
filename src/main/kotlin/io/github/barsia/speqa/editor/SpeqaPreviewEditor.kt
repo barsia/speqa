@@ -40,7 +40,7 @@ class SpeqaPreviewEditor(
     private val project: Project,
     private val file: VirtualFile,
     private val document: Document,
-    textEditor: com.intellij.openapi.editor.Editor,
+    private val textEditor: com.intellij.openapi.editor.Editor,
 ) : UserDataHolderBase(), FileEditor, Disposable {
     private var parsed by mutableStateOf(parseTestCaseSafely(document.text))
     private var headerMeta by mutableStateOf(resolveTestCaseHeaderMeta(project, file))
@@ -189,6 +189,14 @@ class SpeqaPreviewEditor(
         suppressDocumentRefresh = true
         com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater {
             try {
+                // Patches like step reorder move the caret (IntelliJ adjusts its offset when
+                // the surrounding text is replaced). With default settings the editor then
+                // auto-scrolls to follow the caret — visually the text editor jumps to the
+                // edited region even though the user was only interacting with the preview.
+                // Snapshot the scroll offset and restore it after the write.
+                val preservedScrollOffset = if (!textEditor.isDisposed) {
+                    textEditor.scrollingModel.verticalScrollOffset
+                } else -1
                 com.intellij.openapi.command.CommandProcessor.getInstance().executeCommand(project, {
                     com.intellij.openapi.application.runWriteAction {
                         try {
@@ -201,6 +209,11 @@ class SpeqaPreviewEditor(
                         }
                     }
                 }, commandName, null)
+                if (preservedScrollOffset >= 0 && !textEditor.isDisposed) {
+                    textEditor.scrollingModel.disableAnimation()
+                    textEditor.scrollingModel.scrollVertically(preservedScrollOffset)
+                    textEditor.scrollingModel.enableAnimation()
+                }
             } finally {
                 suppressDocumentRefresh = false
             }

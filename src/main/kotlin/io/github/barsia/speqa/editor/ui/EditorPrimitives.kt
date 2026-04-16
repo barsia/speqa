@@ -126,49 +126,49 @@ internal fun rememberHoverFocusState(): HoverFocusState {
     }
 }
 
-@OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
-@Composable
-internal fun DeletableArea(
-    onDelete: () -> Unit,
-    tooltip: String,
-    isContentFocused: Boolean = false,
-    trashFocusRequester: FocusRequester? = null,
-    trashPreviousFocusRequester: FocusRequester? = null,
-    trashNextFocusRequester: FocusRequester? = null,
-    modifier: Modifier = Modifier,
-    content: @Composable () -> Unit,
-) {
-    val hoverSource = remember { MutableInteractionSource() }
-    val isHovered by hoverSource.collectIsHoveredAsState()
-    var isTrashFocused by remember { mutableStateOf(false) }
-    val showTrash = isHovered || isContentFocused || isTrashFocused
-    val removeIcon = IntelliJIconKey.fromPlatformIcon(AllIcons.Actions.GC, SpeqaLayout::class.java)
+data class IconMenuItem(
+    val label: String,
+    val icon: javax.swing.Icon? = null,
+    val action: () -> Unit,
+)
 
-    Box(modifier.hoverable(hoverSource)) {
-        content()
-        Box(
-            Modifier
-                .align(Alignment.TopEnd)
-                .alpha(if (showTrash) 1f else 0f),
-        ) {
-            Tooltip(tooltip = { Text(tooltip) }) {
-                SpeqaIconButton(
-                    focusable = true,
-                    onClick = onDelete,
-                    modifier = Modifier
-                        .then(trashFocusRequester?.let { Modifier.focusRequester(it) } ?: Modifier)
-                        .focusProperties {
-                            if (trashPreviousFocusRequester != null) previous = trashPreviousFocusRequester
-                            if (trashNextFocusRequester != null) next = trashNextFocusRequester
-                        }
-                        .onFocusChanged { isTrashFocused = it.hasFocus },
-                ) {
-                    Icon(
-                        removeIcon,
-                        contentDescription = tooltip,
-                        modifier = Modifier.size(16.dp),
-                        tint = SpeqaThemeColors.destructive,
-                    )
+/**
+ * Modifier that shows an IntelliJ action popup menu on right-click.
+ */
+@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
+fun Modifier.contextMenuWithIcon(
+    items: () -> List<IconMenuItem>,
+): Modifier = this.pointerInput(Unit) {
+    awaitPointerEventScope {
+        while (true) {
+            val event = awaitPointerEvent()
+            val isRightClick = event.type == androidx.compose.ui.input.pointer.PointerEventType.Press &&
+                event.changes.any { it.pressed && !it.previousPressed } &&
+                event.button == androidx.compose.ui.input.pointer.PointerButton.Secondary
+            if (isRightClick) {
+                event.changes.forEach { it.consume() }
+                val screenLocation = java.awt.MouseInfo.getPointerInfo()?.location
+                val menuItems = items()
+                com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater {
+                    val group = com.intellij.openapi.actionSystem.DefaultActionGroup()
+                    menuItems.forEach { item ->
+                        group.add(object : com.intellij.openapi.actionSystem.AnAction(item.label, null, item.icon) {
+                            override fun actionPerformed(e: com.intellij.openapi.actionSystem.AnActionEvent) {
+                                item.action()
+                            }
+                        })
+                    }
+                    val component = java.awt.KeyboardFocusManager.getCurrentKeyboardFocusManager().focusOwner
+                    if (component != null && screenLocation != null) {
+                        val componentLocation = component.locationOnScreen
+                        val popupMenu = com.intellij.openapi.actionSystem.ActionManager.getInstance()
+                            .createActionPopupMenu("SpeqaContextMenu", group)
+                        popupMenu.component.show(
+                            component,
+                            screenLocation.x - componentLocation.x,
+                            screenLocation.y - componentLocation.y,
+                        )
+                    }
                 }
             }
         }
@@ -1200,12 +1200,12 @@ internal fun EditToggleIcon(
 }
 
 @Composable
-internal fun SurfaceDivider() {
+internal fun SurfaceDivider(visible: Boolean = true) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .height(1.dp)
-            .background(SpeqaThemeColors.divider),
+            .then(if (visible) Modifier.background(SpeqaThemeColors.divider) else Modifier),
     )
 }
 

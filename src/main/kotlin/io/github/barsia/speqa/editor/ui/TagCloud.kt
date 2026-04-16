@@ -1,8 +1,6 @@
 package io.github.barsia.speqa.editor.ui
 
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.ContextMenuItem
-import androidx.compose.foundation.ContextMenuArea
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.hoverable
@@ -309,12 +307,12 @@ internal fun TagChip(
     }
 
     if (contextActions.isNotEmpty()) {
-        ContextMenuArea(
-            items = {
+        Box(
+            modifier = Modifier.contextMenuWithIcon(items = {
                 contextActions.map { action ->
-                    ContextMenuItem(action.text) { action.onSelect() }
+                    IconMenuItem(action.text, action.icon, action.onSelect)
                 }
-            },
+            }),
         ) {
             tooltipWrapped()
         }

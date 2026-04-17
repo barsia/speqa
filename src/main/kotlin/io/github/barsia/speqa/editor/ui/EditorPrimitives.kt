@@ -670,21 +670,24 @@ internal fun QuietActionText(
     modifier: Modifier = Modifier,
     icon: IconKey? = null,
     uppercase: Boolean = true,
+    plain: Boolean = false,
     previousFocusRequester: FocusRequester? = null,
     nextFocusRequester: FocusRequester? = null,
 ) {
     val hoverFocus = rememberHoverFocusState()
     val focusManager = LocalFocusManager.current
     val bg = when {
+        plain -> Color.Transparent
         !enabled -> SpeqaThemeColors.chipSurface.copy(alpha = 0.35f)
         hoverFocus.isHovered || hoverFocus.isFocused -> SpeqaThemeColors.actionHover
         else -> SpeqaThemeColors.chipSurface
     }
     val focusBorder = if (hoverFocus.isFocused) SpeqaThemeColors.accent else Color.Transparent
+    val shape = if (plain) RoundedCornerShape(2.dp) else RoundedCornerShape(SpeqaLayout.actionPillRadius)
     Box(
         modifier = modifier
-            .background(bg, RoundedCornerShape(SpeqaLayout.actionPillRadius))
-            .border(1.dp, focusBorder, RoundedCornerShape(SpeqaLayout.actionPillRadius))
+            .background(bg, shape)
+            .border(1.dp, focusBorder, shape)
             .onFocusChanged { hoverFocus.updateFocus(it.isFocused) }
             .onPreviewKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
@@ -705,7 +708,7 @@ internal fun QuietActionText(
             }
             .focusable()
             .clickableWithPointer(interactionSource = hoverFocus.interactionSource, enabled = enabled, onClick = onClick)
-            .padding(horizontal = 7.dp, vertical = 4.dp),
+            .then(if (plain) Modifier.padding(vertical = 1.dp) else Modifier.padding(horizontal = 7.dp, vertical = 4.dp)),
     ) {
         val textColor = when {
             !enabled -> SpeqaThemeColors.mutedForeground.copy(alpha = 0.45f)

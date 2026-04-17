@@ -59,6 +59,8 @@ intellijPlatform {
                 <li>Rename selects only base name for <code>.tc.md</code> / <code>.tr.md</code></li>
                 <li>Better hover feedback on verdict buttons and comment toggle in test runs</li>
                 <li>Polished UI text across the board</li>
+                <li>Drag-and-drop step reordering with live preview and drop-target highlight</li>
+                <li>Redesigned step card — flat layout, delete in context menu</li>
             </ul>
         """.trimIndent()
     }

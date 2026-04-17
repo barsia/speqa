@@ -7,6 +7,7 @@ import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
@@ -169,7 +170,7 @@ internal fun StepsSection(
                 } else 0f
 
                 testCase.steps.forEachIndexed { index, step ->
-                 key(System.identityHashCode(step)) {
+                 key(step.uid) {
                     val isDragging = draggedIndex == index
                     val isDropTarget = draggedIndex >= 0 && index == dropTargetIndex && index != draggedIndex
                     val shiftTarget = when {
@@ -231,15 +232,19 @@ internal fun StepsSection(
                                     }
                                     val slotSize = Size(size.width, draggedHeightPx)
                                     val slotTopLeft = Offset(0f, yOffset)
-                                    drawRect(
+                                    val cornerRadiusPx = with(density) { 4.dp.toPx() }
+                                    val cornerRadius = CornerRadius(cornerRadiusPx, cornerRadiusPx)
+                                    drawRoundRect(
                                         color = SpeqaThemeColors.dropTarget.copy(alpha = 0.18f),
                                         topLeft = slotTopLeft,
                                         size = slotSize,
+                                        cornerRadius = cornerRadius,
                                     )
-                                    drawRect(
+                                    drawRoundRect(
                                         color = SpeqaThemeColors.dropTarget,
                                         topLeft = slotTopLeft,
                                         size = slotSize,
+                                        cornerRadius = cornerRadius,
                                         style = Stroke(width = 2f),
                                     )
                                 }

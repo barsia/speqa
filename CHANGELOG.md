@@ -7,6 +7,8 @@
 - Rename selects only base name for `.tc.md` / `.tr.md`
 - Better hover feedback on verdict buttons and comment toggle in test runs
 - Polished UI text across the board
+- Drag-and-drop step reordering with live preview and drop-target highlight
+- Redesigned step card — flat layout, delete in context menu
 
 ## 0.1.0 — Initial Release
 

@@ -14,6 +14,7 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.Column
@@ -169,6 +170,7 @@ fun StepCard(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(SpeqaLayout.compactGap),
     ) {
+       Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         // === Action row: gutter(number + drag) | action field ===
         Row(
             horizontalArrangement = Arrangement.spacedBy(gutterGap),
@@ -238,7 +240,9 @@ fun StepCard(
                 )
             }
         }
+       }
 
+       Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         // === Expected row: gutter(icon) | expected field/button ===
         Row(
             horizontalArrangement = Arrangement.spacedBy(gutterGap),
@@ -247,7 +251,7 @@ fun StepCard(
             Box(
                 modifier = Modifier
                     .width(gutterWidth)
-                    .padding(top = 1.dp),
+                    .padding(top = if (expected != null) 3.dp else 1.dp),
                 contentAlignment = Alignment.TopCenter,
             ) {
                 if (expected != null) {
@@ -256,7 +260,7 @@ fun StepCard(
                             expectedIcon,
                             contentDescription = SpeqaBundle.message("label.expectedResult"),
                             modifier = Modifier
-                                .size(16.dp)
+                                .size(14.dp)
                                 .handOnHover()
                                 .contextMenuWithIcon(items = {
                                     listOf(IconMenuItem(SpeqaBundle.message("tooltip.deleteExpected"), deleteIcon) {
@@ -271,7 +275,7 @@ fun StepCard(
                     Icon(
                         expectedIcon,
                         contentDescription = SpeqaBundle.message("label.expectedResult"),
-                        modifier = Modifier.size(16.dp),
+                        modifier = Modifier.size(14.dp),
                         tint = SpeqaThemeColors.mutedForeground,
                     )
                 }
@@ -301,12 +305,12 @@ fun StepCard(
             } else {
                 QuietActionText(
                     label = SpeqaBundle.message("form.addExpected"),
-                    icon = expectedIcon,
                     onClick = {
                         pendingExpectedFocus = true
                         onExpectedChange("")
                     },
                     enabled = true,
+                    plain = true,
                     modifier = Modifier
                         .focusRequester(expectedForwardEntryFocusRequester)
                         .then(if (project == null || tcFile == null) {
@@ -416,6 +420,7 @@ fun StepCard(
                 }
             }
         }
+       }
     }
 }
 
@@ -447,7 +452,10 @@ private fun TicketRow(
 
     val ticketPrefixIcon = IntelliJIconKey("/icons/ticket.svg", "/icons/ticket.svg", iconClass = SpeqaLayout::class.java)
     Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(0.dp)) {
-        Box(modifier = Modifier.size(24.dp), contentAlignment = Alignment.Center) {
+        Box(
+            modifier = Modifier.height(24.dp).padding(end = 6.dp),
+            contentAlignment = Alignment.CenterStart,
+        ) {
             val prefixTint = if (ticket.isNotBlank()) SpeqaThemeColors.foreground else SpeqaThemeColors.mutedForeground
             Icon(ticketPrefixIcon, contentDescription = SpeqaBundle.message("label.ticket"), modifier = Modifier.size(14.dp), tint = prefixTint)
         }
@@ -637,7 +645,10 @@ private fun TicketLinkButton(onClick: () -> Unit, modifier: Modifier = Modifier)
             .padding(end = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(modifier = Modifier.size(24.dp), contentAlignment = Alignment.Center) {
+        Box(
+            modifier = Modifier.height(24.dp).padding(end = 6.dp),
+            contentAlignment = Alignment.CenterStart,
+        ) {
             Icon(ticketIcon, contentDescription = SpeqaBundle.message("tooltip.linkTicket"), modifier = Modifier.size(14.dp), tint = tint)
         }
         Text(SpeqaBundle.message("tooltip.linkTicket"), fontSize = 12.sp, color = tint)

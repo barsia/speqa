@@ -36,7 +36,34 @@ data class TestStep(
     val actionAttachments: List<Attachment> = emptyList(),
     val expectedAttachments: List<Attachment> = emptyList(),
     val ticket: String? = null,
-)
+    val uid: Long = nextUid(),
+) {
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is TestStep) return false
+        return action == other.action &&
+            expected == other.expected &&
+            expectedGroupSize == other.expectedGroupSize &&
+            actionAttachments == other.actionAttachments &&
+            expectedAttachments == other.expectedAttachments &&
+            ticket == other.ticket
+    }
+
+    override fun hashCode(): Int {
+        var result = action.hashCode()
+        result = 31 * result + (expected?.hashCode() ?: 0)
+        result = 31 * result + expectedGroupSize
+        result = 31 * result + actionAttachments.hashCode()
+        result = 31 * result + expectedAttachments.hashCode()
+        result = 31 * result + (ticket?.hashCode() ?: 0)
+        return result
+    }
+
+    companion object {
+        private val uidCounter = java.util.concurrent.atomic.AtomicLong(0L)
+        fun nextUid(): Long = uidCounter.incrementAndGet()
+    }
+}
 
 enum class PreconditionsMarkerStyle(val marker: String) {
     PRECONDITIONS("Preconditions:"),

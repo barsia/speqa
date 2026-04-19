@@ -2,7 +2,29 @@ package io.github.barsia.speqa.run
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.ClickableText
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isShiftPressed
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.withStyle
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
@@ -116,6 +138,7 @@ fun TestRunPanel(
     onRunnerChange: (String) -> Unit,
     onStepVerdictChange: (Int, StepVerdict) -> Unit,
     onStepCommentChange: (Int, String) -> Unit,
+    onStepTicketChange: (Int, String?) -> Unit,
     priority: Priority?,
     bodyBlocks: List<TestCaseBodyBlock>,
     links: List<Link>,
@@ -427,8 +450,10 @@ fun TestRunPanel(
                             StepResultRow(
                                 index = index,
                                 step = step,
+                                project = project,
                                 onVerdictChange = { verdict -> onStepVerdictChange(index, verdict) },
                                 onCommentChange = { comment -> onStepCommentChange(index, comment) },
+                                onTicketChange = { ticket -> onStepTicketChange(index, ticket) },
                                 onOpenAttachment = onOpenAttachment,
                             )
                         }
@@ -459,12 +484,16 @@ fun TestRunPanel(
 private fun StepResultRow(
     index: Int,
     step: StepResult,
+    project: Project,
     onVerdictChange: (StepVerdict) -> Unit,
     onCommentChange: (String) -> Unit,
+    onTicketChange: (String?) -> Unit,
     onOpenAttachment: (Attachment) -> Unit,
 ) {
     var showComment by remember(index) { mutableStateOf(false) }
     var focusCommentAtEndRequest by remember(index) { mutableStateOf(0) }
+    val ticketTextFocusRequester = remember { FocusRequester() }
+    val ticketFocusRequester = remember { FocusRequester() }
     val passedFocusRequester = remember { FocusRequester() }
     val failedFocusRequester = remember { FocusRequester() }
     val skippedFocusRequester = remember { FocusRequester() }
@@ -535,9 +564,9 @@ private fun StepResultRow(
 
             // Expected text with label
             if (step.expected.isNotBlank()) {
-                Column(verticalArrangement = Arrangement.spacedBy(SpeqaLayout.itemGap)) {
+                Column(verticalArrangement = Arrangement.spacedBy(SpeqaLayout.tightGap)) {
                     Text(
-                        SpeqaBundle.message("label.expected"),
+                        SpeqaBundle.message("label.expectedResult"),
                         fontSize = 11.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = SpeqaThemeColors.mutedForeground,
@@ -562,6 +591,226 @@ private fun StepResultRow(
                 }
             }
 
+            // Ticket linking
+            run {
+                var isTicketEditing by remember(index) { mutableStateOf(false) }
+                var wasTicketEditing by remember(index) { mutableStateOf(false) }
+                val trFocusManager = LocalFocusManager.current
+                LaunchedEffect(isTicketEditing) {
+                    if (isTicketEditing) {
+                        wasTicketEditing = true
+                    } else if (wasTicketEditing) {
+                        ticketFocusRequester.requestFocus()
+                    }
+                }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(SpeqaLayout.compactGap),
+                ) {
+                    if (step.ticket.isNullOrBlank() && !isTicketEditing) {
+                        val ticketIcon = IntelliJIconKey("/icons/ticket.svg", "/icons/ticket.svg", iconClass = SpeqaLayout::class.java)
+                        val hoverSource = remember { MutableInteractionSource() }
+                        val isHovered by hoverSource.collectIsHoveredAsState()
+                        var isBtnFocused by remember { mutableStateOf(false) }
+                        val tint = if (isHovered || isBtnFocused) SpeqaThemeColors.foreground else SpeqaThemeColors.mutedForeground
+                        Row(
+                            modifier = Modifier
+                                .focusRequester(ticketFocusRequester)
+                                .focusProperties {
+                                    next = passedFocusRequester
+                                }
+                                .hoverable(hoverSource)
+                                .onFocusChanged { isBtnFocused = it.hasFocus }
+                                .clickableWithPointer(focusable = true, showFocusBorder = true) { isTicketEditing = true }
+                                .padding(end = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Box(modifier = Modifier.size(24.dp), contentAlignment = Alignment.Center) {
+                                Icon(ticketIcon, contentDescription = SpeqaBundle.message("tooltip.linkTicket"), modifier = Modifier.size(14.dp), tint = tint)
+                            }
+                            Text(SpeqaBundle.message("tooltip.linkTicket"), fontSize = 12.sp, color = tint)
+                        }
+                    } else {
+                        val settings = remember(project) { io.github.barsia.speqa.settings.SpeqaSettings.getInstance(project) }
+                        val ticket = step.ticket.orEmpty()
+                        var draft by remember(ticket) { mutableStateOf(ticket) }
+                        var wasFocused by remember { mutableStateOf(false) }
+                        val textFieldFocusRequester = remember { FocusRequester() }
+
+                        LaunchedEffect(isTicketEditing) {
+                            if (!isTicketEditing) wasFocused = false
+                        }
+
+                        val ticketPrefixIcon = IntelliJIconKey("/icons/ticket.svg", "/icons/ticket.svg", iconClass = SpeqaLayout::class.java)
+                        val prefixTint = if (ticket.isNotBlank()) SpeqaThemeColors.foreground else SpeqaThemeColors.mutedForeground
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(0.dp)) {
+                            Box(modifier = Modifier.size(24.dp), contentAlignment = Alignment.Center) {
+                                Icon(ticketPrefixIcon, contentDescription = SpeqaBundle.message("label.ticket"), modifier = Modifier.size(14.dp), tint = prefixTint)
+                            }
+                            if (isTicketEditing) {
+                                var tfValue by remember(draft) {
+                                    mutableStateOf(TextFieldValue(draft, selection = androidx.compose.ui.text.TextRange(draft.length)))
+                                }
+                                val editTextStyle = TextStyle(fontSize = 11.sp, color = SpeqaThemeColors.accent)
+                                val textMeasurer = rememberTextMeasurer()
+                                val density = LocalDensity.current
+                                val cursorWidth = 2.dp
+                                val measuredWidth = remember(tfValue.text, editTextStyle) {
+                                    with(density) {
+                                        val w = textMeasurer.measure(tfValue.text.ifBlank { SpeqaBundle.message("placeholder.ticketId") }, editTextStyle).size.width.toDp()
+                                        maxOf(w + cursorWidth, 40.dp)
+                                    }
+                                }
+                                BasicTextField(
+                                    value = tfValue,
+                                    onValueChange = { tfValue = it; draft = it.text },
+                                    textStyle = editTextStyle,
+                                    singleLine = true,
+                                    cursorBrush = SolidColor(SpeqaThemeColors.accent),
+                                    modifier = Modifier
+                                        .width(measuredWidth)
+                                        .focusRequester(textFieldFocusRequester)
+                                        .onPreviewKeyEvent { event ->
+                                            if (event.type == KeyEventType.KeyDown) {
+                                                when (event.key) {
+                                                    Key.Enter, Key.NumPadEnter -> {
+                                                        val normalized = draft.split(Regex("[,;\\s]+")).filter { it.isNotBlank() }.joinToString(", ")
+                                                        onTicketChange(normalized.ifBlank { null })
+                                                        isTicketEditing = false; true
+                                                    }
+                                                    Key.Escape -> { isTicketEditing = false; true }
+                                                    else -> false
+                                                }
+                                            } else false
+                                        }
+                                        .onFocusChanged { state ->
+                                            if (state.isFocused) wasFocused = true
+                                            if (!state.isFocused && wasFocused) {
+                                                val normalized = draft.split(Regex("[,;\\s]+")).filter { it.isNotBlank() }.joinToString(", ")
+                                                onTicketChange(normalized.ifBlank { null })
+                                                isTicketEditing = false
+                                            }
+                                        },
+                                    decorationBox = { innerTextField ->
+                                        if (draft.isBlank()) {
+                                            Text(SpeqaBundle.message("placeholder.ticketId"), fontSize = 11.sp, color = SpeqaThemeColors.mutedForeground)
+                                        }
+                                        innerTextField()
+                                    },
+                                )
+                                LaunchedEffect(isTicketEditing) {
+                                    if (isTicketEditing) { kotlinx.coroutines.yield(); textFieldFocusRequester.requestFocus() }
+                                }
+                            } else {
+                                val ids = ticket.split(",").map { it.trim() }.filter { it.isNotBlank() }
+                                val annotated = buildAnnotatedString {
+                                    ids.forEachIndexed { idx, id ->
+                                        if (idx > 0) append(", ")
+                                        pushStringAnnotation("ticket", id)
+                                        withStyle(SpanStyle(color = SpeqaThemeColors.accent)) { append(id) }
+                                        pop()
+                                    }
+                                }
+                                var isTextFocused by remember { mutableStateOf(false) }
+                                val textFocusBorder = if (isTextFocused) SpeqaThemeColors.accent else Color.Transparent
+                                Box(
+                                    modifier = Modifier
+                                        .border(1.dp, textFocusBorder, RoundedCornerShape(4.dp))
+                                        .focusRequester(ticketTextFocusRequester)
+                                        .onFocusChanged { isTextFocused = it.isFocused }
+                                        .onPreviewKeyEvent { event ->
+                                            if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                                            when (event.key) {
+                                                Key.Enter, Key.NumPadEnter -> {
+                                                    ids.forEach { id ->
+                                                        com.intellij.ide.BrowserUtil.browse(settings.resolveTicketUrl(id))
+                                                    }
+                                                    true
+                                                }
+                                                Key.Tab -> {
+                                                    trFocusManager.moveFocus(if (event.isShiftPressed) FocusDirection.Previous else FocusDirection.Next)
+                                                    true
+                                                }
+                                                else -> false
+                                            }
+                                        }
+                                        .focusProperties {
+                                            next = ticketFocusRequester
+                                        }
+                                        .focusTarget()
+                                        .handOnHover(),
+                                ) {
+                                    ClickableText(
+                                        text = annotated,
+                                        style = TextStyle(fontSize = 11.sp, color = SpeqaThemeColors.mutedForeground),
+                                        onClick = { offset ->
+                                            annotated.getStringAnnotations("ticket", offset, offset).firstOrNull()?.let { annotation ->
+                                                com.intellij.ide.BrowserUtil.browse(settings.resolveTicketUrl(annotation.item))
+                                            }
+                                        },
+                                    )
+                                }
+                            }
+                            val editSaveIcon = IntelliJIconKey.fromPlatformIcon(
+                                if (isTicketEditing) AllIcons.Actions.MenuSaveall else AllIcons.Actions.Edit,
+                                SpeqaLayout::class.java,
+                            )
+                            val editHoverSource = remember { MutableInteractionSource() }
+                            val isEditHovered by editHoverSource.collectIsHoveredAsState()
+                            var isEditFocused by remember { mutableStateOf(false) }
+                            val editTint = if (isEditHovered || isEditFocused) SpeqaThemeColors.foreground else SpeqaThemeColors.mutedForeground
+                            val editFocusBorder = if (isEditFocused) SpeqaThemeColors.accent else Color.Transparent
+                            Box(
+                                modifier = Modifier
+                                    .size(24.dp)
+                                    .border(1.dp, editFocusBorder, RoundedCornerShape(4.dp))
+                                    .hoverable(editHoverSource)
+                                    .focusRequester(ticketFocusRequester)
+                                    .onFocusChanged { isEditFocused = it.isFocused }
+                                    .onPreviewKeyEvent { event ->
+                                        if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                                        when (event.key) {
+                                            Key.Enter, Key.NumPadEnter, Key.Spacebar -> {
+                                                if (isTicketEditing) {
+                                                    val normalized = draft.split(Regex("[,;\\s]+")).filter { it.isNotBlank() }.joinToString(", ")
+                                                    onTicketChange(normalized.ifBlank { null })
+                                                }
+                                                isTicketEditing = !isTicketEditing
+                                                true
+                                            }
+                                            Key.Tab -> {
+                                                trFocusManager.moveFocus(if (event.isShiftPressed) FocusDirection.Previous else FocusDirection.Next)
+                                                true
+                                            }
+                                            else -> false
+                                        }
+                                    }
+                                    .focusProperties {
+                                        previous = ticketTextFocusRequester
+                                        next = passedFocusRequester
+                                    }
+                                    .focusTarget()
+                                    .handOnHover()
+                                    .pointerInput(Unit) {
+                                        detectTapGestures(
+                                            onTap = {
+                                                if (isTicketEditing) {
+                                                    val normalized = draft.split(Regex("[,;\\s]+")).filter { it.isNotBlank() }.joinToString(", ")
+                                                    onTicketChange(normalized.ifBlank { null })
+                                                }
+                                                isTicketEditing = !isTicketEditing
+                                            },
+                                        )
+                                    },
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(editSaveIcon, contentDescription = if (isTicketEditing) SpeqaBundle.message("tooltip.save") else SpeqaBundle.message("tooltip.edit"), modifier = Modifier.size(14.dp), tint = editTint)
+                            }
+                        }
+                    }
+                }
+            }
+
             // Verdict chips + comment toggle button
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -578,7 +827,7 @@ private fun StepResultRow(
                         .focusRequester(passedFocusRequester)
                         .focusProperties {
                             next = failedFocusRequester
-                            previous = FocusRequester.Default
+                            previous = ticketFocusRequester
                         },
                 )
                 VerdictChip(
@@ -630,6 +879,8 @@ private fun StepResultRow(
                     else -> SpeqaBundle.message("run.addComment")
                 }
                 Box {
+                    val commentHoverSource = remember { MutableInteractionSource() }
+                    val isCommentHovered by commentHoverSource.collectIsHoveredAsState()
                     Tooltip(tooltip = { Text(commentTooltip) }) {
                         SpeqaIconButton(
                             onClick = {
@@ -641,17 +892,19 @@ private fun StepResultRow(
                             focusable = true,
                             keyboardFocusRingOnly = true,
                             modifier = Modifier
+                                .hoverable(commentHoverSource)
                                 .focusRequester(commentToggleFocusRequester)
                                 .focusProperties {
                                     previous = blockedFocusRequester
                                     next = if (showComment) commentFieldFocusRequester else FocusRequester.Default
                                 },
                         ) {
+                            val commentTint = if (isCommentHovered || showComment || hasStoredComment) SpeqaThemeColors.foreground else SpeqaThemeColors.mutedForeground
                             Icon(
                                 key = commentIcon,
                                 contentDescription = commentTooltip,
                                 modifier = Modifier.width(16.dp).height(16.dp),
-                                tint = SpeqaThemeColors.foreground,
+                                tint = commentTint,
                             )
                         }
                     }
@@ -715,6 +968,8 @@ private fun VerdictChip(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val hoverSource = remember { MutableInteractionSource() }
+    val isHovered by hoverSource.collectIsHoveredAsState()
     val borderColor = if (selected) selectedTextColor.copy(alpha = 0.45f) else SpeqaThemeColors.divider
     Box(
         modifier = modifier
@@ -723,15 +978,21 @@ private fun VerdictChip(
                 RoundedCornerShape(SpeqaLayout.actionPillRadius),
             )
             .border(1.dp, borderColor, RoundedCornerShape(SpeqaLayout.actionPillRadius))
+            .hoverable(hoverSource)
             .clickableWithPointer(focusable = true, onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 6.dp),
         contentAlignment = Alignment.Center,
     ) {
+        val textColor = when {
+            selected -> selectedTextColor
+            isHovered -> SpeqaThemeColors.foreground
+            else -> SpeqaThemeColors.mutedForeground
+        }
         Text(
             text,
             fontSize = 13.sp,
             fontWeight = FontWeight.Normal,
-            color = if (selected) selectedTextColor else SpeqaThemeColors.mutedForeground,
+            color = textColor,
         )
     }
 }

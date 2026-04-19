@@ -26,6 +26,7 @@ import javax.swing.JPanel
 
 internal data class TagChipContextAction(
     val text: String,
+    val icon: javax.swing.Icon? = null,
     val onSelect: () -> Unit,
 )
 
@@ -76,7 +77,7 @@ internal fun rememberTestCaseMetadataActions(
                 )
                 if (onRemove != null) {
                     add(
-                        TagChipContextAction(SpeqaBundle.message("metadata.remove")) {
+                        TagChipContextAction(SpeqaBundle.message("metadata.remove"), com.intellij.icons.AllIcons.Actions.GC) {
                             val message = when (kind) {
                                 MetadataValueKind.TAG -> SpeqaBundle.message("metadata.removeTag.message", value)
                                 MetadataValueKind.ENVIRONMENT -> SpeqaBundle.message("metadata.removeEnvironment.message", value)

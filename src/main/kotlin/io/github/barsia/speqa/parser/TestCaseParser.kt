@@ -148,6 +148,7 @@ object TestCaseParser {
         var currentExpected: MutableList<String>? = null
         var currentExpectedGroupSize = 1
         var groupStartIndex = 0
+        var currentTicket: String? = null
         var afterMarker = false
         var inExpected = false
 
@@ -189,6 +190,10 @@ object TestCaseParser {
             if (stepMatch != null) {
                 flushAction()
                 flushExpectedAttachments()
+                if (steps.isNotEmpty() && currentTicket != null) {
+                    steps[steps.lastIndex] = steps.last().copy(ticket = currentTicket)
+                    currentTicket = null
+                }
                 if (currentExpected != null) {
                     groupStartIndex = steps.size
                     currentExpected = null
@@ -231,6 +236,13 @@ object TestCaseParser {
                 }
             }
 
+            // Ticket line
+            val ticketMatch = TICKET_PATTERN.matchEntire(trimmed)
+            if (ticketMatch != null && steps.isNotEmpty()) {
+                currentTicket = ticketMatch.groupValues[1].trim()
+                continue
+            }
+
             // Any other line — append to current step action (if we're not past expected)
             // Strip up to 3 leading spaces (Markdown list continuation indent)
             if (steps.isNotEmpty() && !inExpected) {
@@ -241,6 +253,9 @@ object TestCaseParser {
 
         flushAction()
         flushExpectedAttachments()
+        if (steps.isNotEmpty() && currentTicket != null) {
+            steps[steps.lastIndex] = steps.last().copy(ticket = currentTicket)
+        }
         return steps
     }
 
@@ -272,6 +287,7 @@ object TestCaseParser {
     private val ATTACHMENT_BARE = Regex("""^\[([^\]]+)\]$""")
     private val LINKS_MARKER = Regex("""^[Ll]inks:\s*$""")
     private val LINK_PATTERN = Regex("""^\[([^\]]+)\]\(([^)]+)\)$""")
+    private val TICKET_PATTERN = Regex("""^\s*Ticket:\s*(.+)$""", RegexOption.IGNORE_CASE)
 
     /** Strip up to 3 leading spaces — Markdown list continuation indent for `N. ` items. */
     private fun String.removeListContinuationIndent(): String {

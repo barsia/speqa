@@ -25,7 +25,10 @@ class SpeqaProjectGenerator : DirectoryProjectGeneratorBase<Any>() {
         settings: Any,
         module: Module,
     ) {
-        val sampleTestCase = runWriteAction { SpeqaProjectScaffold.generate(baseDir) } ?: return
+        val sampleTestCase = runWriteAction {
+            SpeqaProjectScaffold.installSkill(baseDir)
+            SpeqaProjectScaffold.generate(baseDir)
+        } ?: return
         openInitialTestCase(project, sampleTestCase)
     }
 }

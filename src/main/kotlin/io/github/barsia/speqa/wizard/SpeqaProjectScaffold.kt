@@ -18,6 +18,17 @@ internal object SpeqaProjectScaffold {
         return tcFile
     }
 
+    fun installSkill(baseDir: VirtualFile) {
+        val skillContent = SpeqaProjectScaffold::class.java
+            .getResourceAsStream("/templates/test-case-writer-skill.md")
+            ?.readBytes()
+            ?.toString(java.nio.charset.StandardCharsets.UTF_8) ?: return
+
+        val skillDir = VfsUtil.createDirectoryIfMissing(baseDir, ".claude/skills/test-case-writer") ?: return
+        val skillFile = skillDir.findChild("SKILL.md") ?: skillDir.createChildData(this, "SKILL.md")
+        VfsUtil.saveText(skillFile, skillContent)
+    }
+
     private val SAMPLE_TEST_CASE = """
         |---
         |id: 1

@@ -133,6 +133,10 @@ object TestRunSerializer {
             append("   ")
             appendAttachment(att)
         }
+        if (!step.ticket.isNullOrBlank()) {
+            appendLine()
+            appendLine("   Ticket: ${step.ticket}")
+        }
         if (step.verdict != StepVerdict.NONE) {
             appendLine("   - ${step.verdict.label}")
         }

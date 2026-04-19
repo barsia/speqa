@@ -49,6 +49,19 @@ class ScrollSyncController(
     }
 
     /**
+     * Called from the Compose side when it initiates a document change (e.g. the user
+     * reorders steps). The editor may react with a visible-area change we do NOT want
+     * to mirror back to Compose, so suppress editor→compose sync for a short window.
+     */
+    fun suppressEditorToComposeSync() {
+        // `suppressEditorUntil` gates the VisibleAreaListener — while it is in the future,
+        // the listener does not emit new fractions to the Compose side. That is exactly
+        // what we want here: Compose just caused the document to change, and any resulting
+        // editor layout/caret adjustments should not scroll the Compose preview.
+        suppressEditorUntil = System.currentTimeMillis() + SUPPRESS_MS
+    }
+
+    /**
      * Called from the Compose side when the user scrolls the visual editor.
      * Scrolls the text editor to the corresponding fraction.
      */

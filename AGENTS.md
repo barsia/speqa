@@ -15,7 +15,8 @@ The user uses **voice input** (speech-to-text). Keep in mind:
 2. The PRD/specification must always describe the current product and implementation state.
 3. The PRD/specification must not become a changelog, migration log, or history of edits.
 4. After updating the PRD/spec, change the code so the implementation matches it.
-5. **Every `.kt` edit requires a preceding spec edit.** Even for bug fixes where the spec already describes correct behavior — document why the previous implementation attempt failed. A PreToolUse hook enforces this: it blocks `.kt` edits unless the spec was edited immediately before. The marker resets after each `.kt` edit, so the next `.kt` edit requires another spec edit.
+5. **Spec-first per session.** The spec must be edited at least once before the first `.kt` edit in a session. A PreToolUse hook enforces this: it blocks `.kt` edits until the spec has been touched. The marker persists for the rest of the session — subsequent `.kt` edits don't require additional spec edits. Make the spec edit meaningful: describe what is changing and why, not a throwaway micro-addition.
+6. Don't add "Generated with Claude Code" or "Co-Authored-By: Claude" to commit messages or PRs
 
 ## Documents to keep current
 

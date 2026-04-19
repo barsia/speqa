@@ -129,5 +129,11 @@ object TestCaseSerializer {
             }
         }
         (step.actionAttachments + step.expectedAttachments).forEach { appendAttachment(it, indent = "   ") }
+        step.ticket?.let { ticket ->
+            if (ticket.isNotBlank()) {
+                appendLine()
+                appendLine("   Ticket: $ticket")
+            }
+        }
     }
 }

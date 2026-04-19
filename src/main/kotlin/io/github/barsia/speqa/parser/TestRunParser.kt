@@ -152,6 +152,7 @@ object TestRunParser {
         var inComment = false
         var commentLines = mutableListOf<String>()
         var expectedAttachments = mutableListOf<Attachment>()
+        var ticket: String? = null
 
         fun flush() {
             if (action != null) {
@@ -161,6 +162,7 @@ object TestRunParser {
                     verdict = verdict,
                     comment = commentLines.joinToString("\n"),
                     expectedAttachments = expectedAttachments.toList(),
+                    ticket = ticket,
                 )
             }
         }
@@ -179,6 +181,7 @@ object TestRunParser {
                 inComment = false
                 commentLines = mutableListOf()
                 expectedAttachments = mutableListOf()
+                ticket = null
                 continue
             }
 
@@ -195,6 +198,13 @@ object TestRunParser {
                 verdict = StepVerdict.fromString(verdictMatch.groupValues[1])
                 inExpected = false
                 inComment = false
+                continue
+            }
+
+            val ticketMatch = TICKET_PATTERN.matchEntire(trimmed)
+            if (ticketMatch != null) {
+                ticket = ticketMatch.groupValues[1].trim()
+                inExpected = false
                 continue
             }
 
@@ -327,5 +337,6 @@ object TestRunParser {
     private val LINK_PATTERN = Regex("""^\[([^]]+)]\(([^)]+)\)$""")
     private val ATTACHMENT_IMAGE = Regex("""^!?\[([^]]*)]\(([^)]+)\)$""")
     private val ATTACHMENT_BARE = Regex("""^\[([^]]+)]$""")
+    private val TICKET_PATTERN = Regex("""^\s*Ticket:\s*(.+)$""", RegexOption.IGNORE_CASE)
     private val STEP_ATTACHMENT_PATTERN = Regex("""^!?\[.*]\(.*\)$|^\[.*]$""")
 }

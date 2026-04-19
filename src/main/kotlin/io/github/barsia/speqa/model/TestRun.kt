@@ -39,6 +39,7 @@ data class StepResult(
     val comment: String = "",
     val actionAttachments: List<Attachment> = emptyList(),
     val expectedAttachments: List<Attachment> = emptyList(),
+    val ticket: String? = null,
 )
 
 data class TestRun(

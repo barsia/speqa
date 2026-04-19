@@ -497,4 +497,67 @@ class TestCaseParserTest {
         assertEquals("https://figma.com/file/abc123", testCase.links[1].url)
         assertEquals(1, testCase.steps.size)
     }
+
+    @Test
+    fun `parse step with ticket line`() {
+        val content = """
+            |---
+            |title: Test
+            |---
+            |
+            |Scenario:
+            |
+            |1. Do something
+            |   > Expected outcome
+            |
+            |   Ticket: PROJ-123, PROJ-456
+        """.trimMargin()
+        val tc = TestCaseParser.parse(content)
+        assertEquals("PROJ-123, PROJ-456", tc.steps[0].ticket)
+    }
+
+    @Test
+    fun `parse step without ticket has null ticket`() {
+        val content = """
+            |---
+            |title: Test
+            |---
+            |
+            |Scenario:
+            |
+            |1. Do something
+            |   > Expected outcome
+        """.trimMargin()
+        val tc = TestCaseParser.parse(content)
+        assertNull(tc.steps[0].ticket)
+    }
+
+    @Test
+    fun `parse multiple steps with tickets on some`() {
+        val content = """
+            |---
+            |title: Test
+            |---
+            |
+            |Scenario:
+            |
+            |1. First step
+            |   > Result one
+            |
+            |   Ticket: BUG-1
+            |
+            |2. Second step
+            |   > Result two
+            |
+            |3. Third step
+            |   > Result three
+            |
+            |   Ticket: BUG-2, BUG-3
+        """.trimMargin()
+        val tc = TestCaseParser.parse(content)
+        assertEquals(3, tc.steps.size)
+        assertEquals("BUG-1", tc.steps[0].ticket)
+        assertNull(tc.steps[1].ticket)
+        assertEquals("BUG-2, BUG-3", tc.steps[2].ticket)
+    }
 }

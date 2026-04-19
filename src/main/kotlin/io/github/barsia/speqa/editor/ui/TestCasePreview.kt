@@ -9,6 +9,10 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.ui.focus.focusTarget
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -156,9 +160,11 @@ internal fun TestCasePreview(
                 .focusRequester(focusSinkRequester)
                 .focusTarget(),
         )
+        var viewportCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .onGloballyPositioned { viewportCoordinates = it }
                 .verticalScroll(scrollState, enabled = !stepDragActive)
                 .padding(start = SpeqaLayout.pagePadding, end = SpeqaLayout.pagePadding, top = SpeqaLayout.compactGap, bottom = SpeqaLayout.pagePadding),
             verticalArrangement = Arrangement.spacedBy(SpeqaLayout.blockGap),
@@ -255,13 +261,23 @@ internal fun TestCasePreview(
 
                 StepsSection(
                     testCase = testCase,
-                    onPatch = patch,
+                    onPatch = { tc, op ->
+                        // Reorder edits cause the text editor to re-layout (and sometimes
+                        // jump its visible area). Suppress editor→compose sync briefly so
+                        // the preview doesn't scroll away after a drop.
+                        if (op is PatchOperation.ReorderSteps) {
+                            scrollSyncController?.suppressEditorToComposeSync()
+                        }
+                        patch(tc, op)
+                    },
                     project = project,
                     tcFile = file,
                     focusRequestStepIndex = focusRequestStepIndex,
                     onFocusRequestStepIndexChange = { focusRequestStepIndex = it },
                     onStepDragActiveChange = { stepDragActive = it },
                     attachmentRevision = attachmentRevision,
+                    scrollState = scrollState,
+                    viewportBounds = { viewportCoordinates?.takeIf { it.isAttached }?.boundsInWindow() },
                 )
             } ?: PreviewStepsSection(testCase = testCase)
         }

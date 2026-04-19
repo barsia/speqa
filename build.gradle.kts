@@ -6,7 +6,7 @@ plugins {
 }
 
 group = "io.github.barsia"
-version = "0.1.0"
+version = "0.1.1"
 
 val localProps = rootProject.file("local.properties")
     .takeIf { it.exists() }
@@ -52,21 +52,15 @@ intellijPlatform {
         }
 
         changeNotes = """
-            <h3>0.1.0 — Initial Release</h3>
+            <h3>0.1.1</h3>
             <ul>
-                <li>Split editor for <code>.tc.md</code> files — native text editor + interactive preview</li>
-                <li>YAML frontmatter: id, title, priority, status, environment, tags</li>
-                <li>Body blocks: description, preconditions (ordered, round-trip safe)</li>
-                <li>Step-by-step editing with action, expected result, and attachments</li>
-                <li>Test run execution with <code>.tr.md</code> files and pass/fail/blocked verdicts</li>
-                <li>External links support with add/edit dialog and URL validation</li>
-                <li>File attachments with drag-drop, missing file detection, and relink</li>
-                <li>Targeted document patching — preserves user formatting</li>
-                <li>Tag/environment autocomplete from project-wide registry</li>
-                <li>Status-colored file icons in project view (draft/ready/deprecated)</li>
-                <li>Resilient YAML parsing — broken fields don't crash the preview</li>
-                <li>JSON Schema for frontmatter validation</li>
-                <li>Soft validation warnings for incomplete test cases</li>
+                <li>Ticket linking in test cases and test runs. Attach ticket IDs to expected results, click to open in YouTrack, Linear, or your custom tracker</li>
+                <li>Auto-continue numbered and bulleted lists on Enter in text fields in preview</li>
+                <li>Rename selects only base name for <code>.tc.md</code> / <code>.tr.md</code></li>
+                <li>Better hover feedback on verdict buttons and comment toggle in test runs</li>
+                <li>Polished UI text across the board</li>
+                <li>Drag-and-drop step reordering with live preview and drop-target highlight</li>
+                <li>Redesigned step card — flat layout, delete in context menu</li>
             </ul>
         """.trimIndent()
     }

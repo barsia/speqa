@@ -126,6 +126,55 @@ internal fun rememberHoverFocusState(): HoverFocusState {
     }
 }
 
+data class IconMenuItem(
+    val label: String,
+    val icon: javax.swing.Icon? = null,
+    val action: () -> Unit,
+)
+
+/**
+ * Modifier that shows an IntelliJ action popup menu on right-click.
+ */
+@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
+fun Modifier.contextMenuWithIcon(
+    items: () -> List<IconMenuItem>,
+): Modifier = this.pointerInput(Unit) {
+    awaitPointerEventScope {
+        while (true) {
+            val event = awaitPointerEvent()
+            val isRightClick = event.type == androidx.compose.ui.input.pointer.PointerEventType.Press &&
+                event.changes.any { it.pressed && !it.previousPressed } &&
+                event.button == androidx.compose.ui.input.pointer.PointerButton.Secondary
+            if (isRightClick) {
+                event.changes.forEach { it.consume() }
+                val screenLocation = java.awt.MouseInfo.getPointerInfo()?.location
+                val menuItems = items()
+                com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater {
+                    val group = com.intellij.openapi.actionSystem.DefaultActionGroup()
+                    menuItems.forEach { item ->
+                        group.add(object : com.intellij.openapi.actionSystem.AnAction(item.label, null, item.icon) {
+                            override fun actionPerformed(e: com.intellij.openapi.actionSystem.AnActionEvent) {
+                                item.action()
+                            }
+                        })
+                    }
+                    val component = java.awt.KeyboardFocusManager.getCurrentKeyboardFocusManager().focusOwner
+                    if (component != null && screenLocation != null) {
+                        val componentLocation = component.locationOnScreen
+                        val popupMenu = com.intellij.openapi.actionSystem.ActionManager.getInstance()
+                            .createActionPopupMenu("SpeqaContextMenu", group)
+                        popupMenu.component.show(
+                            component,
+                            screenLocation.x - componentLocation.x,
+                            screenLocation.y - componentLocation.y,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
 /**
  * Show hand cursor on hover. Apply to any interactive element —
  * custom clickable areas, wrappers around Jewel components, etc.
@@ -515,6 +564,7 @@ internal fun PlainTextInput(
 ) {
     val focusManager = LocalFocusManager.current
     var isFocused by remember { mutableStateOf(false) }
+    val state = remember { androidx.compose.foundation.text.input.TextFieldState(value) }
     val resolvedMinHeight = if (minHeight > 40) minHeight.dp else SpeqaLayout.controlHeight
     val inputModifier = if (singleLine) {
         modifier.fillMaxWidth().heightIn(min = resolvedMinHeight)
@@ -527,13 +577,29 @@ internal fun PlainTextInput(
             onFocusStateChange?.invoke(focused)
         }
         .onPreviewKeyEvent { event ->
-            if (event.type == KeyEventType.KeyDown && event.key == Key.Tab) {
-                focusManager.moveFocus(if (event.isShiftPressed) FocusDirection.Previous else FocusDirection.Next)
-                true
-            } else false
+            if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+            when (event.key) {
+                Key.Tab -> {
+                    focusManager.moveFocus(if (event.isShiftPressed) FocusDirection.Previous else FocusDirection.Next)
+                    true
+                }
+                Key.Enter -> if (!singleLine) {
+                    val result = ListContinuation.onEnter(
+                        text = state.text.toString(),
+                        cursor = state.selection.start,
+                    )
+                    if (result != null) {
+                        state.edit {
+                            replace(0, length, result.text)
+                            selection = TextRange(result.cursor)
+                        }
+                        true
+                    } else false
+                } else false
+                else -> false
+            }
         }
 
-    val state = remember { androidx.compose.foundation.text.input.TextFieldState(value) }
     val currentValue by androidx.compose.runtime.rememberUpdatedState(value)
     val currentOnValueChange by androidx.compose.runtime.rememberUpdatedState(onValueChange)
 
@@ -602,22 +668,26 @@ internal fun QuietActionText(
     onClick: () -> Unit,
     enabled: Boolean,
     modifier: Modifier = Modifier,
+    icon: IconKey? = null,
     uppercase: Boolean = true,
+    plain: Boolean = false,
     previousFocusRequester: FocusRequester? = null,
     nextFocusRequester: FocusRequester? = null,
 ) {
     val hoverFocus = rememberHoverFocusState()
     val focusManager = LocalFocusManager.current
     val bg = when {
+        plain -> Color.Transparent
         !enabled -> SpeqaThemeColors.chipSurface.copy(alpha = 0.35f)
         hoverFocus.isHovered || hoverFocus.isFocused -> SpeqaThemeColors.actionHover
         else -> SpeqaThemeColors.chipSurface
     }
     val focusBorder = if (hoverFocus.isFocused) SpeqaThemeColors.accent else Color.Transparent
+    val shape = if (plain) RoundedCornerShape(2.dp) else RoundedCornerShape(SpeqaLayout.actionPillRadius)
     Box(
         modifier = modifier
-            .background(bg, RoundedCornerShape(SpeqaLayout.actionPillRadius))
-            .border(1.dp, focusBorder, RoundedCornerShape(SpeqaLayout.actionPillRadius))
+            .background(bg, shape)
+            .border(1.dp, focusBorder, shape)
             .onFocusChanged { hoverFocus.updateFocus(it.isFocused) }
             .onPreviewKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
@@ -638,19 +708,36 @@ internal fun QuietActionText(
             }
             .focusable()
             .clickableWithPointer(interactionSource = hoverFocus.interactionSource, enabled = enabled, onClick = onClick)
-            .padding(horizontal = 7.dp, vertical = 4.dp),
+            .then(if (plain) Modifier.padding(vertical = 1.dp) else Modifier.padding(horizontal = 7.dp, vertical = 4.dp)),
     ) {
-        Text(
-            if (uppercase) label.uppercase() else label,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.SemiBold,
-            letterSpacing = 0.8.sp,
-            color = when {
-                !enabled -> SpeqaThemeColors.mutedForeground.copy(alpha = 0.45f)
-                hoverFocus.isHovered || hoverFocus.isFocused -> SpeqaThemeColors.foreground
-                else -> SpeqaThemeColors.mutedForeground
-            },
-        )
+        val textColor = when {
+            !enabled -> SpeqaThemeColors.mutedForeground.copy(alpha = 0.45f)
+            hoverFocus.isHovered || hoverFocus.isFocused -> SpeqaThemeColors.foreground
+            else -> SpeqaThemeColors.mutedForeground
+        }
+        if (icon != null) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Icon(icon, contentDescription = null, modifier = Modifier.size(14.dp), tint = textColor)
+                Text(
+                    if (uppercase) label.uppercase() else label,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    letterSpacing = 0.8.sp,
+                    color = textColor,
+                )
+            }
+        } else {
+            Text(
+                if (uppercase) label.uppercase() else label,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+                letterSpacing = 0.8.sp,
+                color = textColor,
+            )
+        }
     }
 }
 
@@ -1116,12 +1203,12 @@ internal fun EditToggleIcon(
 }
 
 @Composable
-internal fun SurfaceDivider() {
+internal fun SurfaceDivider(visible: Boolean = true) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .height(1.dp)
-            .background(SpeqaThemeColors.divider),
+            .then(if (visible) Modifier.background(SpeqaThemeColors.divider) else Modifier),
     )
 }
 

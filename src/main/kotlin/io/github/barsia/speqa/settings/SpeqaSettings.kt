@@ -19,11 +19,23 @@ class SpeqaSettings : PersistentStateComponent<SpeqaSettings.State> {
         var defaultRunDestination: String = DEFAULT_RUN_DESTINATION,
         var defaultAttachmentsFolder: String = DEFAULT_ATTACHMENTS_FOLDER,
         var scrollSyncEnabled: Boolean = true,
+        var ticketTracker: String = TRACKER_YOUTRACK,
+        var customTicketUrl: String = "",
     )
 
     companion object {
         const val DEFAULT_RUN_DESTINATION = "test-runs"
         const val DEFAULT_ATTACHMENTS_FOLDER = "attachments"
+        const val TRACKER_YOUTRACK = "YouTrack"
+        const val TRACKER_LINEAR = "Linear"
+        const val TRACKER_CUSTOM = "Custom"
+        val TRACKER_OPTIONS = listOf(TRACKER_YOUTRACK, TRACKER_LINEAR, TRACKER_CUSTOM)
+
+        private val TRACKER_URLS = mapOf(
+            TRACKER_YOUTRACK to "https://youtrack.jetbrains.com/issue/",
+            TRACKER_LINEAR to "https://linear.app/issue/",
+        )
+
         fun getInstance(project: Project): SpeqaSettings = project.service()
     }
 
@@ -70,4 +82,24 @@ class SpeqaSettings : PersistentStateComponent<SpeqaSettings.State> {
         set(value) {
             state.scrollSyncEnabled = value
         }
+
+    var ticketTracker: String
+        get() = state.ticketTracker
+        set(value) {
+            state.ticketTracker = value
+        }
+
+    var customTicketUrl: String
+        get() = state.customTicketUrl
+        set(value) {
+            state.customTicketUrl = value
+        }
+
+    fun resolveTicketUrl(ticketId: String): String {
+        val base = when (ticketTracker) {
+            TRACKER_CUSTOM -> customTicketUrl
+            else -> TRACKER_URLS[ticketTracker] ?: TRACKER_URLS[TRACKER_YOUTRACK]!!
+        }.trimEnd('/')
+        return "$base/$ticketId"
+    }
 }

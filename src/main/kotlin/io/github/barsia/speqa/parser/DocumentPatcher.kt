@@ -32,6 +32,7 @@ sealed interface PatchOperation {
     data class SetStepActionAttachments(val stepIndex: Int, val attachments: List<Attachment>) : PatchOperation
     data class SetStepExpectedAttachments(val stepIndex: Int, val attachments: List<Attachment>) : PatchOperation
     data class SetLinks(val links: List<Link>) : PatchOperation
+    data class SetStepTicket(val stepIndex: Int, val ticket: String?) : PatchOperation
 }
 
 /**
@@ -78,6 +79,9 @@ object DocumentPatcher {
             )
             is PatchOperation.SetLinks -> buildSetLinksEdits(
                 normalized, layout, operation.links,
+            )
+            is PatchOperation.SetStepTicket -> buildSetStepTicketEdits(
+                layout, operation.stepIndex, operation.ticket,
             )
         }
     }
@@ -484,6 +488,54 @@ object DocumentPatcher {
         }
     }
 
+    // ── Step: SetStepTicket ──────────────────────────────────────
+
+    private fun buildSetStepTicketEdits(
+        layout: DocumentLayout,
+        stepIndex: Int,
+        ticket: String?,
+    ): List<DocumentEdit> {
+        val step = layout.steps[stepIndex]
+        val existingRange = step.ticketRange
+
+        if (existingRange != null && !ticket.isNullOrBlank()) {
+            return listOf(
+                DocumentEdit(
+                    offset = existingRange.start,
+                    length = existingRange.length,
+                    replacement = "   Ticket: $ticket\n",
+                )
+            )
+        }
+
+        if (existingRange != null && ticket.isNullOrBlank()) {
+            val removeStart = if (existingRange.start > 0) existingRange.start - 1 else existingRange.start
+            return listOf(
+                DocumentEdit(
+                    offset = removeStart,
+                    length = existingRange.end - removeStart,
+                    replacement = "",
+                )
+            )
+        }
+
+        if (!ticket.isNullOrBlank()) {
+            val insertOffset = step.expectedAttachmentsRange?.end
+                ?: step.expectedRange?.end
+                ?: step.actionAttachmentsRange?.end
+                ?: step.actionRange.end
+            return listOf(
+                DocumentEdit(
+                    offset = insertOffset,
+                    length = 0,
+                    replacement = "\n   Ticket: $ticket\n",
+                )
+            )
+        }
+
+        return emptyList()
+    }
+
     // ── Step: AddStep ───────────────────────────────────────────
 
     private fun buildAddStepEdits(
@@ -555,9 +607,9 @@ object DocumentPatcher {
         val edits = mutableListOf<DocumentEdit>()
         val step = layout.steps[stepIndex]
 
-        // Delete the step range plus any preceding blank line
+        // Delete the step range plus blank lines before AND after
         val deleteStart = findBlankLinesBefore(text, step.wholeRange.start)
-        val deleteEnd = step.wholeRange.end
+        val deleteEnd = findBlankLinesAfter(text, step.wholeRange.end)
 
         edits += DocumentEdit(
             offset = deleteStart,

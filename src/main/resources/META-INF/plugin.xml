@@ -3,19 +3,14 @@
     <name>SpeQA - Test Management System</name>
     <vendor url="https://barsia.github.io">Siarhei Baradulia</vendor>
     <description><![CDATA[
-        <p>Write and run manual test cases right inside your IDE. No external services, no vendor lock-in.</p>
-        <p>Test cases are Markdown files stored in your project and versioned with Git. Your test history stays with the repo forever.
-        No database, no sync, no export headaches. Your tests are still readable Markdown.</p>
+        <p>Manual test case management inside your IDE. Test cases are Markdown files stored in your project. Works offline, no external services, no vendor lock-in.</p>
         <ul>
-            <li><b>Visual editor</b> — split view with native text editor on the left and interactive preview on the right</li>
-            <li><b>Test runs</b> — step-by-step execution with verdicts and comments</li>
-            <li>Priority, status, environment, tags, attachments, and external links are supported</li>
-            <li><b>Full history in Git</b> — every change is a commit you can diff, blame, or revert</li>
-            <li><b>Status at a glance</b> — color-coded file icons in the project tree</li>
-            <li><b>Validation</b> — warnings for missing titles, empty steps, and duplicate IDs</li>
-            <li><b>Works offline</b> — everything runs locally, no internet needed</li>
+            <li>Split editor: text on the left, interactive preview on the right</li>
+            <li>Includes a Claude Code skill for writing test cases from specs, designs, or tickets</li>
+            <li>Test runs with verdicts and comments per step</li>
+            <li>Git-friendly: diff, blame, revert any change</li>
         </ul>
-        <p><a href="https://github.com/barsia/speqa">Source code</a> | <a href="https://github.com/barsia/speqa/blob/main/PRIVACY_POLICY.md">Privacy Policy</a> | <a href="https://github.com/barsia/speqa/issues/new?template=bug_report.yml">Report a bug</a> | <a href="https://github.com/barsia/speqa/issues/new?template=feature_request.yml">Request a feature</a></p>
+        <p><a href="https://github.com/barsia/speqa/issues/new?template=bug_report.yml">Report a bug</a> | <a href="https://github.com/barsia/speqa/issues/new?template=feature_request.yml">Request a feature</a> | <a href="https://github.com/barsia/speqa/blob/main/PRIVACY_POLICY.md">Privacy Policy</a> | <a href="https://github.com/barsia/speqa">Source code</a></p>
     ]]></description>
 
     <depends>com.intellij.modules.platform</depends>
@@ -49,6 +44,13 @@
 
         <psi.referenceContributor language="Markdown"
                                   implementation="io.github.barsia.speqa.editor.SpeqaLinkDestinationReferenceContributor"/>
+
+        <renamePsiElementProcessor
+            implementation="io.github.barsia.speqa.refactoring.SpeqaRenamePsiFileProcessor"/>
+        <renameInputValidator
+            implementation="io.github.barsia.speqa.refactoring.SpeqaRenameInputValidator"/>
+
+        <notificationGroup id="SpeQA" displayType="BALLOON"/>
     </extensions>
 
     <extensions defaultExtensionNs="JavaScript.JsonSchema">
@@ -75,5 +77,10 @@
                 icon="/icons/aboutSpeqa.svg">
             <add-to-group group-id="EditorTabsEntryPoint" anchor="last"/>
         </action>
+        <group id="Speqa.ToolsMenu" text="SpeQA" popup="true">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+            <action id="Speqa.InstallSkill"
+                    class="io.github.barsia.speqa.actions.InstallSkillAction"/>
+        </group>
     </actions>
 </idea-plugin>

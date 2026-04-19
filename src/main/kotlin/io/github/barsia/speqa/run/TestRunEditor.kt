@@ -169,6 +169,12 @@ class TestRunEditor(
                         maybeSetStartedAt()
                         saveToDocument()
                     },
+                    onStepTicketChange = { index, ticket ->
+                        stepResults = stepResults.toMutableList().also { results ->
+                            results[index] = results[index].copy(ticket = ticket)
+                        }
+                        saveToDocument()
+                    },
                     priority = initialRun.priority,
                     bodyBlocks = initialRun.bodyBlocks,
                     links = initialRun.links,

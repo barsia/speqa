@@ -1,9 +1,11 @@
 package io.github.barsia.speqa.parser
 
 import io.github.barsia.speqa.model.Attachment
+import io.github.barsia.speqa.model.Link
 import io.github.barsia.speqa.model.StepResult
 import io.github.barsia.speqa.model.StepVerdict
 import io.github.barsia.speqa.model.TestRun
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -90,8 +92,8 @@ class TestRunSerializerTest {
         )
         val result = TestRunSerializer.serialize(run)
         assertTrue(result.contains("tags:"))
-        assertTrue(result.contains("  - auth"))
-        assertTrue(result.contains("  - smoke"))
+        assertTrue(result.contains("  - \"auth\""))
+        assertTrue(result.contains("  - \"smoke\""))
     }
 
     @Test
@@ -102,6 +104,31 @@ class TestRunSerializerTest {
             startedAt = LocalDateTime.of(2026, 4, 11, 10, 0),
         )
         assertFalse(TestRunSerializer.serialize(run).contains("tags:"))
+    }
+
+    @Test
+    fun `serializes single environment value as scalar`() {
+        val run = TestRun(
+            title = "Test",
+            environment = listOf("Chrome 122, macOS 14"),
+            startedAt = LocalDateTime.of(2026, 4, 11, 10, 0),
+        )
+        val result = TestRunSerializer.serialize(run)
+        assertTrue(result.contains("environment: \"Chrome 122, macOS 14\""))
+        assertFalse(result.contains("environment:\n"))
+    }
+
+    @Test
+    fun `serializes multiple environment values as list`() {
+        val run = TestRun(
+            title = "Test",
+            environment = listOf("Chrome 122", "Firefox 123"),
+            startedAt = LocalDateTime.of(2026, 4, 11, 10, 0),
+        )
+        val result = TestRunSerializer.serialize(run)
+        assertTrue(result.contains("environment:"))
+        assertTrue(result.contains("  - \"Chrome 122\""))
+        assertTrue(result.contains("  - \"Firefox 123\""))
     }
 
     @Test
@@ -188,15 +215,92 @@ class TestRunSerializerTest {
                     action = "Click button",
                     expected = "Page loads",
                     verdict = StepVerdict.PASSED,
-                    actionAttachments = listOf(Attachment("attachments/screenshot.png")),
-                    expectedAttachments = listOf(Attachment("attachments/report.pdf")),
+                    attachments = listOf(
+                        Attachment("attachments/screenshot.png"),
+                        Attachment("attachments/report.pdf"),
+                    ),
                 ),
             ),
         )
         val result = TestRunSerializer.serialize(run)
-        assertTrue("Merged attachment block present", result.contains("   ![screenshot.png](attachments/screenshot.png)"))
-        assertTrue("Merged attachment block present", result.contains("   [report.pdf](attachments/report.pdf)"))
-        assertTrue(result.indexOf("   ![screenshot.png](attachments/screenshot.png)") > result.indexOf("   > Page loads"))
+        assertTrue(result.contains("   ![screenshot.png](attachments/screenshot.png)"))
+        assertTrue(result.contains("   [report.pdf](attachments/report.pdf)"))
+        assertTrue(result.indexOf("   > Page loads") < result.indexOf("   ![screenshot.png](attachments/screenshot.png)"))
+        assertTrue(result.indexOf("   ![screenshot.png](attachments/screenshot.png)") < result.indexOf("   [report.pdf](attachments/report.pdf)"))
+    }
+
+    @Test
+    fun `serializes step links separately from attachments`() {
+        val run = TestRun(
+            title = "Test",
+            startedAt = LocalDateTime.of(2026, 4, 11, 10, 0),
+            stepResults = listOf(
+                StepResult(
+                    action = "Open login page",
+                    expected = "Login page is visible",
+                    verdict = StepVerdict.PASSED,
+                    links = listOf(Link("Spec", "https://example.com/spec")),
+                    attachments = listOf(
+                        Attachment("attachments/action.png"),
+                        Attachment("attachments/report.pdf"),
+                    ),
+                ),
+            ),
+        )
+        val result = TestRunSerializer.serialize(run)
+        assertTrue(result.contains("   Links: [Spec](https://example.com/spec)"))
+        assertTrue(result.contains("   ![action.png](attachments/action.png)"))
+        assertTrue(result.contains("   [report.pdf](attachments/report.pdf)"))
+    }
+
+    @Test
+    fun `round trip preserves step links and attachments`() {
+        val original = TestRun(
+            title = "Round trip",
+            environment = listOf("Chrome 122, macOS 14"),
+            startedAt = LocalDateTime.of(2026, 4, 11, 10, 0),
+            stepResults = listOf(
+                StepResult(
+                    action = "Open",
+                    expected = "Opened",
+                    verdict = StepVerdict.PASSED,
+                    tickets = listOf("QA-1"),
+                    links = listOf(Link("Spec", "https://example.com/spec")),
+                    attachments = listOf(
+                        Attachment("a.png"),
+                        Attachment("b.png"),
+                    ),
+                ),
+            ),
+        )
+
+        val parsed = TestRunParser.parse(TestRunSerializer.serialize(original))
+        assertTrue(parsed.environment == original.environment)
+        assertTrue(parsed.stepResults == original.stepResults)
+    }
+
+    @Test
+    fun `round trip preserves step links with commas inside url`() {
+        val original = TestRun(
+            title = "Round trip",
+            startedAt = LocalDateTime.of(2026, 4, 11, 10, 0),
+            stepResults = listOf(
+                StepResult(
+                    action = "Open",
+                    expected = "Opened",
+                    links = listOf(
+                        Link("Spec", "https://example.com/spec?labels=a,b"),
+                        Link("", "https://example.com/raw?a=1,b=2"),
+                    ),
+                ),
+            ),
+        )
+
+        val serialized = TestRunSerializer.serialize(original)
+        assertTrue(serialized.contains("Links: [Spec](https://example.com/spec?labels=a,b), [](https://example.com/raw?a=1,b=2)"))
+
+        val parsed = TestRunParser.parse(serialized)
+        assertEquals(original.stepResults.single().links, parsed.stepResults.single().links)
     }
 
     @Test

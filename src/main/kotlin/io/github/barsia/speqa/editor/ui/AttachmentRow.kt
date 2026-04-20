@@ -8,11 +8,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.foundation.focusable
-import androidx.compose.ui.focus.focusTarget
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
@@ -31,6 +32,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.intellij.icons.AllIcons
+import com.intellij.openapi.project.Project
+import com.intellij.openapi.vfs.VirtualFile
 import io.github.barsia.speqa.SpeqaBundle
 import io.github.barsia.speqa.editor.AttachmentSupport
 import io.github.barsia.speqa.model.Attachment
@@ -41,6 +44,22 @@ import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.component.Tooltip
 import org.jetbrains.jewel.ui.icon.IntelliJIconKey
 
+@Composable
+private fun AttachmentRowInner(
+    fileIcon: IntelliJIconKey,
+    iconTint: Color,
+    iconAlpha: Float,
+    fileName: String,
+    nameColor: Color,
+) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(modifier = Modifier.size(24.dp), contentAlignment = Alignment.Center) {
+            Icon(fileIcon, contentDescription = null, modifier = Modifier.size(14.dp).alpha(iconAlpha), tint = iconTint)
+        }
+        Text(fileName, fontSize = 12.sp, color = nameColor, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
+
 @OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
 @Composable
 internal fun AttachmentRow(
@@ -50,6 +69,8 @@ internal fun AttachmentRow(
     isMissing: Boolean = false,
     onRelink: (() -> Unit)? = null,
     compact: Boolean = false,
+    project: Project? = null,
+    tcFile: VirtualFile? = null,
     modifier: Modifier = Modifier,
     actionModifier: Modifier = Modifier,
     deleteModifier: Modifier = Modifier,
@@ -80,7 +101,6 @@ internal fun AttachmentRow(
     ) {
         Box(
             modifier = actionModifier
-                .then(if (!compact) Modifier.weight(1f) else Modifier)
                 .semantics { role = Role.Button }
                 .border(1.dp, if (hoverFocus.isFocused) SpeqaThemeColors.accent else Color.Transparent, RoundedCornerShape(4.dp))
                 .onFocusChanged { hoverFocus.updateFocus(it.isFocused) }
@@ -94,30 +114,22 @@ internal fun AttachmentRow(
                 .hoverable(hoverFocus.interactionSource)
                 .handOnHover()
                 .focusable()
-                .pointerInput(rowAction) { detectTapGestures { rowAction() } },
+                .pointerInput(rowAction) { detectTapGestures { rowAction() } }
+                .padding(end = 5.dp),
         ) {
-            Tooltip(tooltip = { Text(tooltipText) }) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
+            when {
+                project != null && tcFile != null -> RichTooltip(
+                    tooltip = { AttachmentPreviewPopover(attachment, project, tcFile) },
                 ) {
-                    Box(modifier = Modifier.size(24.dp), contentAlignment = Alignment.Center) {
-                        Icon(fileIcon, contentDescription = null, modifier = Modifier.size(14.dp).alpha(iconAlpha), tint = iconTint)
-                    }
-                    Text(
-                        fileName,
-                        fontSize = 12.sp,
-                        color = nameColor,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                    AttachmentRowInner(fileIcon, iconTint, iconAlpha, fileName, nameColor)
                 }
+                isMissing -> Tooltip(tooltip = { Text(tooltipText) }) {
+                    AttachmentRowInner(fileIcon, iconTint, iconAlpha, fileName, nameColor)
+                }
+                else -> AttachmentRowInner(fileIcon, iconTint, iconAlpha, fileName, nameColor)
             }
         }
         if (onDelete != null) {
-            if (!compact) {
-                // Spacer matching LinkRow's edit button width so trash icons align vertically
-                Spacer(modifier = Modifier.size(24.dp))
-            }
             val trashHoverFocus = rememberHoverFocusState()
             val trashTint = if (trashHoverFocus.isHovered || trashHoverFocus.isFocused) deleteColor else SpeqaThemeColors.mutedForeground
             Tooltip(tooltip = { Text(SpeqaBundle.message("tooltip.removeAttachment")) }) {

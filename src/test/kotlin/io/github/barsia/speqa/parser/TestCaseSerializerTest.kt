@@ -168,9 +168,11 @@ class TestCaseSerializerTest {
             steps = listOf(
                 TestStep(
                     action = "Click login",
-                    actionAttachments = listOf(Attachment("attachments/attachment-round-trip/action.png")),
                     expected = "Dashboard loads",
-                    expectedAttachments = listOf(Attachment("attachments/attachment-round-trip/expected.png")),
+                    attachments = listOf(
+                        Attachment("attachments/attachment-round-trip/action.png"),
+                        Attachment("attachments/attachment-round-trip/expected.png"),
+                    ),
                 ),
             ),
         )
@@ -181,10 +183,9 @@ class TestCaseSerializerTest {
         assertEquals(original.attachments.size, parsed.attachments.size)
         assertEquals(original.attachments[0].path, parsed.attachments[0].path)
         assertEquals(original.attachments[1].path, parsed.attachments[1].path)
-        assertTrue(parsed.steps[0].actionAttachments.isEmpty())
-        assertEquals(2, parsed.steps[0].expectedAttachments.size)
-        assertEquals(original.steps[0].actionAttachments[0].path, parsed.steps[0].expectedAttachments[0].path)
-        assertEquals(original.steps[0].expectedAttachments[0].path, parsed.steps[0].expectedAttachments[1].path)
+        assertEquals(2, parsed.steps[0].attachments.size)
+        assertEquals(original.steps[0].attachments[0].path, parsed.steps[0].attachments[0].path)
+        assertEquals(original.steps[0].attachments[1].path, parsed.steps[0].attachments[1].path)
     }
 
     @Test
@@ -496,7 +497,7 @@ class TestCaseSerializerTest {
     fun `step with ticket serializes Ticket line`() {
         val tc = TestCase(
             title = "Test",
-            steps = listOf(TestStep(action = "Do something", expected = "Result", ticket = "PROJ-123, PROJ-456")),
+            steps = listOf(TestStep(action = "Do something", expected = "Result", tickets = listOf("PROJ-123", "PROJ-456"))),
         )
         val md = TestCaseSerializer.serialize(tc)
         assertTrue("Should contain Ticket line, got:\n$md", md.contains("   Ticket: PROJ-123, PROJ-456"))
@@ -517,13 +518,47 @@ class TestCaseSerializerTest {
         val tc = TestCase(
             title = "Test",
             steps = listOf(
-                TestStep(action = "Step one", expected = "Expected one", ticket = "BUG-42"),
+                TestStep(action = "Step one", expected = "Expected one", tickets = listOf("BUG-42")),
                 TestStep(action = "Step two", expected = "Expected two"),
             ),
         )
         val md = TestCaseSerializer.serialize(tc)
         val parsed = TestCaseParser.parse(md)
-        assertEquals("BUG-42", parsed.steps[0].ticket)
-        assertNull(parsed.steps[1].ticket)
+        assertEquals(listOf("BUG-42"), parsed.steps[0].tickets)
+        assertEquals(emptyList<String>(), parsed.steps[1].tickets)
+    }
+
+    @Test
+    fun `round trip preserves step links`() {
+        val original = TestCase(
+            title = "Round trip step links",
+            steps = listOf(
+                TestStep(
+                    action = "Open Figma mock",
+                    expected = "Matches screen",
+                    links = listOf(
+                        Link(title = "Figma login spec", url = "https://figma.com/file/abc"),
+                        Link(title = "", url = "https://docs.google.com/requirements"),
+                    ),
+                ),
+                TestStep(action = "No links here", expected = "Fine"),
+            ),
+        )
+        val serialized = TestCaseSerializer.serialize(original)
+        val parsed = TestCaseParser.parse(serialized)
+        assertEquals(original.steps, parsed.steps)
+    }
+
+    @Test
+    fun `round trip preserves step link without title`() {
+        val original = TestCase(
+            title = "Link without title",
+            steps = listOf(
+                TestStep(action = "Open", links = listOf(Link(title = "", url = "https://example.com/x"))),
+            ),
+        )
+        val serialized = TestCaseSerializer.serialize(original)
+        val parsed = TestCaseParser.parse(serialized)
+        assertEquals(original.steps.single().links, parsed.steps.single().links)
     }
 }

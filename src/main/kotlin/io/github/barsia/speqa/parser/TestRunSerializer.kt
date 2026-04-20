@@ -24,12 +24,9 @@ object TestRunSerializer {
             testRun.finishedAt?.let { appendLine("finished_at: ${SpeqaMarkdown.quoteYamlScalar(formatter.format(it))}") }
             appendLine("result: ${testRun.result.label}")
             if (testRun.manualResult) appendLine("manual_result: true")
-            appendLine("environment: ${SpeqaMarkdown.quoteYamlScalar(testRun.environment)}")
+            SpeqaMarkdown.appendStringListField(this, "environment", testRun.environment)
             appendLine("runner: ${SpeqaMarkdown.quoteYamlScalar(testRun.runner)}")
-            if (testRun.tags.isNotEmpty()) {
-                appendLine("tags:")
-                testRun.tags.forEach { tag -> appendLine("  - $tag") }
-            }
+            SpeqaMarkdown.appendStringListField(this, "tags", testRun.tags)
             appendLine("---")
             appendLine()
 
@@ -123,19 +120,30 @@ object TestRunSerializer {
         actionLines.drop(1).forEachIndexed { index, line ->
             appendLine("   $line${if (index != actionLines.lastIndex - 1) "  " else ""}")
         }
-        if (step.expected.isNotBlank()) {
-            val expectedLines = step.expected.lines()
-            expectedLines.forEachIndexed { index, line ->
-                appendLine("   > $line${if (index != expectedLines.lastIndex) "  " else ""}")
+        val hasExpectedBlock = step.expected.isNotBlank()
+        if (hasExpectedBlock) {
+            if (step.expected.isBlank()) {
+                appendLine("   >")
+            } else {
+                val expectedLines = step.expected.lines()
+                expectedLines.forEachIndexed { index, line ->
+                    appendLine("   > $line${if (index != expectedLines.lastIndex) "  " else ""}")
+                }
             }
         }
-        (step.actionAttachments + step.expectedAttachments).forEach { att ->
+        step.attachments.forEach { att ->
             append("   ")
             appendAttachment(att)
         }
-        if (!step.ticket.isNullOrBlank()) {
+        if (step.tickets.isNotEmpty()) {
             appendLine()
-            appendLine("   Ticket: ${step.ticket}")
+            appendLine("   Ticket: ${step.tickets.joinToString(", ")}")
+        }
+        if (step.links.isNotEmpty()) {
+            val rendered = step.links.joinToString(", ") { link ->
+                if (link.title.isBlank()) "[](${link.url})" else "[${link.title}](${link.url})"
+            }
+            appendLine("   Links: $rendered")
         }
         if (step.verdict != StepVerdict.NONE) {
             appendLine("   - ${step.verdict.label}")

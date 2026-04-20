@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -60,6 +61,19 @@ import org.jetbrains.jewel.ui.component.Tooltip
 import org.jetbrains.jewel.ui.icon.IntelliJIconKey
 import androidx.compose.foundation.gestures.detectTapGestures
 
+internal enum class TagCloudDismissReason { Keyboard, Pointer }
+
+internal fun shouldRestoreTagCloudAnchorFocus(reason: TagCloudDismissReason): Boolean {
+    return reason == TagCloudDismissReason.Keyboard
+}
+
+internal fun shouldShowTagCloudAnchorFocusRing(
+    isFocused: Boolean,
+    suppressFocusRing: Boolean,
+): Boolean {
+    return isFocused && !suppressFocusRing
+}
+
 @OptIn(ExperimentalLayoutApi::class, ExperimentalFoundationApi::class, ExperimentalJewelApi::class)
 @Composable
 internal fun TagCloud(
@@ -73,6 +87,8 @@ internal fun TagCloud(
     chipContextActions: ((String) -> List<TagChipContextAction>)? = null,
     addItemLabel: String = SpeqaBundle.message("tagCloud.addTag"),
     showLabel: Boolean = true,
+    showHeaderDivider: Boolean = true,
+    emptyText: String? = null,
     modifier: Modifier = Modifier,
 ) {
     val focusManager = LocalFocusManager.current
@@ -80,15 +96,29 @@ internal fun TagCloud(
     val textFieldState = remember { TextFieldState() }
     val addIcon = remember { IntelliJIconKey.fromPlatformIcon(AllIcons.General.Add, SpeqaLayout::class.java) }
     val addButtonFocusRequester = remember { FocusRequester() }
+    var suppressAddFocusRing by remember { mutableStateOf(false) }
 
     fun dismissInput() {
         isAdding = false
         textFieldState.edit { replace(0, length, "") }
     }
 
-    fun dismissAndRestoreAnchor() {
+    fun dismiss(reason: TagCloudDismissReason) {
         dismissInput()
-        addButtonFocusRequester.requestFocus()
+        if (shouldRestoreTagCloudAnchorFocus(reason)) {
+            suppressAddFocusRing = false
+            addButtonFocusRequester.requestFocus()
+        } else {
+            suppressAddFocusRing = true
+        }
+    }
+
+    fun dismissAndRestoreAnchor() {
+        dismiss(TagCloudDismissReason.Keyboard)
+    }
+
+    fun dismissFromPointer() {
+        dismiss(TagCloudDismissReason.Pointer)
     }
 
     fun dismissAndContinueTraversal(direction: FocusDirection) {
@@ -101,7 +131,7 @@ internal fun TagCloud(
         if (trimmed.isNotEmpty() && trimmed !in tags && onTagsChange != null) {
             onTagsChange(tags + trimmed)
         }
-        dismissInput()
+        dismissAndRestoreAnchor()
     }
 
     Column(
@@ -118,9 +148,12 @@ internal fun TagCloud(
                 if (showLabel) {
                     SectionLabel(label)
                 }
-                Box(
-                    Modifier.weight(1f).height(1.dp).background(SpeqaThemeColors.divider)
-                )
+                when {
+                    showHeaderDivider -> Box(
+                        Modifier.weight(1f).height(1.dp).background(SpeqaThemeColors.divider)
+                    )
+                    !showLabel -> Spacer(Modifier.weight(1f))
+                }
                 if (onTagsChange != null) {
                     var buttonHeightPx by remember { mutableStateOf(0) }
                     val gapPx = with(LocalDensity.current) { SpeqaLayout.tightGap.roundToPx() }
@@ -128,7 +161,7 @@ internal fun TagCloud(
                         var addFocused by remember { mutableStateOf(false) }
                         val addHoverSource = remember { MutableInteractionSource() }
                         val addHovered by addHoverSource.collectIsHoveredAsState()
-                        val addBorder = if (addFocused) SpeqaThemeColors.accent else Color.Transparent
+                        val addBorder = if (shouldShowTagCloudAnchorFocusRing(addFocused, suppressAddFocusRing)) SpeqaThemeColors.accent else Color.Transparent
                         val addBg = if (addHovered || addFocused) SpeqaThemeColors.actionHover else Color.Transparent
                         val addTagDescription = addItemLabel
                         Tooltip(tooltip = { Text(addItemLabel) }) {
@@ -143,11 +176,23 @@ internal fun TagCloud(
                                     .background(addBg, RoundedCornerShape(4.dp))
                                     .border(1.dp, addBorder, RoundedCornerShape(4.dp))
                                     .hoverable(addHoverSource)
-                                    .onFocusChanged { addFocused = it.isFocused }
+                                    .onFocusChanged {
+                                        addFocused = it.isFocused
+                                        if (!it.isFocused) {
+                                            suppressAddFocusRing = false
+                                        }
+                                    }
+                                    .pointerInput(Unit) {
+                                        detectTapGestures(onPress = {
+                                            suppressAddFocusRing = true
+                                            tryAwaitRelease()
+                                        })
+                                    }
                                     .onPreviewKeyEvent { event ->
                                         if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                                         when (event.key) {
                                             Key.Enter, Key.NumPadEnter, Key.Spacebar -> {
+                                                suppressAddFocusRing = false
                                                 focusManager.clearFocus()
                                                 isAdding = true
                                                 textFieldState.edit { replace(0, length, "") }
@@ -162,6 +207,7 @@ internal fun TagCloud(
                                     }
                                     .handOnHover()
                                     .clickableWithPointer(focusable = true) {
+                                        suppressAddFocusRing = true
                                         focusManager.clearFocus()
                                         isAdding = true
                                         textFieldState.edit { replace(0, length, "") }
@@ -180,7 +226,7 @@ internal fun TagCloud(
                         if (isAdding) {
                             Popup(
                                 offset = androidx.compose.ui.unit.IntOffset(0, buttonHeightPx + gapPx),
-                                onDismissRequest = ::dismissInput,
+                                onDismissRequest = ::dismissFromPointer,
                                 properties = androidx.compose.ui.window.PopupProperties(focusable = true),
                             ) {
                                 TagInput(
@@ -199,7 +245,6 @@ internal fun TagCloud(
             }
         }
 
-        // Chips or empty state
         if (tags.isNotEmpty()) {
             val chipSpacing = SpeqaLayout.tightGap
             FlowRow(
@@ -216,15 +261,11 @@ internal fun TagCloud(
                     )
                 }
             }
-        } else {
+        } else if (emptyText != null) {
             Text(
-                text = when (label) {
-                    SpeqaBundle.message("label.tags") -> SpeqaBundle.message("label.noTags")
-                    SpeqaBundle.message("label.environment") -> SpeqaBundle.message("label.noEnvironments")
-                    else -> SpeqaBundle.message("label.notSet")
-                },
+                text = emptyText,
                 color = SpeqaThemeColors.mutedForeground,
-                fontSize = 13.sp,
+                fontSize = 12.sp,
             )
         }
     }

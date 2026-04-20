@@ -132,9 +132,9 @@ class AboutSpeqaAction : AnAction(), DumbAware {
                     insets = JBUI.emptyInsets()
                 }
                 linkGbc.gridx = 0
-                linksPanel.add(HyperlinkLabel(SpeqaBundle.message("about.link.github")).apply {
+                linksPanel.add(HyperlinkLabel(SpeqaBundle.message("about.link.docs")).apply {
                     font = smallFont
-                    setHyperlinkTarget("https://github.com/barsia/speqa")
+                    setHyperlinkTarget("https://barsia.github.io/speqa")
                 }, linkGbc)
                 linkGbc.gridx = 1
                 linkGbc.insets = JBUI.insets(0, 4, 0, 4)
@@ -144,7 +144,19 @@ class AboutSpeqaAction : AnAction(), DumbAware {
                 }, linkGbc)
                 linkGbc.gridx = 2
                 linkGbc.insets = JBUI.emptyInsets()
-                linksPanel.add(HyperlinkLabel(SpeqaBundle.message("about.link.website")).apply {
+                linksPanel.add(HyperlinkLabel(SpeqaBundle.message("about.link.github")).apply {
+                    font = smallFont
+                    setHyperlinkTarget("https://github.com/barsia/speqa")
+                }, linkGbc)
+                linkGbc.gridx = 3
+                linkGbc.insets = JBUI.insets(0, 4, 0, 4)
+                linksPanel.add(JBLabel("|").apply {
+                    font = smallFont
+                    foreground = JBUI.CurrentTheme.Label.disabledForeground()
+                }, linkGbc)
+                linkGbc.gridx = 4
+                linkGbc.insets = JBUI.emptyInsets()
+                linksPanel.add(HyperlinkLabel(SpeqaBundle.message("about.link.author")).apply {
                     font = smallFont
                     setHyperlinkTarget("https://barsia.github.io")
                 }, linkGbc)

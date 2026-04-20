@@ -21,8 +21,13 @@ import io.github.barsia.speqa.SpeqaBundle
 import io.github.barsia.speqa.editor.IdStateHolder
 import io.github.barsia.speqa.editor.resolveTestCaseHeaderMeta
 import io.github.barsia.speqa.editor.ui.editorBackgroundAwt
+import io.github.barsia.speqa.model.Attachment
+import io.github.barsia.speqa.model.DescriptionBlock
+import io.github.barsia.speqa.model.Link
+import io.github.barsia.speqa.model.PreconditionsBlock
 import io.github.barsia.speqa.model.RunResult
 import io.github.barsia.speqa.model.StepVerdict
+import io.github.barsia.speqa.model.TestCaseBodyBlock
 import io.github.barsia.speqa.model.TestRun
 import io.github.barsia.speqa.parser.TestRunParser
 import io.github.barsia.speqa.parser.TestRunSerializer
@@ -51,6 +56,9 @@ class TestRunEditor(
     private var runId by mutableStateOf(initialRun.id)
     private var stepResults by mutableStateOf(initialRun.stepResults)
     private var environment by mutableStateOf(initialRun.environment)
+    private var links by mutableStateOf(initialRun.links)
+    private var attachments by mutableStateOf(initialRun.attachments)
+    private var bodyBlocks by mutableStateOf(initialRun.bodyBlocks)
     private var runner by mutableStateOf(initialRun.runner.ifBlank { TestRunSupport.defaultRunner() })
     private var startedAt by mutableStateOf(initialRun.startedAt)
     private var finishedAt by mutableStateOf(initialRun.finishedAt)
@@ -82,6 +90,9 @@ class TestRunEditor(
         runId = parsed.id
         stepResults = parsed.stepResults
         environment = parsed.environment
+        links = parsed.links
+        attachments = parsed.attachments
+        bodyBlocks = parsed.bodyBlocks
         runner = parsed.runner
         startedAt = parsed.startedAt
         finishedAt = parsed.finishedAt
@@ -117,11 +128,22 @@ class TestRunEditor(
             SwingBridgeTheme {
                 @Suppress("UNUSED_VARIABLE")
                 val currentTheme = themeRevision
+                val tagRegistry = io.github.barsia.speqa.registry.SpeqaTagRegistry.getInstance(project)
                 TestRunPanel(
                     project = project,
+                    file = file,
                     scrollSyncController = scrollSync,
                     title = title,
+                    onTitleCommit = {
+                        title = it
+                        saveToDocument()
+                    },
                     tags = tags,
+                    allKnownTags = tagRegistry.allTags,
+                    onTagsChange = {
+                        tags = it
+                        saveToDocument()
+                    },
                     runId = runId,
                     nextFreeRunId = idState.nextFreeId,
                     isRunIdDuplicate = idState.isDuplicate,
@@ -144,14 +166,36 @@ class TestRunEditor(
                     },
                     stepResults = stepResults,
                     environment = environment,
-                    environmentOptions = emptyList(),
+                    environmentOptions = tagRegistry.allEnvironments,
+                    links = links,
+                    attachments = attachments,
                     runner = runner,
                     onEnvironmentChange = {
                         environment = it
                         saveToDocument()
                     },
+                    onLinksChange = {
+                        links = it
+                        saveToDocument()
+                    },
+                    onAttachmentsChange = {
+                        attachments = it
+                        saveToDocument()
+                    },
                     onRunnerChange = {
                         runner = it
+                        saveToDocument()
+                    },
+                    onStepActionChange = { index, action ->
+                        stepResults = stepResults.toMutableList().also { results ->
+                            results[index] = results[index].copy(action = action)
+                        }
+                        saveToDocument()
+                    },
+                    onStepExpectedChange = { index, expected ->
+                        stepResults = stepResults.toMutableList().also { results ->
+                            results[index] = results[index].copy(expected = expected)
+                        }
                         saveToDocument()
                     },
                     onStepVerdictChange = { index, verdict ->
@@ -169,16 +213,30 @@ class TestRunEditor(
                         maybeSetStartedAt()
                         saveToDocument()
                     },
-                    onStepTicketChange = { index, ticket ->
+                    onStepTicketChange = { index, tickets ->
                         stepResults = stepResults.toMutableList().also { results ->
-                            results[index] = results[index].copy(ticket = ticket)
+                            results[index] = results[index].copy(tickets = tickets)
+                        }
+                        saveToDocument()
+                    },
+                    onStepLinkChange = { index, links ->
+                        stepResults = stepResults.toMutableList().also { results ->
+                            results[index] = results[index].copy(links = links)
+                        }
+                        saveToDocument()
+                    },
+                    onStepAttachmentsChange = { index, attachments ->
+                        stepResults = stepResults.toMutableList().also { results ->
+                            results[index] = results[index].copy(attachments = attachments)
                         }
                         saveToDocument()
                     },
                     priority = initialRun.priority,
-                    bodyBlocks = initialRun.bodyBlocks,
-                    links = initialRun.links,
-                    attachments = initialRun.attachments,
+                    bodyBlocks = bodyBlocks,
+                    onBodyBlocksChange = {
+                        bodyBlocks = it
+                        saveToDocument()
+                    },
                     onOpenAttachment = { attachment ->
                         io.github.barsia.speqa.editor.AttachmentSupport.resolveFile(project, file, attachment)?.let { vf ->
                             com.intellij.openapi.fileEditor.FileEditorManager.getInstance(project).openFile(vf, true)
@@ -214,10 +272,24 @@ class TestRunEditor(
         if (!composeMountController.shouldMount()) return
         val panel = buildComposePanel()
         composePanel = panel
+        suppressPlatformEnterShortcuts(panel)
         component.remove(placeholderPanel)
         component.add(panel, BorderLayout.CENTER)
         component.revalidate()
         component.repaint()
+    }
+
+    private fun suppressPlatformEnterShortcuts(component: JComponent) {
+        val insertNewline = object : com.intellij.openapi.actionSystem.AnAction() {
+            override fun actionPerformed(e: com.intellij.openapi.actionSystem.AnActionEvent) {
+                io.github.barsia.speqa.editor.ui.FocusedMultilineInsertion.invokeNewline()
+            }
+        }
+        val shortcuts = com.intellij.openapi.actionSystem.CustomShortcutSet(
+            com.intellij.openapi.actionSystem.KeyboardShortcut(javax.swing.KeyStroke.getKeyStroke("control ENTER"), null),
+            com.intellij.openapi.actionSystem.KeyboardShortcut(javax.swing.KeyStroke.getKeyStroke("control shift ENTER"), null),
+        )
+        insertNewline.registerCustomShortcutSet(shortcuts, component)
     }
 
     init {
@@ -267,6 +339,9 @@ class TestRunEditor(
         val snapshotManualResult = manualResult
         val snapshotOverriddenResult = overriddenResult
         val snapshotEnvironment = environment
+        val snapshotLinks = links
+        val snapshotAttachments = attachments
+        val snapshotBodyBlocks = bodyBlocks
         val snapshotRunner = runner
         val snapshotStepResults = stepResults
         val snapshotStartedAt = startedAt
@@ -284,9 +359,9 @@ class TestRunEditor(
             environment = snapshotEnvironment,
             runner = snapshotRunner,
             priority = initialRun.priority,
-            bodyBlocks = initialRun.bodyBlocks,
-            links = initialRun.links,
-            attachments = initialRun.attachments,
+            bodyBlocks = snapshotBodyBlocks,
+            links = snapshotLinks,
+            attachments = snapshotAttachments,
             stepResults = snapshotStepResults,
             comment = snapshotComment,
         )

@@ -1,8 +1,17 @@
 package io.github.barsia.speqa.editor.ui
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BasicTooltipBox
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.rememberBasicTooltipState
+import androidx.compose.foundation.shape.RoundedCornerShape as TooltipShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size as GeometrySize
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.hoverable
@@ -13,6 +22,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -46,6 +56,9 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isAltPressed
+import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.isMetaPressed
 import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
@@ -53,6 +66,7 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.role
@@ -68,6 +82,7 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.ui.text.buildAnnotatedString
@@ -76,6 +91,11 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntRect
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.window.PopupPositionProvider
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.editor.colors.EditorColorsManager
 import com.intellij.openapi.editor.colors.EditorColorsScheme
@@ -297,6 +317,7 @@ fun Modifier.clickableWithPointer(
 
     return composed {
         var isFocused by remember { mutableStateOf(false) }
+        val currentOnClick by androidx.compose.runtime.rememberUpdatedState(onClick)
         base
             .then(
                 if (showFocusBorder) {
@@ -309,7 +330,7 @@ fun Modifier.clickableWithPointer(
             .onPreviewKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                 when (event.key) {
-                    Key.Enter, Key.NumPadEnter, Key.Spacebar -> { if (enabled) onClick(); true }
+                    Key.Enter, Key.NumPadEnter, Key.Spacebar -> { if (enabled) currentOnClick(); true }
                     else -> false
                 }
             }
@@ -317,7 +338,7 @@ fun Modifier.clickableWithPointer(
             .pointerInput(enabled) {
                 detectTapGestures(
                     onTap = {
-                        if (enabled) onClick()
+                        if (enabled) currentOnClick()
                     },
                 )
             }
@@ -340,6 +361,7 @@ fun Modifier.clickableWithPointer(
 
     return composed {
         var isFocused by remember { mutableStateOf(false) }
+        val currentOnClick by androidx.compose.runtime.rememberUpdatedState(onClick)
         base
             .then(
                 if (showFocusBorder) {
@@ -352,7 +374,7 @@ fun Modifier.clickableWithPointer(
             .onPreviewKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                 when (event.key) {
-                    Key.Enter, Key.NumPadEnter, Key.Spacebar -> { if (enabled) onClick(); true }
+                    Key.Enter, Key.NumPadEnter, Key.Spacebar -> { if (enabled) currentOnClick(); true }
                     else -> false
                 }
             }
@@ -360,7 +382,7 @@ fun Modifier.clickableWithPointer(
             .pointerInput(enabled, interactionSource) {
                 detectTapGestures(
                     onTap = {
-                        if (enabled) onClick()
+                        if (enabled) currentOnClick()
                     },
                 )
             }
@@ -531,23 +553,141 @@ internal object SpeqaThemeColors {
 }
 
 internal object SpeqaLayout {
-    val pagePadding = 16.dp
-    val sectionGap = 20.dp
-    val blockGap = 12.dp
-    val compactGap = 8.dp
-    val tightGap = 6.dp
-    val itemGap = 2.dp
-    val blockPadding = 12.dp
-    val headerPadding = 14.dp
-    val contentInset = 8.dp
+    // === 4dp base scale (canonical) ===
+    val s0 = 0.dp
+    val s1 = 4.dp
+    val s2 = 8.dp
+    val s3 = 12.dp
+    val s4 = 16.dp
+    val s5 = 24.dp
+    val s6 = 32.dp
+
+    // === Legacy aliases — existing callsites stay compiling. New code uses s0..s6. ===
+    val pagePadding = s4
+    val sectionGap = s5
+    val blockGap = s3
+    val compactGap = s2
+    val tightGap = s1
+    val itemGap = s0
+    val blockPadding = s3
+    val headerPadding = s3
+    val contentInset = s2
+
+    // === Non-spacing (kept as-is) ===
     val headerRadius = 8.dp
     val blockRadius = 8.dp
-    val stepNumberColumnWidth = 24.dp
+    val stepNumberColumnWidth = s5
     val actionPillRadius = 6.dp
     val controlHeight = 28.dp
     val titleControlHeight = 44.dp
     val controlCornerRadius = 8.dp
     val chipHeight = 28.dp
+}
+
+internal object SpeqaTypography {
+    val titleFontSize = 20.sp
+    val titleWeight = FontWeight.SemiBold
+    val titleLineHeight = 24.sp
+
+    val h2FontSize = 14.sp
+    val h2Weight = FontWeight.SemiBold
+    val h2LineHeight = 17.sp
+
+    val bodyFontSize = 13.sp
+    val bodyWeight = FontWeight.Normal
+    val bodyLineHeight = 19.sp
+
+    val metaFontSize = 12.sp
+    val metaWeight = FontWeight.Normal
+    val metaLineHeight = 16.sp
+
+    val numericFontSize = 11.sp
+    val numericWeight = FontWeight.SemiBold
+    val numericTracking = 0.6.sp
+    val numericLineHeight = 14.sp
+
+    val placeholderFontSize = 12.sp
+    val placeholderLineHeight = 16.sp
+}
+
+@Composable
+internal fun AccentBar(active: Boolean, modifier: Modifier = Modifier) {
+    val color by androidx.compose.animation.animateColorAsState(
+        targetValue = if (active) SpeqaThemeColors.accent else Color.Transparent,
+        animationSpec = androidx.compose.animation.core.tween(durationMillis = 120),
+        label = "AccentBar.color",
+    )
+    Box(
+        modifier = modifier
+            .width(2.dp)
+            .fillMaxHeight()
+            .background(color),
+    )
+}
+
+/**
+ * Draws a 2dp left-edge accent bar on this composable using [drawWithContent].
+ * Use this instead of the [AccentBar] composable sibling when the parent Row
+ * cannot use [androidx.compose.foundation.layout.IntrinsicSize.Min] (e.g. when
+ * the Row contains a Jewel [TextArea] whose ScrollableContainer returns
+ * Int.MAX_VALUE from minIntrinsicHeight).
+ */
+internal fun Modifier.accentBar(active: Boolean, width: androidx.compose.ui.unit.Dp = 1.dp): Modifier = composed {
+    val color by animateColorAsState(
+        targetValue = if (active) SpeqaThemeColors.accent else Color.Transparent,
+        animationSpec = tween(durationMillis = 120),
+        label = "AccentBar.color",
+    )
+    drawWithContent {
+        drawContent()
+        val strokeWidthPx = width.toPx()
+        drawRect(
+            color = color,
+            topLeft = Offset.Zero,
+            size = GeometrySize(strokeWidthPx, size.height),
+        )
+    }
+}
+
+@Composable
+internal fun BlockIcon(emoji: String, contentDescription: String, modifier: Modifier = Modifier) {
+    Text(
+        text = emoji,
+        color = SpeqaThemeColors.mutedForeground,
+        fontSize = SpeqaTypography.metaFontSize,
+        modifier = modifier.semantics { this.contentDescription = contentDescription },
+    )
+}
+
+@Composable
+internal fun VerticalHairline(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .width(1.dp)
+            .fillMaxHeight()
+            .background(SpeqaThemeColors.mutedForeground.copy(alpha = 0.2f)),
+    )
+}
+
+@Composable
+internal fun HorizontalHairline(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(1.dp)
+            .background(SpeqaThemeColors.mutedForeground.copy(alpha = 0.2f)),
+    )
+}
+
+internal object FocusedMultilineInsertion {
+    @Volatile
+    private var handler: (() -> Unit)? = null
+    fun set(h: (() -> Unit)?) { handler = h }
+    fun invokeNewline(): Boolean {
+        val h = handler ?: return false
+        h()
+        return true
+    }
 }
 
 @Composable
@@ -561,6 +701,8 @@ internal fun PlainTextInput(
     minHeight: Int = 40,
     focusAtEndRequest: Int = 0,
     onFocusStateChange: ((Boolean) -> Unit)? = null,
+    onCommitRequest: ((String) -> Unit)? = null,
+    onPlainEnter: (() -> Boolean)? = null,
 ) {
     val focusManager = LocalFocusManager.current
     var isFocused by remember { mutableStateOf(false) }
@@ -575,6 +717,19 @@ internal fun PlainTextInput(
             val focused = it.isFocused || it.hasFocus
             isFocused = focused
             onFocusStateChange?.invoke(focused)
+            if (!singleLine) {
+                if (focused) {
+                    FocusedMultilineInsertion.set {
+                        val sel = state.selection
+                        state.edit {
+                            replace(sel.min, sel.max, "\n")
+                            selection = TextRange(sel.min + 1)
+                        }
+                    }
+                } else {
+                    FocusedMultilineInsertion.set(null)
+                }
+            }
         }
         .onPreviewKeyEvent { event ->
             if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
@@ -583,19 +738,50 @@ internal fun PlainTextInput(
                     focusManager.moveFocus(if (event.isShiftPressed) FocusDirection.Previous else FocusDirection.Next)
                     true
                 }
-                Key.Enter -> if (!singleLine) {
-                    val result = ListContinuation.onEnter(
-                        text = state.text.toString(),
-                        cursor = state.selection.start,
-                    )
-                    if (result != null) {
+                Key.Enter -> if (singleLine) {
+                    onCommitRequest?.invoke(state.text.toString())
+                    if (onCommitRequest != null) {
+                        focusManager.clearFocus()
+                        true
+                    } else {
+                        false
+                    }
+                } else {
+                    if (event.isShiftPressed || event.isMetaPressed || event.isCtrlPressed || event.isAltPressed) {
+                        val sel = state.selection
                         state.edit {
-                            replace(0, length, result.text)
-                            selection = TextRange(result.cursor)
+                            replace(sel.min, sel.max, "\n")
+                            selection = TextRange(sel.min + 1)
                         }
                         true
-                    } else false
-                } else false
+                    } else {
+                        val result = ListContinuation.onEnter(
+                            text = state.text.toString(),
+                            cursor = state.selection.start,
+                        )
+                        if (result != null) {
+                            state.edit {
+                                replace(0, length, result.text)
+                                selection = TextRange(result.cursor)
+                            }
+                            true
+                        } else if (onPlainEnter != null) {
+                            val current = state.text.toString()
+                            val cursorPos = state.selection.start
+                            val onEmptyTrailingLine = cursorPos == current.length &&
+                                (current.isEmpty() || current.endsWith("\n"))
+                            if (onEmptyTrailingLine && current.endsWith("\n")) {
+                                val trimmed = current.trimEnd('\n')
+                                state.edit {
+                                    replace(0, length, trimmed)
+                                    selection = TextRange(trimmed.length)
+                                }
+                            }
+                            onPlainEnter()
+                            true
+                        } else false
+                    }
+                }
                 else -> false
             }
         }
@@ -669,8 +855,12 @@ internal fun QuietActionText(
     enabled: Boolean,
     modifier: Modifier = Modifier,
     icon: IconKey? = null,
+    iconLeadingPad: androidx.compose.ui.unit.Dp = 5.dp,
     uppercase: Boolean = true,
     plain: Boolean = false,
+    labelMaxLines: Int = Int.MAX_VALUE,
+    labelOverflow: TextOverflow = TextOverflow.Clip,
+    fillLabelWidth: Boolean = false,
     previousFocusRequester: FocusRequester? = null,
     nextFocusRequester: FocusRequester? = null,
 ) {
@@ -708,7 +898,7 @@ internal fun QuietActionText(
             }
             .focusable()
             .clickableWithPointer(interactionSource = hoverFocus.interactionSource, enabled = enabled, onClick = onClick)
-            .then(if (plain) Modifier.padding(vertical = 1.dp) else Modifier.padding(horizontal = 7.dp, vertical = 4.dp)),
+            .then(if (plain) Modifier.padding(horizontal = 5.dp, vertical = 1.dp) else Modifier.padding(horizontal = 7.dp, vertical = 4.dp)),
     ) {
         val textColor = when {
             !enabled -> SpeqaThemeColors.mutedForeground.copy(alpha = 0.45f)
@@ -717,25 +907,35 @@ internal fun QuietActionText(
         }
         if (icon != null) {
             Row(
+                modifier = if (fillLabelWidth) Modifier.fillMaxWidth() else Modifier,
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                horizontalArrangement = Arrangement.spacedBy(0.dp),
             ) {
+                val effectiveIconPad = if (plain) 0.dp else iconLeadingPad
+                if (effectiveIconPad > 0.dp) Spacer(modifier = Modifier.width(effectiveIconPad))
                 Icon(icon, contentDescription = null, modifier = Modifier.size(14.dp), tint = textColor)
+                Spacer(modifier = Modifier.width(5.dp))
                 Text(
-                    if (uppercase) label.uppercase() else label,
+                    text = if (uppercase) label.uppercase() else label,
+                    modifier = if (fillLabelWidth) Modifier.weight(1f) else Modifier,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.SemiBold,
                     letterSpacing = 0.8.sp,
                     color = textColor,
+                    maxLines = labelMaxLines,
+                    overflow = labelOverflow,
                 )
             }
         } else {
             Text(
-                if (uppercase) label.uppercase() else label,
+                text = if (uppercase) label.uppercase() else label,
+                modifier = if (fillLabelWidth) Modifier.fillMaxWidth() else Modifier,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.SemiBold,
                 letterSpacing = 0.8.sp,
                 color = textColor,
+                maxLines = labelMaxLines,
+                overflow = labelOverflow,
             )
         }
     }
@@ -1202,6 +1402,86 @@ internal fun EditToggleIcon(
     }
 }
 
+/**
+ * Persistent rich-content tooltip. Previous implementation used [BasicTooltipBox]
+ * but it remounts the tooltip composable at ~45 Hz in narrow layouts (visible as
+ * flicker). This implementation tracks hover manually via [collectIsHoveredAsState]
+ * with a small show-delay and a grace period on hide, and renders the tooltip
+ * through a plain [Popup] using a custom position policy that keeps the popup
+ * inside the visible window area without covering the anchor when an alternate
+ * placement fits. Since our state is stable across parent recompositions, the
+ * Popup composable is not torn down on each tick and the tooltip renders once,
+ * without flicker.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+internal fun RichTooltip(
+    edgeToEdgeContent: Boolean = false,
+    tooltip: @Composable () -> Unit,
+    content: @Composable () -> Unit,
+) {
+    val interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    val isHovered by interactionSource.collectIsHoveredAsState()
+    val density = LocalDensity.current
+    val gapPx = remember(density) { with(density) { 8.dp.roundToPx() } }
+    val marginPx = remember(density) { with(density) { 8.dp.roundToPx() } }
+    val chrome = remember(edgeToEdgeContent) { richTooltipChrome(edgeToEdgeContent) }
+    var visible by remember { mutableStateOf(false) }
+
+    LaunchedEffect(isHovered) {
+        if (isHovered) {
+            kotlinx.coroutines.delay(300)
+            if (isHovered) visible = true
+        } else {
+            kotlinx.coroutines.delay(150)
+            if (!isHovered) visible = false
+        }
+    }
+
+    Box(modifier = Modifier.hoverable(interactionSource)) {
+        content()
+        if (visible) {
+            val positionProvider = remember(gapPx, marginPx) {
+                object : PopupPositionProvider {
+                    override fun calculatePosition(
+                        anchorBounds: IntRect,
+                        windowSize: IntSize,
+                        layoutDirection: LayoutDirection,
+                        popupContentSize: IntSize,
+                    ): IntOffset {
+                        return calculateRichTooltipPosition(
+                            windowSize = windowSize,
+                            anchorBounds = anchorBounds,
+                            popupContentSize = popupContentSize,
+                            gapPx = gapPx,
+                            marginPx = marginPx,
+                        )
+                    }
+                }
+            }
+            androidx.compose.ui.window.Popup(
+                popupPositionProvider = positionProvider,
+                properties = androidx.compose.ui.window.PopupProperties(focusable = false),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .background(SpeqaThemeColors.blockSurface, TooltipShape(6.dp))
+                        .border(1.dp, SpeqaThemeColors.mutedForeground.copy(alpha = 0.35f), TooltipShape(6.dp))
+                        .clip(TooltipShape(6.dp))
+                        .then(
+                            when (chrome) {
+                                RichTooltipChrome.Default -> Modifier.padding(SpeqaLayout.s2)
+                                RichTooltipChrome.EdgeToEdge -> Modifier
+                            },
+                        ),
+                ) {
+                    tooltip()
+                }
+            }
+        }
+    }
+}
+
 @Composable
 internal fun SurfaceDivider(visible: Boolean = true) {
     Box(
@@ -1292,5 +1572,36 @@ internal fun SectionHeaderWithDivider(
             Modifier.weight(1f).height(1.dp).background(SpeqaThemeColors.divider)
         )
         actions()
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class, ExperimentalJewelApi::class)
+@Composable
+internal fun HeaderAddIconButton(
+    tooltip: String,
+    onClick: () -> Unit,
+    addRequester: FocusRequester? = null,
+) {
+    val addIcon = remember { IntelliJIconKey.fromPlatformIcon(com.intellij.icons.AllIcons.General.Add, SpeqaLayout::class.java) }
+    val hoverFocus = rememberHoverFocusState()
+    val border = if (hoverFocus.isFocused) SpeqaThemeColors.accent else androidx.compose.ui.graphics.Color.Transparent
+    val bg = if (hoverFocus.isHovered || hoverFocus.isFocused) SpeqaThemeColors.actionHover else androidx.compose.ui.graphics.Color.Transparent
+    org.jetbrains.jewel.ui.component.Tooltip(tooltip = { org.jetbrains.jewel.ui.component.Text(tooltip) }) {
+        Box(
+            modifier = Modifier
+                .size(24.dp)
+                .semantics { role = Role.Button; contentDescription = tooltip }
+                .then(if (addRequester != null) Modifier.focusRequester(addRequester) else Modifier)
+                .background(bg, RoundedCornerShape(4.dp))
+                .border(1.dp, border, RoundedCornerShape(4.dp))
+                .hoverable(hoverFocus.interactionSource)
+                .onFocusChanged { hoverFocus.updateFocus(it.isFocused) }
+                .handOnHover()
+                .clickableWithPointer(focusable = true, onClick = onClick),
+            contentAlignment = Alignment.Center,
+        ) {
+            val iconTint = if (hoverFocus.isHovered || hoverFocus.isFocused) SpeqaThemeColors.foreground else SpeqaThemeColors.mutedForeground
+            Icon(addIcon, contentDescription = null, modifier = Modifier.size(14.dp), tint = iconTint)
+        }
     }
 }

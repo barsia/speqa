@@ -188,9 +188,14 @@ class SpeqaTagRegistry(private val project: Project) {
                         return result
                     }
                     if (inlineValue.isNotBlank()) {
-                        splitCommaSeparatedScalar(inlineValue).forEach { item ->
-                            val trimmed = item.trim().removeSurrounding("\"").removeSurrounding("'")
+                        if (fieldName == "environment") {
+                            val trimmed = inlineValue.trim().removeSurrounding("\"").removeSurrounding("'")
                             if (trimmed.isNotBlank()) result.add(trimmed)
+                        } else {
+                            splitCommaSeparatedScalar(inlineValue).forEach { item ->
+                                val trimmed = item.trim().removeSurrounding("\"").removeSurrounding("'")
+                                if (trimmed.isNotBlank()) result.add(trimmed)
+                            }
                         }
                         return result
                     }

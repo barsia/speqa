@@ -11,7 +11,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
@@ -37,7 +44,12 @@ internal fun LinkList(
     onLinksChange: (List<Link>) -> Unit,
     modifier: Modifier = Modifier,
     project: Project? = null,
+    showAddButton: Boolean = true,
+    externalAddRequester: FocusRequester? = null,
 ) {
+    val addRequester = remember { FocusRequester() }
+    val effectiveAddRequester = externalAddRequester ?: if (showAddButton) addRequester else null
+    val restorer = rememberDeleteFocusRestorer(links.size, effectiveAddRequester)
     Column(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(0.dp),
@@ -63,13 +75,18 @@ internal fun LinkList(
                         Messages.getWarningIcon(),
                     )
                     if (result == Messages.OK) {
+                        val sizeBefore = links.size
                         onLinksChange(links - link)
+                        restorer.onDeleted(index, sizeBefore)
                     }
                 },
+                modifier = Modifier.focusRequester(restorer.itemRequesters[index]),
             )
         }
 
-        AddLinkButton(links, onLinksChange, project)
+        if (showAddButton) {
+            AddLinkButton(links, onLinksChange, project, focusRequester = addRequester)
+        }
     }
 }
 
@@ -79,6 +96,7 @@ internal fun AddLinkButton(
     links: List<Link>,
     onLinksChange: (List<Link>) -> Unit,
     project: Project? = null,
+    focusRequester: FocusRequester? = null,
 ) {
     val linkIcon = IntelliJIconKey("/icons/chainLink.svg", "/icons/chainLink.svg", iconClass = SpeqaLayout::class.java)
     val hoverFocus = rememberHoverFocusState()
@@ -86,6 +104,7 @@ internal fun AddLinkButton(
     Row(
         modifier = Modifier
             .semantics { role = Role.Button }
+            .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
             .hoverable(hoverFocus.interactionSource)
             .onFocusChanged { hoverFocus.updateFocus(it.hasFocus) }
             .clickableWithPointer(focusable = true) {

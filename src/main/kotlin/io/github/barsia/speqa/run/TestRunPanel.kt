@@ -1,10 +1,17 @@
 package io.github.barsia.speqa.run
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.ClickableText
 import androidx.compose.ui.focus.onFocusChanged
@@ -35,10 +42,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -48,6 +54,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
@@ -64,34 +71,58 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusTarget
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.intellij.icons.AllIcons
-import com.intellij.ide.BrowserUtil
+import com.intellij.openapi.application.runWriteAction
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.vfs.VirtualFile
 import io.github.barsia.speqa.SpeqaBundle
 import io.github.barsia.speqa.editor.ScrollSyncController
+import io.github.barsia.speqa.editor.ui.AttachmentList
 import io.github.barsia.speqa.editor.ui.AttachmentRow
+import io.github.barsia.speqa.editor.ui.DateIconLabel
+import io.github.barsia.speqa.editor.ui.EditableBodyBlockSection
+import io.github.barsia.speqa.editor.ui.FocusContext
+import io.github.barsia.speqa.editor.ui.FocusSlot
+import io.github.barsia.speqa.editor.ui.FocusTrail
+import io.github.barsia.speqa.editor.ui.HeaderAddIconButton
 import io.github.barsia.speqa.editor.ui.InlineEditableIdRow
-import io.github.barsia.speqa.editor.ui.LinkRow
+import io.github.barsia.speqa.editor.ui.InlineEditableTitleRow
+import io.github.barsia.speqa.editor.ui.LinkList
+import io.github.barsia.speqa.editor.ui.LocalFocusContext
 import io.github.barsia.speqa.editor.ui.MetadataValueKind
 import io.github.barsia.speqa.editor.ui.MarkdownText
-import io.github.barsia.speqa.editor.ui.SpeqaLayout
-import io.github.barsia.speqa.editor.ui.SpeqaThemeColors
 import io.github.barsia.speqa.editor.ui.PlainTextInput
+import io.github.barsia.speqa.editor.ui.mergeBodyBlocks
+import io.github.barsia.speqa.editor.ui.replaceBodyBlocks
 import io.github.barsia.speqa.editor.ui.SectionHeaderWithDivider
+import io.github.barsia.speqa.editor.ui.SectionLabel
+import io.github.barsia.speqa.editor.ui.StepSlot
+import io.github.barsia.speqa.editor.ui.StepMetaRow
+import io.github.barsia.speqa.editor.ui.ScenarioStepFrame
+import io.github.barsia.speqa.editor.ui.SpeqaLayout
+import io.github.barsia.speqa.editor.ui.SpeqaTypography
+import io.github.barsia.speqa.editor.ui.SpeqaThemeColors
 import io.github.barsia.speqa.editor.ui.SpeqaIconButton
 import io.github.barsia.speqa.editor.ui.TagCloud
 import io.github.barsia.speqa.editor.ui.handOnHover
+import io.github.barsia.speqa.editor.ui.focusTrailMotionContract
 import io.github.barsia.speqa.editor.ui.rememberTestRunMetadataActions
 import io.github.barsia.speqa.editor.ui.SurfaceDivider
-import io.github.barsia.speqa.editor.ui.DateIconLabel
+import io.github.barsia.speqa.editor.ui.shouldShowFocusTrail
 import io.github.barsia.speqa.model.Attachment
 import io.github.barsia.speqa.model.DescriptionBlock
 import io.github.barsia.speqa.model.Link
@@ -115,9 +146,13 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun TestRunPanel(
     project: Project,
+    file: VirtualFile,
     scrollSyncController: ScrollSyncController? = null,
     title: String,
+    onTitleCommit: (String) -> Unit,
     tags: List<String> = emptyList(),
+    allKnownTags: List<String> = emptyList(),
+    onTagsChange: (List<String>) -> Unit,
     runId: Int?,
     nextFreeRunId: Int,
     isRunIdDuplicate: Boolean,
@@ -131,27 +166,52 @@ fun TestRunPanel(
     manualResult: Boolean,
     onResultOverride: (RunResult) -> Unit,
     stepResults: List<StepResult>,
-    environment: String,
+    environment: List<String>,
     environmentOptions: List<String>,
     runner: String,
-    onEnvironmentChange: (String) -> Unit,
+    onEnvironmentChange: (List<String>) -> Unit,
     onRunnerChange: (String) -> Unit,
+    onStepActionChange: (Int, String) -> Unit,
+    onStepExpectedChange: (Int, String) -> Unit,
     onStepVerdictChange: (Int, StepVerdict) -> Unit,
     onStepCommentChange: (Int, String) -> Unit,
-    onStepTicketChange: (Int, String?) -> Unit,
+    onStepTicketChange: (Int, List<String>) -> Unit,
+    onStepLinkChange: (Int, List<Link>) -> Unit,
+    onStepAttachmentsChange: (Int, List<Attachment>) -> Unit,
     priority: Priority?,
     bodyBlocks: List<TestCaseBodyBlock>,
+    onBodyBlocksChange: (List<TestCaseBodyBlock>) -> Unit,
     links: List<Link>,
+    onLinksChange: (List<Link>) -> Unit,
     attachments: List<Attachment>,
+    onAttachmentsChange: (List<Attachment>) -> Unit,
     onOpenAttachment: (Attachment) -> Unit,
     comment: String,
     onCommentChange: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val scrollState = rememberScrollState()
+    val stepActionFocusRequesters = remember(stepResults.size) {
+        List(stepResults.size) { FocusRequester() }
+    }
+    val runCommentFocusRequester = remember { FocusRequester() }
     val totalSteps = stepResults.size
-    val (tagClick, tagTooltip, tagMenu) = rememberTestRunMetadataActions(project, MetadataValueKind.TAG)
+    val (tagClick, tagTooltip, tagMenu) = rememberTestRunMetadataActions(
+        project = project,
+        kind = MetadataValueKind.TAG,
+        onRemove = { value -> onTagsChange(tags.filter { it != value }) },
+    )
+    val (envClick, envTooltip, envMenu) = rememberTestRunMetadataActions(
+        project = project,
+        kind = MetadataValueKind.ENVIRONMENT,
+        onRemove = { value -> onEnvironmentChange(environment.filter { it != value }) },
+    )
     val focusSinkRequester = remember { FocusRequester() }
+    val focusContext = remember { FocusContext() }
+    val headerAddLinkRequester = remember { FocusRequester() }
+    val headerAddAttachmentRequester = remember { FocusRequester() }
+    var headerTitleBounds by remember { mutableStateOf<Rect?>(null) }
+    var viewportCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
 
     // Scroll sync: editor → compose
     scrollSyncController?.let { sync ->
@@ -181,33 +241,58 @@ fun TestRunPanel(
             }
     }
 
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(SpeqaThemeColors.surface)
-            .pointerInput(Unit) {
-                awaitEachGesture {
-                    awaitFirstDown(requireUnconsumed = true)
-                    val up = waitForUpOrCancellation()
-                    if (BackgroundFocusSinkPolicy.shouldRequestSinkFocus(pointerUp = up != null, upConsumed = up?.isConsumed == true)) {
-                        focusSinkRequester.requestFocus()
-                    }
-                }
-            },
-    ) {
+    CompositionLocalProvider(LocalFocusContext provides focusContext) {
+        val focusTrailMotion = remember { focusTrailMotionContract() }
+        val density = LocalDensity.current
+        val focusTrailSlidePx = remember(density, focusTrailMotion) {
+            with(density) { focusTrailMotion.slideOffsetDp.dp.roundToPx() }
+        }
+        val showFocusTrail by remember(headerTitleBounds, viewportCoordinates) {
+            androidx.compose.runtime.derivedStateOf {
+                shouldShowFocusTrail(
+                    titleBounds = headerTitleBounds,
+                    viewportBounds = viewportCoordinates?.takeIf { it.isAttached }?.boundsInWindow(),
+                )
+            }
+        }
         Box(
-            modifier = Modifier
-                .size(0.dp)
-                .focusRequester(focusSinkRequester)
-                .focusTarget(),
-        )
-        Column(
-            modifier = Modifier
+            modifier = modifier
                 .fillMaxSize()
-                .verticalScroll(scrollState)
-                .padding(start = SpeqaLayout.pagePadding, end = SpeqaLayout.pagePadding, top = SpeqaLayout.compactGap, bottom = SpeqaLayout.pagePadding),
-            verticalArrangement = Arrangement.spacedBy(SpeqaLayout.blockGap),
+                .background(SpeqaThemeColors.surface)
+                .pointerInput(Unit) {
+                    awaitEachGesture {
+                        awaitFirstDown(requireUnconsumed = true)
+                        val up = waitForUpOrCancellation()
+                        if (BackgroundFocusSinkPolicy.shouldRequestSinkFocus(pointerUp = up != null, upConsumed = up?.isConsumed == true)) {
+                            focusSinkRequester.requestFocus()
+                        }
+                    }
+                },
         ) {
+            Box(
+                modifier = Modifier
+                    .size(0.dp)
+                    .focusRequester(focusSinkRequester)
+                    .focusTarget(),
+            )
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .onGloballyPositioned { viewportCoordinates = it }
+                    .pointerInput(Unit) {
+                        awaitPointerEventScope {
+                            while (true) {
+                                val event = awaitPointerEvent(PointerEventPass.Final)
+                                if (event.type == PointerEventType.Scroll) {
+                                    event.changes.forEach { it.consume() }
+                                }
+                            }
+                        }
+                    }
+                    .verticalScroll(scrollState)
+                    .padding(start = SpeqaLayout.pagePadding, end = SpeqaLayout.pagePadding, top = SpeqaLayout.compactGap, bottom = SpeqaLayout.pagePadding),
+                verticalArrangement = Arrangement.spacedBy(SpeqaLayout.blockGap),
+            ) {
             // Header
             Column(
                 modifier = Modifier
@@ -262,172 +347,215 @@ fun TestRunPanel(
                         }
                     }
                 }
-                Text(
-                    title.ifBlank { SpeqaBundle.message("label.untitledTestCase") },
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = SpeqaThemeColors.foreground,
+                InlineEditableTitleRow(
+                    title = title.ifBlank { SpeqaBundle.message("label.untitledTestCase") },
+                    onTitleCommit = onTitleCommit,
+                    modifier = Modifier.onGloballyPositioned { headerTitleBounds = it.boundsInWindow() },
                 )
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(SpeqaLayout.pagePadding),
-                    verticalArrangement = Arrangement.spacedBy(SpeqaLayout.compactGap),
-                    itemVerticalAlignment = Alignment.CenterVertically,
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(SpeqaLayout.sectionGap),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(
-                        SpeqaBundle.message("run.progress", stepResults.count { it.verdict != StepVerdict.NONE }, totalSteps),
-                        fontSize = 13.sp,
-                        color = SpeqaThemeColors.mutedForeground,
-                    )
-                    if (result == RunResult.NOT_STARTED || result == RunResult.IN_PROGRESS) {
+                    FlowRow(
+                        modifier = Modifier.weight(1f),
+                        horizontalArrangement = Arrangement.spacedBy(SpeqaLayout.pagePadding),
+                        verticalArrangement = Arrangement.spacedBy(SpeqaLayout.compactGap),
+                        itemVerticalAlignment = Alignment.CenterVertically,
+                    ) {
                         Text(
-                            if (result == RunResult.NOT_STARTED) SpeqaBundle.message("run.notStarted")
-                            else SpeqaBundle.message("run.inProgress"),
+                            SpeqaBundle.message("run.progress", stepResults.count { it.verdict != StepVerdict.NONE }, totalSteps),
                             fontSize = 13.sp,
                             color = SpeqaThemeColors.mutedForeground,
                         )
-                    } else {
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(SpeqaLayout.compactGap),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
+                        if (result == RunResult.NOT_STARTED || result == RunResult.IN_PROGRESS) {
                             Text(
-                                SpeqaBundle.message("run.result"),
+                                if (result == RunResult.NOT_STARTED) SpeqaBundle.message("run.notStarted")
+                                else SpeqaBundle.message("run.inProgress"),
                                 fontSize = 13.sp,
                                 color = SpeqaThemeColors.mutedForeground,
                             )
-                            val selectableResults = listOf(RunResult.PASSED, RunResult.FAILED, RunResult.BLOCKED)
-                            val resultItems = selectableResults.map { it.label.replaceFirstChar(Char::uppercase) }
-                            val selectedResultIndex = selectableResults.indexOf(result)
-                            ListComboBox(
-                                items = resultItems,
-                                selectedIndex = selectedResultIndex,
-                                modifier = Modifier.heightIn(min = SpeqaLayout.controlHeight).handOnHover(),
-                                onSelectedItemChange = { index -> onResultOverride(selectableResults[index]) },
-                            )
+                        } else {
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(SpeqaLayout.compactGap),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    SpeqaBundle.message("run.result"),
+                                    fontSize = 13.sp,
+                                    color = SpeqaThemeColors.mutedForeground,
+                                )
+                                val selectableResults = listOf(RunResult.PASSED, RunResult.FAILED, RunResult.BLOCKED)
+                                val resultItems = selectableResults.map { it.label.replaceFirstChar(Char::uppercase) }
+                                val selectedResultIndex = selectableResults.indexOf(result)
+                                ListComboBox(
+                                    items = resultItems,
+                                    selectedIndex = selectedResultIndex,
+                                    modifier = Modifier.heightIn(min = SpeqaLayout.controlHeight).handOnHover(),
+                                    onSelectedItemChange = { index -> onResultOverride(selectableResults[index]) },
+                                )
+                            }
                         }
                     }
-                    if (tags.isNotEmpty()) {
+                    Row(
+                        modifier = Modifier.weight(1f),
+                        horizontalArrangement = Arrangement.spacedBy(SpeqaLayout.compactGap),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        SectionLabel(SpeqaBundle.message("run.runner"))
+                        PlainTextInput(
+                            value = runner,
+                            onValueChange = onRunnerChange,
+                            placeholder = SpeqaBundle.message("placeholder.runner"),
+                            onCommitRequest = onRunnerChange,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(SpeqaLayout.blockGap),
+                ) {
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(SpeqaLayout.blockGap),
+                    ) {
+                        TagCloud(
+                            tags = environment,
+                            allKnownTags = environmentOptions,
+                            onTagsChange = onEnvironmentChange,
+                            label = SpeqaBundle.message("run.environment"),
+                            addItemLabel = SpeqaBundle.message("environment.add"),
+                            onChipClick = envClick,
+                            chipTooltip = envTooltip,
+                            chipContextActions = envMenu,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(SpeqaLayout.blockGap),
+                    ) {
                         TagCloud(
                             tags = tags,
-                            allKnownTags = emptyList(),
-                            onTagsChange = null,
+                            allKnownTags = allKnownTags,
+                            onTagsChange = onTagsChange,
                             label = SpeqaBundle.message("label.tags"),
                             coloredChips = true,
                             onChipClick = tagClick,
                             chipTooltip = tagTooltip,
                             chipContextActions = tagMenu,
-                            showLabel = false,
+                            modifier = Modifier.fillMaxWidth(),
                         )
                     }
                 }
 
-                // Environment / Runner inside header (same compactGap spacing as other header rows)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(SpeqaLayout.sectionGap),
-                ) {
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(SpeqaLayout.blockGap),
-                    ) {
-                        SectionHeaderWithDivider(SpeqaBundle.message("run.environment"))
-                        if (environmentOptions.isNotEmpty()) {
-                            FlowRow(
-                                horizontalArrangement = Arrangement.spacedBy(SpeqaLayout.compactGap),
-                                verticalArrangement = Arrangement.spacedBy(SpeqaLayout.compactGap),
-                            ) {
-                                environmentOptions.forEach { option ->
-                                    VerdictChip(
-                                        text = option,
-                                        selected = environment == option,
-                                        selectedBackground = SpeqaThemeColors.accentSubtle,
-                                        selectedTextColor = SpeqaThemeColors.accent,
-                                        onClick = { onEnvironmentChange(option) },
-                                    )
-                                }
-                            }
-                        }
-                        PlainTextInput(
-                            value = environment,
-                            onValueChange = onEnvironmentChange,
-                            placeholder = SpeqaBundle.message("placeholder.environment.run"),
-                        )
-                    }
-
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(SpeqaLayout.blockGap),
-                    ) {
-                        SectionHeaderWithDivider(SpeqaBundle.message("run.runner"))
-                        PlainTextInput(
-                            value = runner,
-                            onValueChange = onRunnerChange,
-                            placeholder = SpeqaBundle.message("placeholder.runner"),
-                        )
-                    }
-                }
-            }
-
-            // Body blocks (readonly from test case)
-            bodyBlocks.forEach { block ->
-                when (block) {
-                    is DescriptionBlock -> if (block.markdown.isNotBlank()) {
-                        Column(
-                            modifier = Modifier.padding(horizontal = SpeqaLayout.contentInset),
-                            verticalArrangement = Arrangement.spacedBy(SpeqaLayout.blockGap),
-                        ) {
-                            SectionHeaderWithDivider(SpeqaBundle.message("label.description"))
-                            MarkdownText(block.markdown)
-                        }
-                    }
-                    is PreconditionsBlock -> if (block.markdown.isNotBlank()) {
-                        Column(
-                            modifier = Modifier.padding(horizontal = SpeqaLayout.contentInset),
-                            verticalArrangement = Arrangement.spacedBy(SpeqaLayout.blockGap),
-                        ) {
-                            SectionHeaderWithDivider(SpeqaBundle.message("label.preconditions"))
-                            MarkdownText(block.markdown)
-                        }
-                    }
-                }
-            }
-
-            // Attachments and Links (readonly from test case) — side by side like TestCasePreview
-            if (attachments.isNotEmpty() || links.isNotEmpty()) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = SpeqaLayout.contentInset),
                     horizontalArrangement = Arrangement.spacedBy(SpeqaLayout.blockGap),
                 ) {
-                    if (attachments.isNotEmpty()) {
-                        Column(
-                            modifier = Modifier.weight(1f),
-                            verticalArrangement = Arrangement.spacedBy(SpeqaLayout.itemGap),
-                        ) {
-                            SectionHeaderWithDivider(SpeqaBundle.message("label.attachments"))
-                            attachments.forEach { att ->
-                                AttachmentRow(
-                                    attachment = att,
-                                    onClick = { onOpenAttachment(att) },
-                                    onDelete = null,
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(SpeqaLayout.tightGap),
+                    ) {
+                        SectionHeaderWithDivider(
+                            title = SpeqaBundle.message("label.links"),
+                            actions = {
+                                HeaderAddIconButton(
+                                    tooltip = SpeqaBundle.message("tooltip.addLink"),
+                                    onClick = {
+                                        com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater {
+                                            val newLink = io.github.barsia.speqa.editor.ui.AddEditLinkDialog.show(project)
+                                            if (newLink != null) {
+                                                onLinksChange(links + newLink)
+                                            }
+                                        }
+                                    },
+                                    addRequester = headerAddLinkRequester,
                                 )
-                            }
-                        }
+                            },
+                        )
+                        LinkList(
+                            links = links,
+                            onLinksChange = onLinksChange,
+                            project = project,
+                            showAddButton = false,
+                            externalAddRequester = headerAddLinkRequester,
+                        )
                     }
-                    if (links.isNotEmpty()) {
-                        Column(
-                            modifier = Modifier.weight(1f),
-                            verticalArrangement = Arrangement.spacedBy(SpeqaLayout.itemGap),
-                        ) {
-                            SectionHeaderWithDivider(SpeqaBundle.message("label.links"))
-                            links.forEach { link ->
-                                LinkRow(
-                                    link = link,
-                                    onClick = { BrowserUtil.browse(link.url) },
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(SpeqaLayout.tightGap),
+                    ) {
+                        SectionHeaderWithDivider(
+                            title = SpeqaBundle.message("label.attachments"),
+                            actions = {
+                                HeaderAddIconButton(
+                                    tooltip = SpeqaBundle.message("tooltip.addAttachment"),
+                                    onClick = {
+                                        com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater {
+                                            val descriptor = com.intellij.openapi.fileChooser.FileChooserDescriptorFactory.createAllButJarContentsDescriptor()
+                                            com.intellij.openapi.fileChooser.FileChooser.chooseFiles(descriptor, project, null) { chosen ->
+                                                if (chosen.isNotEmpty()) {
+                                                    val newAttachment = runWriteAction<Attachment?> {
+                                                        io.github.barsia.speqa.editor.AttachmentSupport.copyFileToAttachments(project, file, chosen.first())
+                                                    }
+                                                    if (newAttachment != null) {
+                                                        onAttachmentsChange(attachments + newAttachment)
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    },
+                                    addRequester = headerAddAttachmentRequester,
                                 )
-                            }
-                        }
+                            },
+                        )
+                        AttachmentList(
+                            attachments = attachments,
+                            project = project,
+                            tcFile = file,
+                            onAttachmentsChange = onAttachmentsChange,
+                            onOpenFile = onOpenAttachment,
+                            showAddButton = false,
+                            externalAddRequester = headerAddAttachmentRequester,
+                        )
                     }
                 }
+            }
+
+            Column(
+                modifier = Modifier.padding(horizontal = SpeqaLayout.contentInset),
+                verticalArrangement = Arrangement.spacedBy(SpeqaLayout.blockGap),
+            ) {
+                EditableBodyBlockSection(
+                    title = SpeqaBundle.message("label.description"),
+                    text = mergeBodyBlocks(bodyBlocks, DescriptionBlock::class.java),
+                    emptyLabel = SpeqaBundle.message("label.noDescription"),
+                    onCommit = { newText ->
+                        onBodyBlocksChange(
+                            replaceBodyBlocks(bodyBlocks, DescriptionBlock::class.java) {
+                                DescriptionBlock(newText)
+                            },
+                        )
+                    },
+                )
+                EditableBodyBlockSection(
+                    title = SpeqaBundle.message("label.preconditions"),
+                    text = mergeBodyBlocks(bodyBlocks, PreconditionsBlock::class.java),
+                    emptyLabel = SpeqaBundle.message("label.noPreconditions"),
+                    onCommit = { newText ->
+                        val markerStyle = bodyBlocks.filterIsInstance<PreconditionsBlock>().firstOrNull()?.markerStyle
+                            ?: io.github.barsia.speqa.model.PreconditionsMarkerStyle.PRECONDITIONS
+                        onBodyBlocksChange(
+                            replaceBodyBlocks(bodyBlocks, PreconditionsBlock::class.java) {
+                                PreconditionsBlock(markerStyle, newText)
+                            },
+                        )
+                    },
+                )
             }
 
             // Step Results section
@@ -451,9 +579,17 @@ fun TestRunPanel(
                                 index = index,
                                 step = step,
                                 project = project,
+                                file = file,
+                                actionFocusRequester = stepActionFocusRequesters[index],
+                                nextActionFocusRequester = stepActionFocusRequesters.getOrNull(index + 1),
+                                fallbackExpectedExitFocusRequester = runCommentFocusRequester,
+                                onActionChange = { action -> onStepActionChange(index, action) },
+                                onExpectedChange = { expected -> onStepExpectedChange(index, expected) },
                                 onVerdictChange = { verdict -> onStepVerdictChange(index, verdict) },
                                 onCommentChange = { comment -> onStepCommentChange(index, comment) },
                                 onTicketChange = { ticket -> onStepTicketChange(index, ticket) },
+                                onLinkChange = { links -> onStepLinkChange(index, links) },
+                                onAttachmentsChange = { attachments -> onStepAttachmentsChange(index, attachments) },
                                 onOpenAttachment = onOpenAttachment,
                             )
                         }
@@ -473,6 +609,32 @@ fun TestRunPanel(
                     placeholder = SpeqaBundle.message("run.commentPlaceholder"),
                     singleLine = false,
                     minHeight = 40,
+                    modifier = Modifier.focusRequester(runCommentFocusRequester),
+                )
+            }
+            }
+            AnimatedVisibility(
+                visible = showFocusTrail,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .fillMaxWidth(),
+                enter = fadeIn(animationSpec = tween(focusTrailMotion.durationMillis)) +
+                    slideInVertically(
+                        animationSpec = tween(focusTrailMotion.durationMillis),
+                        initialOffsetY = { -focusTrailSlidePx },
+                    ),
+                exit = fadeOut(animationSpec = tween(focusTrailMotion.durationMillis)) +
+                    slideOutVertically(
+                        animationSpec = tween(focusTrailMotion.durationMillis),
+                        targetOffsetY = { -focusTrailSlidePx },
+                    ),
+            ) {
+                FocusTrail(
+                    titleText = runStickyTitle(runId = runId, title = title),
+                    progressText = runStickyProgressLabel(
+                        completedSteps = completedRunSteps(stepResults),
+                        totalSteps = stepResults.size,
+                    ),
                 )
             }
         }
@@ -485,25 +647,53 @@ private fun StepResultRow(
     index: Int,
     step: StepResult,
     project: Project,
+    file: VirtualFile,
+    actionFocusRequester: FocusRequester,
+    nextActionFocusRequester: FocusRequester?,
+    fallbackExpectedExitFocusRequester: FocusRequester,
+    onActionChange: (String) -> Unit,
+    onExpectedChange: (String) -> Unit,
     onVerdictChange: (StepVerdict) -> Unit,
     onCommentChange: (String) -> Unit,
-    onTicketChange: (String?) -> Unit,
+    onTicketChange: (List<String>) -> Unit,
+    onLinkChange: (List<Link>) -> Unit,
+    onAttachmentsChange: (List<Attachment>) -> Unit,
     onOpenAttachment: (Attachment) -> Unit,
 ) {
     var showComment by remember(index) { mutableStateOf(false) }
     var focusCommentAtEndRequest by remember(index) { mutableStateOf(0) }
-    val ticketTextFocusRequester = remember { FocusRequester() }
-    val ticketFocusRequester = remember { FocusRequester() }
+    val ticketAddRequester = remember { FocusRequester() }
+    val linkPrimaryRequesters = remember(step.links.size) { List(step.links.size) { FocusRequester() } }
+    val linkAddRequester = remember { FocusRequester() }
+    val attachmentPrimaryRequesters = remember(step.attachments.size) {
+        List(step.attachments.size) { FocusRequester() }
+    }
+    val attachmentAddRequester = remember { FocusRequester() }
     val passedFocusRequester = remember { FocusRequester() }
     val failedFocusRequester = remember { FocusRequester() }
     val skippedFocusRequester = remember { FocusRequester() }
     val blockedFocusRequester = remember { FocusRequester() }
     val commentToggleFocusRequester = remember { FocusRequester() }
     val commentFieldFocusRequester = remember { FocusRequester() }
+    val expectedFieldFocusRequester = remember { FocusRequester() }
+    var showExpectedEditor by remember(index) { mutableStateOf(step.expected.isNotBlank()) }
+    var focusExpectedAtEndRequest by remember(index) { mutableStateOf(0) }
+    val focusContext = LocalFocusContext.current
+
+    LaunchedEffect(step.expected) {
+        if (step.expected.isNotBlank()) {
+            showExpectedEditor = true
+        }
+    }
 
     LaunchedEffect(focusCommentAtEndRequest) {
         if (focusCommentAtEndRequest > 0) {
             commentFieldFocusRequester.requestFocus()
+        }
+    }
+    LaunchedEffect(focusExpectedAtEndRequest) {
+        if (focusExpectedAtEndRequest > 0) {
+            expectedFieldFocusRequester.requestFocus()
         }
     }
 
@@ -514,304 +704,103 @@ private fun StepResultRow(
         StepVerdict.SKIPPED -> SpeqaThemeColors.skippedIndicator
         StepVerdict.BLOCKED -> SpeqaThemeColors.accent
     }
-    Row(
+
+    ScenarioStepFrame(
         modifier = Modifier
-            .fillMaxWidth()
             .drawBehind {
                 if (barColor != Color.Transparent) {
                     drawRect(barColor, topLeft = Offset.Zero, size = Size(2.dp.toPx(), size.height))
                 }
             }
             .padding(start = SpeqaLayout.compactGap, top = SpeqaLayout.blockGap, bottom = SpeqaLayout.blockGap),
-        horizontalArrangement = Arrangement.spacedBy(SpeqaLayout.compactGap),
-    ) {
-
-        // Step number column
-        Box(modifier = Modifier.width(SpeqaLayout.stepNumberColumnWidth)) {
+        gutterModifier = Modifier.width(SpeqaLayout.stepNumberColumnWidth).padding(top = 1.dp),
+        gutter = {
             Text(
                 text = (index + 1).toString().padStart(2, '0'),
                 color = SpeqaThemeColors.mutedForeground,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold,
-                letterSpacing = 0.6.sp,
-                modifier = Modifier.padding(top = 2.dp),
+                fontSize = SpeqaTypography.numericFontSize,
+                fontWeight = SpeqaTypography.numericWeight,
+                letterSpacing = SpeqaTypography.numericTracking,
             )
-        }
-
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(SpeqaLayout.compactGap),
-        ) {
-            // Action text
-            MarkdownText(
-                markdown = step.action.ifBlank { SpeqaBundle.message("run.emptyStep") },
-                color = SpeqaThemeColors.foreground,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Medium,
-                lineHeight = 20.sp,
+        },
+        actionContent = {
+            PlainTextInput(
+                value = step.action,
+                onValueChange = onActionChange,
+                placeholder = SpeqaBundle.message("placeholder.action"),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .focusRequester(actionFocusRequester)
+                    .onFocusChanged { if (it.isFocused) focusContext.current = FocusSlot(index, StepSlot.ACTION) },
+                singleLine = false,
+                onPlainEnter = {
+                    showExpectedEditor = true
+                    focusExpectedAtEndRequest++
+                    true
+                },
             )
-
-            // Action attachments
-            if (step.actionAttachments.isNotEmpty()) {
-                step.actionAttachments.forEach { att ->
-                    AttachmentRow(
-                        attachment = att,
-                        onClick = { onOpenAttachment(att) },
-                        onDelete = null,
-                    )
-                }
-            }
-
-            // Expected text with label
-            if (step.expected.isNotBlank()) {
-                Column(verticalArrangement = Arrangement.spacedBy(SpeqaLayout.tightGap)) {
-                    Text(
-                        SpeqaBundle.message("label.expectedResult"),
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = SpeqaThemeColors.mutedForeground,
-                    )
-                    MarkdownText(
-                        markdown = step.expected,
-                        color = SpeqaThemeColors.foreground,
-                        fontSize = 14.sp,
-                        lineHeight = 20.sp,
-                    )
-                }
-            }
-
-            // Expected attachments
-            if (step.expectedAttachments.isNotEmpty()) {
-                step.expectedAttachments.forEach { att ->
-                    AttachmentRow(
-                        attachment = att,
-                        onClick = { onOpenAttachment(att) },
-                        onDelete = null,
-                    )
-                }
-            }
-
-            // Ticket linking
-            run {
-                var isTicketEditing by remember(index) { mutableStateOf(false) }
-                var wasTicketEditing by remember(index) { mutableStateOf(false) }
-                val trFocusManager = LocalFocusManager.current
-                LaunchedEffect(isTicketEditing) {
-                    if (isTicketEditing) {
-                        wasTicketEditing = true
-                    } else if (wasTicketEditing) {
-                        ticketFocusRequester.requestFocus()
-                    }
-                }
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(SpeqaLayout.compactGap),
-                ) {
-                    if (step.ticket.isNullOrBlank() && !isTicketEditing) {
-                        val ticketIcon = IntelliJIconKey("/icons/ticket.svg", "/icons/ticket.svg", iconClass = SpeqaLayout::class.java)
-                        val hoverSource = remember { MutableInteractionSource() }
-                        val isHovered by hoverSource.collectIsHoveredAsState()
-                        var isBtnFocused by remember { mutableStateOf(false) }
-                        val tint = if (isHovered || isBtnFocused) SpeqaThemeColors.foreground else SpeqaThemeColors.mutedForeground
-                        Row(
-                            modifier = Modifier
-                                .focusRequester(ticketFocusRequester)
-                                .focusProperties {
-                                    next = passedFocusRequester
-                                }
-                                .hoverable(hoverSource)
-                                .onFocusChanged { isBtnFocused = it.hasFocus }
-                                .clickableWithPointer(focusable = true, showFocusBorder = true) { isTicketEditing = true }
-                                .padding(end = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Box(modifier = Modifier.size(24.dp), contentAlignment = Alignment.Center) {
-                                Icon(ticketIcon, contentDescription = SpeqaBundle.message("tooltip.linkTicket"), modifier = Modifier.size(14.dp), tint = tint)
-                            }
-                            Text(SpeqaBundle.message("tooltip.linkTicket"), fontSize = 12.sp, color = tint)
+        },
+        expectedContent = {
+            if (showExpectedEditor || step.expected.isNotBlank()) {
+                PlainTextInput(
+                    value = step.expected,
+                    onValueChange = onExpectedChange,
+                    placeholder = SpeqaBundle.message("placeholder.setExpected"),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(expectedFieldFocusRequester)
+                        .onFocusChanged { if (it.isFocused) focusContext.current = FocusSlot(index, StepSlot.EXPECTED) },
+                    singleLine = false,
+                    focusAtEndRequest = focusExpectedAtEndRequest,
+                    onPlainEnter = {
+                        when (runExpectedEnterTarget(hasNextStep = nextActionFocusRequester != null)) {
+                            RunExpectedEnterTarget.NEXT_STEP_ACTION -> nextActionFocusRequester?.requestFocus()
+                            RunExpectedEnterTarget.RUN_COMMENT -> fallbackExpectedExitFocusRequester.requestFocus()
                         }
-                    } else {
-                        val settings = remember(project) { io.github.barsia.speqa.settings.SpeqaSettings.getInstance(project) }
-                        val ticket = step.ticket.orEmpty()
-                        var draft by remember(ticket) { mutableStateOf(ticket) }
-                        var wasFocused by remember { mutableStateOf(false) }
-                        val textFieldFocusRequester = remember { FocusRequester() }
-
-                        LaunchedEffect(isTicketEditing) {
-                            if (!isTicketEditing) wasFocused = false
-                        }
-
-                        val ticketPrefixIcon = IntelliJIconKey("/icons/ticket.svg", "/icons/ticket.svg", iconClass = SpeqaLayout::class.java)
-                        val prefixTint = if (ticket.isNotBlank()) SpeqaThemeColors.foreground else SpeqaThemeColors.mutedForeground
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(0.dp)) {
-                            Box(modifier = Modifier.size(24.dp), contentAlignment = Alignment.Center) {
-                                Icon(ticketPrefixIcon, contentDescription = SpeqaBundle.message("label.ticket"), modifier = Modifier.size(14.dp), tint = prefixTint)
-                            }
-                            if (isTicketEditing) {
-                                var tfValue by remember(draft) {
-                                    mutableStateOf(TextFieldValue(draft, selection = androidx.compose.ui.text.TextRange(draft.length)))
-                                }
-                                val editTextStyle = TextStyle(fontSize = 11.sp, color = SpeqaThemeColors.accent)
-                                val textMeasurer = rememberTextMeasurer()
-                                val density = LocalDensity.current
-                                val cursorWidth = 2.dp
-                                val measuredWidth = remember(tfValue.text, editTextStyle) {
-                                    with(density) {
-                                        val w = textMeasurer.measure(tfValue.text.ifBlank { SpeqaBundle.message("placeholder.ticketId") }, editTextStyle).size.width.toDp()
-                                        maxOf(w + cursorWidth, 40.dp)
-                                    }
-                                }
-                                BasicTextField(
-                                    value = tfValue,
-                                    onValueChange = { tfValue = it; draft = it.text },
-                                    textStyle = editTextStyle,
-                                    singleLine = true,
-                                    cursorBrush = SolidColor(SpeqaThemeColors.accent),
-                                    modifier = Modifier
-                                        .width(measuredWidth)
-                                        .focusRequester(textFieldFocusRequester)
-                                        .onPreviewKeyEvent { event ->
-                                            if (event.type == KeyEventType.KeyDown) {
-                                                when (event.key) {
-                                                    Key.Enter, Key.NumPadEnter -> {
-                                                        val normalized = draft.split(Regex("[,;\\s]+")).filter { it.isNotBlank() }.joinToString(", ")
-                                                        onTicketChange(normalized.ifBlank { null })
-                                                        isTicketEditing = false; true
-                                                    }
-                                                    Key.Escape -> { isTicketEditing = false; true }
-                                                    else -> false
-                                                }
-                                            } else false
-                                        }
-                                        .onFocusChanged { state ->
-                                            if (state.isFocused) wasFocused = true
-                                            if (!state.isFocused && wasFocused) {
-                                                val normalized = draft.split(Regex("[,;\\s]+")).filter { it.isNotBlank() }.joinToString(", ")
-                                                onTicketChange(normalized.ifBlank { null })
-                                                isTicketEditing = false
-                                            }
-                                        },
-                                    decorationBox = { innerTextField ->
-                                        if (draft.isBlank()) {
-                                            Text(SpeqaBundle.message("placeholder.ticketId"), fontSize = 11.sp, color = SpeqaThemeColors.mutedForeground)
-                                        }
-                                        innerTextField()
-                                    },
-                                )
-                                LaunchedEffect(isTicketEditing) {
-                                    if (isTicketEditing) { kotlinx.coroutines.yield(); textFieldFocusRequester.requestFocus() }
-                                }
-                            } else {
-                                val ids = ticket.split(",").map { it.trim() }.filter { it.isNotBlank() }
-                                val annotated = buildAnnotatedString {
-                                    ids.forEachIndexed { idx, id ->
-                                        if (idx > 0) append(", ")
-                                        pushStringAnnotation("ticket", id)
-                                        withStyle(SpanStyle(color = SpeqaThemeColors.accent)) { append(id) }
-                                        pop()
-                                    }
-                                }
-                                var isTextFocused by remember { mutableStateOf(false) }
-                                val textFocusBorder = if (isTextFocused) SpeqaThemeColors.accent else Color.Transparent
-                                Box(
-                                    modifier = Modifier
-                                        .border(1.dp, textFocusBorder, RoundedCornerShape(4.dp))
-                                        .focusRequester(ticketTextFocusRequester)
-                                        .onFocusChanged { isTextFocused = it.isFocused }
-                                        .onPreviewKeyEvent { event ->
-                                            if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
-                                            when (event.key) {
-                                                Key.Enter, Key.NumPadEnter -> {
-                                                    ids.forEach { id ->
-                                                        com.intellij.ide.BrowserUtil.browse(settings.resolveTicketUrl(id))
-                                                    }
-                                                    true
-                                                }
-                                                Key.Tab -> {
-                                                    trFocusManager.moveFocus(if (event.isShiftPressed) FocusDirection.Previous else FocusDirection.Next)
-                                                    true
-                                                }
-                                                else -> false
-                                            }
-                                        }
-                                        .focusProperties {
-                                            next = ticketFocusRequester
-                                        }
-                                        .focusTarget()
-                                        .handOnHover(),
-                                ) {
-                                    ClickableText(
-                                        text = annotated,
-                                        style = TextStyle(fontSize = 11.sp, color = SpeqaThemeColors.mutedForeground),
-                                        onClick = { offset ->
-                                            annotated.getStringAnnotations("ticket", offset, offset).firstOrNull()?.let { annotation ->
-                                                com.intellij.ide.BrowserUtil.browse(settings.resolveTicketUrl(annotation.item))
-                                            }
-                                        },
-                                    )
-                                }
-                            }
-                            val editSaveIcon = IntelliJIconKey.fromPlatformIcon(
-                                if (isTicketEditing) AllIcons.Actions.MenuSaveall else AllIcons.Actions.Edit,
-                                SpeqaLayout::class.java,
-                            )
-                            val editHoverSource = remember { MutableInteractionSource() }
-                            val isEditHovered by editHoverSource.collectIsHoveredAsState()
-                            var isEditFocused by remember { mutableStateOf(false) }
-                            val editTint = if (isEditHovered || isEditFocused) SpeqaThemeColors.foreground else SpeqaThemeColors.mutedForeground
-                            val editFocusBorder = if (isEditFocused) SpeqaThemeColors.accent else Color.Transparent
-                            Box(
-                                modifier = Modifier
-                                    .size(24.dp)
-                                    .border(1.dp, editFocusBorder, RoundedCornerShape(4.dp))
-                                    .hoverable(editHoverSource)
-                                    .focusRequester(ticketFocusRequester)
-                                    .onFocusChanged { isEditFocused = it.isFocused }
-                                    .onPreviewKeyEvent { event ->
-                                        if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
-                                        when (event.key) {
-                                            Key.Enter, Key.NumPadEnter, Key.Spacebar -> {
-                                                if (isTicketEditing) {
-                                                    val normalized = draft.split(Regex("[,;\\s]+")).filter { it.isNotBlank() }.joinToString(", ")
-                                                    onTicketChange(normalized.ifBlank { null })
-                                                }
-                                                isTicketEditing = !isTicketEditing
-                                                true
-                                            }
-                                            Key.Tab -> {
-                                                trFocusManager.moveFocus(if (event.isShiftPressed) FocusDirection.Previous else FocusDirection.Next)
-                                                true
-                                            }
-                                            else -> false
-                                        }
-                                    }
-                                    .focusProperties {
-                                        previous = ticketTextFocusRequester
-                                        next = passedFocusRequester
-                                    }
-                                    .focusTarget()
-                                    .handOnHover()
-                                    .pointerInput(Unit) {
-                                        detectTapGestures(
-                                            onTap = {
-                                                if (isTicketEditing) {
-                                                    val normalized = draft.split(Regex("[,;\\s]+")).filter { it.isNotBlank() }.joinToString(", ")
-                                                    onTicketChange(normalized.ifBlank { null })
-                                                }
-                                                isTicketEditing = !isTicketEditing
-                                            },
-                                        )
-                                    },
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Icon(editSaveIcon, contentDescription = if (isTicketEditing) SpeqaBundle.message("tooltip.save") else SpeqaBundle.message("tooltip.edit"), modifier = Modifier.size(14.dp), tint = editTint)
-                            }
-                        }
-                    }
-                }
+                        true
+                    },
+                )
+            } else {
+                Text(
+                    text = SpeqaBundle.message("placeholder.setExpected"),
+                    color = SpeqaThemeColors.mutedForeground.copy(alpha = 0.6f),
+                    fontSize = SpeqaTypography.placeholderFontSize,
+                    fontWeight = FontWeight.Normal,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickableWithPointer(
+                            onClick = {
+                                showExpectedEditor = true
+                                focusExpectedAtEndRequest++
+                            },
+                        )
+                        .onFocusChanged { if (it.isFocused) focusContext.current = FocusSlot(index, StepSlot.EXPECTED) }
+                        .focusable(),
+                )
             }
-
-            // Verdict chips + comment toggle button
+        },
+        metaContent = { layout ->
+            StepMetaRow(
+                stepIndex = index,
+                tickets = step.tickets,
+                links = step.links,
+                attachments = step.attachments,
+                project = project,
+                tcFile = file,
+                onTicketsChange = onTicketChange,
+                onLinksChange = onLinkChange,
+                onAttachmentsChange = onAttachmentsChange,
+                onOpenFile = onOpenAttachment,
+                attachmentRevision = 0L,
+                ticketAddRequester = ticketAddRequester,
+                linkPrimaryRequesters = linkPrimaryRequesters,
+                linkAddRequester = linkAddRequester,
+                attachmentPrimaryRequesters = attachmentPrimaryRequesters,
+                attachmentAddRequester = attachmentAddRequester,
+                narrow = layout.narrow,
+            )
+        },
+        footerContent = {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(SpeqaLayout.compactGap),
@@ -827,7 +816,7 @@ private fun StepResultRow(
                         .focusRequester(passedFocusRequester)
                         .focusProperties {
                             next = failedFocusRequester
-                            previous = ticketFocusRequester
+                            previous = attachmentAddRequester
                         },
                 )
                 VerdictChip(
@@ -885,9 +874,7 @@ private fun StepResultRow(
                         SpeqaIconButton(
                             onClick = {
                                 showComment = !showComment
-                                if (showComment) {
-                                    focusCommentAtEndRequest++
-                                }
+                                if (showComment) focusCommentAtEndRequest++
                             },
                             focusable = true,
                             keyboardFocusRingOnly = true,
@@ -922,11 +909,10 @@ private fun StepResultRow(
                     }
                 }
             }
-
             if (showComment) {
                 Column(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(SpeqaLayout.itemGap),
+                    verticalArrangement = Arrangement.spacedBy(SpeqaLayout.tightGap),
                 ) {
                     Text(
                         SpeqaBundle.message("run.stepComment"),
@@ -955,8 +941,8 @@ private fun StepResultRow(
                     }
                 }
             }
-        }
-    }
+        },
+    )
 }
 
 @Composable
@@ -995,4 +981,108 @@ private fun VerdictChip(
             color = textColor,
         )
     }
+}
+
+internal data class RunHeaderTagsLayoutContract(
+    val showStandaloneTagStrip: Boolean,
+    val showCompactAddAffordance: Boolean,
+)
+
+internal fun runHeaderTagsLayoutContract(tags: List<String>): RunHeaderTagsLayoutContract {
+    return RunHeaderTagsLayoutContract(
+        showStandaloneTagStrip = false,
+        showCompactAddAffordance = true,
+    )
+}
+
+internal enum class RunExpectedEnterTarget {
+    NEXT_STEP_ACTION,
+    RUN_COMMENT,
+}
+
+internal fun runExpectedEnterTarget(hasNextStep: Boolean): RunExpectedEnterTarget {
+    return if (hasNextStep) RunExpectedEnterTarget.NEXT_STEP_ACTION else RunExpectedEnterTarget.RUN_COMMENT
+}
+
+internal data class RunHeaderLayoutContract(
+    val runnerInlineWithProgress: Boolean,
+    val environmentTagsTwoColumns: Boolean,
+    val referencesMatchTestCaseHeaderPattern: Boolean,
+    val titleUsesInlineEditablePattern: Boolean,
+    val metadataUsesSharedSuggestions: Boolean,
+    val tagsUseTestCaseEmptyState: Boolean,
+    val headerPairsShareColumnGrid: Boolean,
+    val usesSharedStickyTrail: Boolean,
+)
+
+internal fun runHeaderLayoutContract(): RunHeaderLayoutContract {
+    return RunHeaderLayoutContract(
+        runnerInlineWithProgress = true,
+        environmentTagsTwoColumns = true,
+        referencesMatchTestCaseHeaderPattern = true,
+        titleUsesInlineEditablePattern = true,
+        metadataUsesSharedSuggestions = true,
+        tagsUseTestCaseEmptyState = true,
+        headerPairsShareColumnGrid = true,
+        usesSharedStickyTrail = true,
+    )
+}
+
+internal fun completedRunSteps(stepResults: List<StepResult>): Int {
+    return stepResults.count { it.verdict != StepVerdict.NONE }
+}
+
+internal fun runStickyProgressLabel(completedSteps: Int, totalSteps: Int): String? {
+    if (totalSteps <= 0) return null
+    return SpeqaBundle.message("run.progress", completedSteps, totalSteps)
+}
+
+internal fun runStickyTitle(runId: Int?, title: String): String {
+    val resolvedTitle = title.ifBlank { SpeqaBundle.message("label.untitledTestCase") }
+    val idPrefix = SpeqaBundle.message("label.idPrefix.tr")
+    return runId?.let { "$idPrefix$it · $resolvedTitle" } ?: resolvedTitle
+}
+
+internal data class RunScrollConsumptionContract(
+    val consumeScrollAtViewportBoundary: Boolean,
+)
+
+internal fun runScrollConsumptionContract(): RunScrollConsumptionContract {
+    return RunScrollConsumptionContract(
+        consumeScrollAtViewportBoundary = true,
+    )
+}
+
+internal data class RunStepCommentLayoutContract(
+    val usesRelaxedLabelGap: Boolean,
+)
+
+internal fun runStepCommentLayoutContract(): RunStepCommentLayoutContract {
+    return RunStepCommentLayoutContract(
+        usesRelaxedLabelGap = true,
+    )
+}
+
+internal data class RunStepEditabilityContract(
+    val actionEditable: Boolean,
+    val expectedEditable: Boolean,
+    val bodyBlocksEditable: Boolean,
+)
+
+internal fun runStepEditabilityContract(): RunStepEditabilityContract {
+    return RunStepEditabilityContract(
+        actionEditable = true,
+        expectedEditable = true,
+        bodyBlocksEditable = true,
+    )
+}
+
+internal data class RunTopLevelReferencesVisualContract(
+    val iconOnlyAddAffordances: Boolean,
+)
+
+internal fun runTopLevelReferencesVisualContract(): RunTopLevelReferencesVisualContract {
+    return RunTopLevelReferencesVisualContract(
+        iconOnlyAddAffordances = true,
+    )
 }

@@ -1,62 +1,33 @@
 package io.github.barsia.speqa.editor.ui
 
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
-import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusTarget
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.RowScope
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusProperties
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.hoverable
-
-import androidx.compose.foundation.interaction.collectIsHoveredAsState
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.snapshotFlow
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.distinctUntilChanged
-import androidx.compose.ui.focus.FocusDirection
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.input.key.isShiftPressed
-import androidx.compose.ui.input.key.type
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -69,14 +40,11 @@ import io.github.barsia.speqa.SpeqaBundle
 import io.github.barsia.speqa.editor.AttachmentSupport
 import io.github.barsia.speqa.editor.ScrollSyncController
 import io.github.barsia.speqa.editor.TestCaseHeaderMeta
-import io.github.barsia.speqa.registry.IdType
-import io.github.barsia.speqa.model.DescriptionBlock
-import io.github.barsia.speqa.model.PreconditionsBlock
-import io.github.barsia.speqa.model.Priority
-import io.github.barsia.speqa.model.Status
-import io.github.barsia.speqa.model.TestCase
-import io.github.barsia.speqa.model.TestCaseBodyBlock
+import io.github.barsia.speqa.model.*
 import io.github.barsia.speqa.parser.PatchOperation
+import io.github.barsia.speqa.registry.IdType
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
 import org.jetbrains.jewel.bridge.icon.fromPlatformIcon
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.ui.component.Icon
@@ -112,6 +80,8 @@ internal fun TestCasePreview(
     var stepDragActive by remember { mutableStateOf(false) }
     var focusRequestStepIndex by remember { mutableStateOf(-1) }
     val focusSinkRequester = remember { FocusRequester() }
+    val focusContext = remember { FocusContext() }
+    var headerTitleBounds by remember { mutableStateOf<Rect?>(null) }
 
     // Scroll sync: editor → compose (collect fraction from flow)
     scrollSyncController?.let { sync ->
@@ -141,19 +111,26 @@ internal fun TestCasePreview(
             }
     }
 
-    Box(
+    CompositionLocalProvider(LocalFocusContext provides focusContext) {
+    Column(
         modifier = modifier
             .background(SpeqaThemeColors.surface)
-            .pointerInput(Unit) {
-                awaitEachGesture {
-                    val down = awaitFirstDown(requireUnconsumed = true)
-                    val up = waitForUpOrCancellation()
-                    if (up != null && !up.isConsumed) {
-                        focusSinkRequester.requestFocus()
-                    }
-                }
-            },
+            .fillMaxSize(),
     ) {
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .pointerInput(Unit) {
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = true)
+                        val up = waitForUpOrCancellation()
+                        if (up != null && !up.isConsumed) {
+                            focusSinkRequester.requestFocus()
+                        }
+                    }
+                },
+        ) {
         Box(
             modifier = Modifier
                 .size(0.dp)
@@ -161,18 +138,42 @@ internal fun TestCasePreview(
                 .focusTarget(),
         )
         var viewportCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
+        val focusTrailMotion = remember { focusTrailMotionContract() }
+        val density = LocalDensity.current
+        val focusTrailSlidePx = remember(density, focusTrailMotion) {
+            with(density) { focusTrailMotion.slideOffsetDp.dp.roundToPx() }
+        }
+        val showFocusTrail by remember(headerTitleBounds, viewportCoordinates) {
+            derivedStateOf {
+                shouldShowFocusTrail(
+                    titleBounds = headerTitleBounds,
+                    viewportBounds = viewportCoordinates?.takeIf { it.isAttached }?.boundsInWindow(),
+                )
+            }
+        }
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .onGloballyPositioned { viewportCoordinates = it }
+                .pointerInput(Unit) {
+                    awaitPointerEventScope {
+                        while (true) {
+                            val event = awaitPointerEvent(PointerEventPass.Final)
+                            if (event.type == PointerEventType.Scroll) {
+                                event.changes.forEach { it.consume() }
+                            }
+                        }
+                    }
+                }
                 .verticalScroll(scrollState, enabled = !stepDragActive)
                 .padding(start = SpeqaLayout.pagePadding, end = SpeqaLayout.pagePadding, top = SpeqaLayout.compactGap, bottom = SpeqaLayout.pagePadding),
-            verticalArrangement = Arrangement.spacedBy(SpeqaLayout.blockGap),
+            verticalArrangement = Arrangement.spacedBy(SpeqaLayout.compactGap),
         ) {
             PreviewHeader(
             testCase = testCase,
             headerMeta = headerMeta,
             project = project,
+            tcFile = file,
             nextFreeTestCaseId = nextFreeTestCaseId,
             isIdDuplicate = isIdDuplicate,
             isIdEditing = isIdEditing,
@@ -185,80 +186,54 @@ internal fun TestCasePreview(
             onPriorityChange = onPriorityChange,
             onStatusChange = onStatusChange,
             onPatch = onPatch,
+            onOpenFile = { attachment ->
+                AttachmentSupport.resolveFile(project, file, attachment)?.let { vf ->
+                    FileEditorManager.getInstance(project).openFile(vf, true)
+                }
+            },
+            attachmentRevision = attachmentRevision,
+            onTitleBoundsChanged = { headerTitleBounds = it },
         )
 
         Column(
             modifier = Modifier.padding(horizontal = SpeqaLayout.contentInset),
             verticalArrangement = Arrangement.spacedBy(SpeqaLayout.blockGap),
         ) {
-            EditablePreviewSection(
+            EditableBodyBlockSection(
                 title = SpeqaBundle.message("label.description"),
-                text = mergeBlocks(testCase.bodyBlocks, DescriptionBlock::class.java),
+                text = mergeBodyBlocks(testCase.bodyBlocks, DescriptionBlock::class.java),
                 emptyLabel = SpeqaBundle.message("label.noDescription"),
                 onCommit = onPatch?.let { patch ->
                     { newText ->
-                        val updated = replaceBodyBlocks(testCase, DescriptionBlock::class.java) { DescriptionBlock(newText) }
+                        val updated = testCase.copy(
+                            bodyBlocks = replaceBodyBlocks(testCase.bodyBlocks, DescriptionBlock::class.java) {
+                                DescriptionBlock(newText)
+                            },
+                        )
                         patch(updated, PatchOperation.SetDescription(newText))
                     }
                 },
             )
 
-            EditablePreviewSection(
+            EditableBodyBlockSection(
                 title = SpeqaBundle.message("label.preconditions"),
-                text = mergeBlocks(testCase.bodyBlocks, PreconditionsBlock::class.java),
+                text = mergeBodyBlocks(testCase.bodyBlocks, PreconditionsBlock::class.java),
                 emptyLabel = SpeqaBundle.message("label.noPreconditions"),
                 onCommit = onPatch?.let { patch ->
                     { newText ->
                         val markerStyle = testCase.bodyBlocks.filterIsInstance<PreconditionsBlock>().firstOrNull()?.markerStyle
                             ?: io.github.barsia.speqa.model.PreconditionsMarkerStyle.PRECONDITIONS
-                        val updated = replaceBodyBlocks(testCase, PreconditionsBlock::class.java) {
-                            PreconditionsBlock(markerStyle, newText)
-                        }
+                        val updated = testCase.copy(
+                            bodyBlocks = replaceBodyBlocks(testCase.bodyBlocks, PreconditionsBlock::class.java) {
+                                PreconditionsBlock(markerStyle, newText)
+                            },
+                        )
                         patch(updated, PatchOperation.SetPreconditions(markerStyle, newText))
                     }
                 },
             )
 
             onPatch?.let { patch ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(SpeqaLayout.blockGap),
-                ) {
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(SpeqaLayout.itemGap),
-                    ) {
-                        SectionHeaderWithDivider(SpeqaBundle.message("label.attachments"))
-                            AttachmentList(
-                                attachments = testCase.attachments,
-                                project = project,
-                                tcFile = file,
-                                onAttachmentsChange = { newAttachments ->
-                                    patch(testCase.copy(attachments = newAttachments), PatchOperation.SetAttachments(newAttachments))
-                                },
-                                onOpenFile = { attachment ->
-                                    AttachmentSupport.resolveFile(project, file, attachment)?.let { vf ->
-                                        FileEditorManager.getInstance(project).openFile(vf, true)
-                                    }
-                                },
-                                attachmentRevision = attachmentRevision,
-                            )
-                    }
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(SpeqaLayout.itemGap),
-                    ) {
-                        SectionHeaderWithDivider(SpeqaBundle.message("label.links"))
-                        LinkList(
-                            links = testCase.links,
-                            onLinksChange = { newLinks ->
-                                patch(testCase.copy(links = newLinks), PatchOperation.SetLinks(newLinks))
-                            },
-                            project = project,
-                        )
-                    }
-                }
-
                 StepsSection(
                     testCase = testCase,
                     onPatch = { tc, op ->
@@ -282,64 +257,34 @@ internal fun TestCasePreview(
             } ?: PreviewStepsSection(testCase = testCase)
         }
         }
-    }
-}
-
-private fun <T : TestCaseBodyBlock> mergeBlocks(
-    blocks: List<TestCaseBodyBlock>,
-    type: Class<T>,
-): String {
-    return blocks
-        .filter { type.isInstance(it) }
-        .map { it.markdown.trim() }
-        .filter { it.isNotBlank() }
-        .joinToString("\n\n")
-}
-
-private fun <T : TestCaseBodyBlock> replaceBodyBlocks(
-    testCase: TestCase,
-    type: Class<T>,
-    factory: () -> TestCaseBodyBlock,
-): TestCase {
-    val hasExisting = testCase.bodyBlocks.any { type.isInstance(it) }
-    val newBlocks = if (hasExisting) {
-        var replaced = false
-        testCase.bodyBlocks.mapNotNull {
-            if (type.isInstance(it)) {
-                if (!replaced) { replaced = true; factory() } else null
-            } else it
+        androidx.compose.animation.AnimatedVisibility(
+            visible = showFocusTrail,
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth(),
+            enter = fadeIn(animationSpec = tween(focusTrailMotion.durationMillis)) +
+                slideInVertically(
+                    animationSpec = tween(focusTrailMotion.durationMillis),
+                    initialOffsetY = { -focusTrailSlidePx },
+                ),
+            exit = fadeOut(animationSpec = tween(focusTrailMotion.durationMillis)) +
+                slideOutVertically(
+                    animationSpec = tween(focusTrailMotion.durationMillis),
+                    targetOffsetY = { -focusTrailSlidePx },
+                ),
+        ) {
+            FocusTrail(
+                testCase = testCase,
+                onJumpToFirstMissingExpected = {
+                    val firstMissing = testCase.steps.indexOfFirst { it.expected.isNullOrBlank() }
+                    if (firstMissing >= 0) {
+                        focusRequestStepIndex = firstMissing
+                    }
+                },
+            )
         }
-    } else {
-        testCase.bodyBlocks + factory()
+        }
     }
-    return testCase.copy(bodyBlocks = canonicalBlockOrder(newBlocks))
-}
-
-private fun canonicalBlockOrder(blocks: List<TestCaseBodyBlock>): List<TestCaseBodyBlock> {
-    return blocks.filterIsInstance<DescriptionBlock>() + blocks.filterIsInstance<PreconditionsBlock>()
-}
-
-@Composable
-private fun EditablePreviewSection(
-    title: String,
-    text: String,
-    emptyLabel: String,
-    onCommit: ((String) -> Unit)?,
-    modifier: Modifier = Modifier,
-) {
-    Column(
-        modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(SpeqaLayout.tightGap),
-    ) {
-        SectionLabel(title)
-        PlainTextInput(
-            value = text,
-            onValueChange = { onCommit?.invoke(it) },
-            readOnly = onCommit == null,
-            placeholder = emptyLabel,
-            singleLine = false,
-            minHeight = 60,
-        )
     }
 }
 
@@ -349,6 +294,7 @@ private fun PreviewHeader(
     testCase: TestCase,
     headerMeta: TestCaseHeaderMeta,
     project: Project,
+    tcFile: VirtualFile,
     nextFreeTestCaseId: Int,
     isIdDuplicate: Boolean,
     isIdEditing: Boolean,
@@ -361,7 +307,12 @@ private fun PreviewHeader(
     onPriorityChange: ((Priority) -> Unit)?,
     onStatusChange: ((Status) -> Unit)?,
     onPatch: ((TestCase, PatchOperation) -> Unit)?,
+    onOpenFile: (Attachment) -> Unit,
+    attachmentRevision: Long,
+    onTitleBoundsChanged: (Rect) -> Unit,
 ) {
+    val headerAddLinkRequester = remember { FocusRequester() }
+    val headerAddAttachmentRequester = remember { FocusRequester() }
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -385,10 +336,16 @@ private fun PreviewHeader(
             onRun = onRun,
         )
         Box(modifier = Modifier.fillMaxWidth()) {
-            InlineEditableTitleRow(
-                title = testCase.title.ifBlank { SpeqaBundle.message("label.untitledTestCase") },
-                onTitleCommit = onTitleCommit,
-            )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .onGloballyPositioned { onTitleBoundsChanged(it.boundsInWindow()) },
+            ) {
+                InlineEditableTitleRow(
+                    title = testCase.title.ifBlank { SpeqaBundle.message("label.untitledTestCase") },
+                    onTitleCommit = onTitleCommit,
+                )
+            }
         }
         SurfaceDivider()
         Box(modifier = Modifier.fillMaxWidth()) {
@@ -401,6 +358,91 @@ private fun PreviewHeader(
                 onStatusChange = onStatusChange,
                 onPatch = onPatch,
             )
+        }
+        if (onPatch != null) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(SpeqaLayout.blockGap),
+            ) {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(SpeqaLayout.tightGap),
+                ) {
+                    SectionHeaderWithDivider(
+                        title = SpeqaBundle.message("label.links"),
+                        actions = {
+                            HeaderAddIconButton(
+                                tooltip = SpeqaBundle.message("tooltip.addLink"),
+                                onClick = {
+                                    com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater {
+                                        val newLink = AddEditLinkDialog.show(project)
+                                        if (newLink != null) {
+                                            onPatch(
+                                                testCase.copy(links = testCase.links + newLink),
+                                                PatchOperation.SetLinks(testCase.links + newLink),
+                                            )
+                                        }
+                                    }
+                                },
+                                addRequester = headerAddLinkRequester,
+                            )
+                        },
+                    )
+                    LinkList(
+                        links = testCase.links,
+                        onLinksChange = { next ->
+                            onPatch(testCase.copy(links = next), PatchOperation.SetLinks(next))
+                        },
+                        project = project,
+                        showAddButton = false,
+                        externalAddRequester = headerAddLinkRequester,
+                    )
+                }
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(SpeqaLayout.tightGap),
+                ) {
+                    SectionHeaderWithDivider(
+                        title = SpeqaBundle.message("label.attachments"),
+                        actions = {
+                            HeaderAddIconButton(
+                                tooltip = SpeqaBundle.message("tooltip.addAttachment"),
+                                addRequester = headerAddAttachmentRequester,
+                                onClick = {
+                                    com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater {
+                                        val descriptor = com.intellij.openapi.fileChooser.FileChooserDescriptorFactory.createAllButJarContentsDescriptor()
+                                        com.intellij.openapi.fileChooser.FileChooser.chooseFiles(descriptor, project, null) { chosen ->
+                                            if (chosen.isNotEmpty()) {
+                                                val newAttachment = com.intellij.openapi.application.runWriteAction<io.github.barsia.speqa.model.Attachment?> {
+                                                    io.github.barsia.speqa.editor.AttachmentSupport.copyFileToAttachments(project, tcFile, chosen.first())
+                                                }
+                                                if (newAttachment != null) {
+                                                    onPatch(
+                                                        testCase.copy(attachments = testCase.attachments + newAttachment),
+                                                        PatchOperation.SetAttachments(testCase.attachments + newAttachment),
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
+                            )
+                        },
+                    )
+                    AttachmentList(
+                        attachments = testCase.attachments,
+                        project = project,
+                        tcFile = tcFile,
+                        onAttachmentsChange = { next ->
+                            onPatch(testCase.copy(attachments = next), PatchOperation.SetAttachments(next))
+                        },
+                        onOpenFile = onOpenFile,
+                        showAddButton = false,
+                        attachmentRevision = attachmentRevision,
+                        externalAddRequester = headerAddAttachmentRequester,
+                    )
+                }
+            }
         }
     }
 }

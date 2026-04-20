@@ -107,10 +107,10 @@ class DocumentPatcherAttachmentTest {
         assertTrue(result.contains("1. Do something"))
     }
 
-    // ── 4. Add action attachment to step without one ────────────
+    // ── 4. Add step attachment to step without one ─────────────
 
     @Test
-    fun `add action attachment to step without one`() {
+    fun `add step attachment to step without one`() {
         val doc = """
             |---
             |title: "Test"
@@ -124,7 +124,7 @@ class DocumentPatcherAttachmentTest {
 
         val edits = DocumentPatcher.patch(
             doc,
-            PatchOperation.SetStepActionAttachments(0, listOf(Attachment("click-screenshot.png"))),
+            PatchOperation.SetStepAttachments(0, listOf(Attachment("click-screenshot.png"))),
         )
 
         val result = applyEdits(doc, edits)
@@ -132,18 +132,16 @@ class DocumentPatcherAttachmentTest {
         assertTrue(result.contains("   ![click-screenshot.png](click-screenshot.png)"))
         assertTrue(result.contains("1. Click the button"))
         assertTrue(result.contains("   > Button is highlighted"))
-        // Attachment should be between action and expected
-        val actionIdx = result.indexOf("1. Click the button")
+        // Attachment should be after expected
         val attachmentIdx = result.indexOf("   ![click-screenshot.png](click-screenshot.png)")
         val expectedIdx = result.indexOf("   > Button is highlighted")
-        assertTrue("Attachment after action", attachmentIdx > actionIdx)
-        assertTrue("Attachment before expected", attachmentIdx < expectedIdx)
+        assertTrue("Attachment after expected", attachmentIdx > expectedIdx)
     }
 
-    // ── 5. Remove action attachment from step ───────────────────
+    // ── 5. Remove step attachment from step ────────────────────
 
     @Test
-    fun `remove action attachment from step`() {
+    fun `remove step attachment from step`() {
         val doc = """
             |---
             |title: "Test"
@@ -152,76 +150,18 @@ class DocumentPatcherAttachmentTest {
             |Scenario:
             |
             |1. Click the button
-            |   ![click-screenshot.png](click-screenshot.png)
             |   > Button is highlighted
+            |   ![click-screenshot.png](click-screenshot.png)
         """.trimMargin() + "\n"
 
         val edits = DocumentPatcher.patch(
             doc,
-            PatchOperation.SetStepActionAttachments(0, emptyList()),
+            PatchOperation.SetStepAttachments(0, emptyList()),
         )
 
         val result = applyEdits(doc, edits)
 
         assertFalse(result.contains("[click-screenshot.png]"))
-        assertTrue(result.contains("1. Click the button"))
-        assertTrue(result.contains("   > Button is highlighted"))
-    }
-
-    // ── 6. Add expected attachment to step without one ──────────
-
-    @Test
-    fun `add expected attachment to step without one`() {
-        val doc = """
-            |---
-            |title: "Test"
-            |---
-            |
-            |Scenario:
-            |
-            |1. Click the button
-            |   > Button is highlighted
-        """.trimMargin() + "\n"
-
-        val edits = DocumentPatcher.patch(
-            doc,
-            PatchOperation.SetStepExpectedAttachments(0, listOf(Attachment("expected-result.png"))),
-        )
-
-        val result = applyEdits(doc, edits)
-
-        assertTrue(result.contains("   ![expected-result.png](expected-result.png)"))
-        assertTrue(result.contains("   > Button is highlighted"))
-        // Attachment should be after expected
-        val expectedIdx = result.indexOf("   > Button is highlighted")
-        val attachmentIdx = result.indexOf("   ![expected-result.png](expected-result.png)")
-        assertTrue("Attachment after expected", attachmentIdx > expectedIdx)
-    }
-
-    // ── 7. Remove expected attachment from step ─────────────────
-
-    @Test
-    fun `remove expected attachment from step`() {
-        val doc = """
-            |---
-            |title: "Test"
-            |---
-            |
-            |Scenario:
-            |
-            |1. Click the button
-            |   > Button is highlighted
-            |   ![expected-result.png](expected-result.png)
-        """.trimMargin() + "\n"
-
-        val edits = DocumentPatcher.patch(
-            doc,
-            PatchOperation.SetStepExpectedAttachments(0, emptyList()),
-        )
-
-        val result = applyEdits(doc, edits)
-
-        assertFalse(result.contains("[expected-result.png]"))
         assertTrue(result.contains("1. Click the button"))
         assertTrue(result.contains("   > Button is highlighted"))
     }

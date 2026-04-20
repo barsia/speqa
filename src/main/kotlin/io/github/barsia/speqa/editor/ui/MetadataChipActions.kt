@@ -110,8 +110,9 @@ internal fun rememberTestCaseMetadataActions(
 internal fun rememberTestRunMetadataActions(
     project: Project,
     kind: MetadataValueKind,
+    onRemove: ((String) -> Unit)? = null,
 ): Triple<(String) -> Unit, (String) -> String, (String) -> List<TagChipContextAction>> {
-    return remember(project, kind) {
+    return remember(project, kind, onRemove) {
         val click: (String) -> Unit = { value ->
             showMetadataMatches(project, kind, MetadataSearchTarget.TEST_RUNS, value)
         }
@@ -147,6 +148,31 @@ internal fun rememberTestRunMetadataActions(
                         CopyPasteManager.getInstance().setContents(StringSelection(value))
                     },
                 )
+                if (onRemove != null) {
+                    add(
+                        TagChipContextAction(SpeqaBundle.message("metadata.remove"), com.intellij.icons.AllIcons.Actions.GC) {
+                            val message = when (kind) {
+                                MetadataValueKind.TAG -> SpeqaBundle.message("metadata.removeTag.message", value)
+                                MetadataValueKind.ENVIRONMENT -> SpeqaBundle.message("metadata.removeEnvironment.message", value)
+                            }
+                            val title = when (kind) {
+                                MetadataValueKind.TAG -> SpeqaBundle.message("metadata.removeTag.title")
+                                MetadataValueKind.ENVIRONMENT -> SpeqaBundle.message("metadata.removeEnvironment.title")
+                            }
+                            val result = Messages.showOkCancelDialog(
+                                project,
+                                message,
+                                title,
+                                Messages.getOkButton(),
+                                Messages.getCancelButton(),
+                                null,
+                            )
+                            if (result == Messages.OK) {
+                                onRemove(value)
+                            }
+                        },
+                    )
+                }
             }
         }
         Triple(click, tooltip, menu)

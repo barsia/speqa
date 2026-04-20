@@ -65,6 +65,8 @@ internal fun parseTestCaseSafely(text: String): ParsedTestCase {
     return ParsedTestCase(TestCaseParser.parse(text))
 }
 
+internal fun hasImportableRunLinks(testCase: TestCase): Boolean = testCase.links.isNotEmpty()
+
 internal fun writeTestCaseToDocument(
     project: Project,
     document: Document,
@@ -127,11 +129,21 @@ internal fun startTestRun(project: Project, testCaseFile: VirtualFile) {
         now = now,
         existingNames = initialExistingNames,
     )
+    val hasTags = testCase.tags.orEmpty().isNotEmpty()
+    val hasEnvironment = testCase.environment.orEmpty().isNotEmpty()
+    val hasTickets = testCase.steps.any { it.tickets.isNotEmpty() }
+    val hasLinks = hasImportableRunLinks(testCase)
+    val hasAttachments = testCase.attachments.isNotEmpty() || testCase.steps.any { it.attachments.isNotEmpty() }
 
     val request = RunCreationDialog(
         project = project,
         destinationRelativePath = savedDestination,
         fileName = defaultFileName,
+        hasTags = hasTags,
+        hasEnvironment = hasEnvironment,
+        hasTickets = hasTickets,
+        hasLinks = hasLinks,
+        hasAttachments = hasAttachments,
     ).takeIf { it.showAndGet() }?.request ?: return
 
     val destinationRelativePath = request.destinationRelativePath.ifBlank { savedDestination }
@@ -156,6 +168,7 @@ internal fun startTestRun(project: Project, testCaseFile: VirtualFile) {
         testCase = testCase,
         sourceFilePath = testCaseFile.path,
         targetDirectoryPath = destinationPath.toString(),
+        importOptions = request.importOptions,
     )
 
     val trRegistry = SpeqaIdRegistry.getInstance(project)

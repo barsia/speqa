@@ -35,12 +35,23 @@ class SpeqaMarkdownTest {
     }
 
     @Test
+    fun `parseTagList splits bare comma-separated tags`() {
+        assertEquals(listOf("smoke", "regression"), SpeqaMarkdown.parseTagList("smoke, regression"))
+    }
+
+    @Test
     fun `parseYamlMap normalizes quoted comma-separated values`() {
         val result = SpeqaMarkdown.parseYamlMap("tags: \"1, 2, 3\", \"test\"")
         val tags = result["tags"]
         assertNotNull(tags)
         assertTrue("Expected list, got: $tags", tags is List<*>)
         assertEquals(listOf("1, 2, 3", "test"), tags)
+    }
+
+    @Test
+    fun `parseYamlMap keeps unquoted comma-separated scalar on first pass`() {
+        val result = SpeqaMarkdown.parseYamlMap("environment: test1, env20")
+        assertEquals("test1, env20", result["environment"])
     }
 
     @Test

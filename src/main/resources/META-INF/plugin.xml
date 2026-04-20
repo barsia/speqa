@@ -6,17 +6,18 @@
         <p>Manual test case management inside your IDE. Test cases are Markdown files stored in your project. Works offline, no external services, no vendor lock-in.</p>
         <ul>
             <li>Split editor: text on the left, interactive preview on the right</li>
-            <li>Includes a Claude Code skill for writing test cases from specs, designs, or tickets</li>
+            <li>Claude Code skill writes cases from specs, designs, or tickets</li>
             <li>Test runs with verdicts and comments per step</li>
             <li>Git-friendly: diff, blame, revert any change</li>
         </ul>
-        <p><a href="https://github.com/barsia/speqa/issues/new?template=bug_report.yml">Report a bug</a> | <a href="https://github.com/barsia/speqa/issues/new?template=feature_request.yml">Request a feature</a> | <a href="https://github.com/barsia/speqa/blob/main/PRIVACY_POLICY.md">Privacy Policy</a> | <a href="https://github.com/barsia/speqa">Source code</a></p>
+        <p><a href="https://github.com/barsia/speqa/issues/new?template=bug_report.yml">Report a bug</a> · <a href="https://github.com/barsia/speqa/issues/new?template=feature_request.yml">Request a feature</a> · <a href="https://barsia.github.io/speqa">Docs</a> · <a href="https://github.com/barsia/speqa">GitHub</a> · <a href="https://barsia.github.io">Author</a></p>
     ]]></description>
 
     <depends>com.intellij.modules.platform</depends>
     <depends>com.intellij.modules.compose</depends>
     <depends>org.intellij.plugins.markdown</depends>
     <depends>com.intellij.modules.json</depends>
+    <depends>Git4Idea</depends>
     <resource-bundle>messages.SpeqaBundle</resource-bundle>
 
     <extensions defaultExtensionNs="com.intellij">

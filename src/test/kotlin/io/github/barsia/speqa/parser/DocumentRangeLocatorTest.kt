@@ -117,24 +117,20 @@ class DocumentRangeLocatorTest {
         val action1 = text.substring(step1.actionRange.start, step1.actionRange.end)
         assertTrue(action1.startsWith("Type username"))
 
-        assertNotNull(step1.actionAttachmentsRange)
-        val actAtt1 = text.substring(step1.actionAttachmentsRange!!.start, step1.actionAttachmentsRange!!.end)
-        assertTrue(actAtt1.contains("[action-attachment.png]"))
-
         assertNotNull(step1.expectedRange)
         val exp1 = text.substring(step1.expectedRange!!.start, step1.expectedRange!!.end)
         assertTrue(exp1.contains("> Username accepted"))
 
-        assertNotNull(step1.expectedAttachmentsRange)
-        val expAtt1 = text.substring(step1.expectedAttachmentsRange!!.start, step1.expectedAttachmentsRange!!.end)
-        assertTrue(expAtt1.contains("[expected-attachment.png]"))
+        assertNotNull(step1.attachmentsRange)
+        val att1 = text.substring(step1.attachmentsRange!!.start, step1.attachmentsRange!!.end)
+        assertTrue(att1.contains("[action-attachment.png]"))
+        assertTrue(att1.contains("[expected-attachment.png]"))
 
         // Step 2
         val step2 = layout.steps[1]
         assertEquals("2", text.substring(step2.numberRange.start, step2.numberRange.end))
         assertNotNull(step2.expectedRange)
-        assertNull(step2.actionAttachmentsRange)
-        assertNull(step2.expectedAttachmentsRange)
+        assertNull(step2.attachmentsRange)
     }
 
     @Test
@@ -351,15 +347,11 @@ class DocumentRangeLocatorTest {
         assertEquals(1, layout.steps.size)
         val step = layout.steps[0]
 
-        assertNotNull(step.actionAttachmentsRange)
-        val actAtt = text.substring(step.actionAttachmentsRange!!.start, step.actionAttachmentsRange!!.end)
-        assertTrue(actAtt.contains("[action-file.png]"))
-
         assertNotNull(step.expectedRange)
-
-        assertNotNull(step.expectedAttachmentsRange)
-        val expAtt = text.substring(step.expectedAttachmentsRange!!.start, step.expectedAttachmentsRange!!.end)
-        assertTrue(expAtt.contains("[expected-file.png]"))
+        assertNotNull(step.attachmentsRange)
+        val att = text.substring(step.attachmentsRange!!.start, step.attachmentsRange!!.end)
+        assertTrue(att.contains("[action-file.png]"))
+        assertTrue(att.contains("[expected-file.png]"))
     }
 
     @Test

@@ -8,6 +8,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.intellij.openapi.Disposable
+import com.intellij.openapi.actionSystem.AnAction
+import com.intellij.openapi.actionSystem.AnActionEvent
+import com.intellij.openapi.actionSystem.CustomShortcutSet
+import com.intellij.openapi.actionSystem.KeyboardShortcut
 import com.intellij.openapi.editor.Document
 import com.intellij.openapi.editor.event.DocumentEvent
 import com.intellij.openapi.editor.event.DocumentListener
@@ -32,6 +36,7 @@ import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import java.awt.BorderLayout
 import java.awt.event.HierarchyEvent
 import java.beans.PropertyChangeListener
+import javax.swing.KeyStroke
 import javax.swing.Timer
 import javax.swing.JComponent
 import javax.swing.JPanel
@@ -158,10 +163,24 @@ class SpeqaPreviewEditor(
         if (!composeMountController.shouldMount()) return
         val panel = buildComposePanel()
         composePanel = panel
+        suppressPlatformEnterShortcuts(panel)
         component.remove(placeholderPanel)
         component.add(panel, BorderLayout.CENTER)
         component.revalidate()
         component.repaint()
+    }
+
+    private fun suppressPlatformEnterShortcuts(component: JComponent) {
+        val insertNewline = object : AnAction() {
+            override fun actionPerformed(e: AnActionEvent) {
+                io.github.barsia.speqa.editor.ui.FocusedMultilineInsertion.invokeNewline()
+            }
+        }
+        val shortcuts = CustomShortcutSet(
+            KeyboardShortcut(KeyStroke.getKeyStroke("control ENTER"), null),
+            KeyboardShortcut(KeyStroke.getKeyStroke("control shift ENTER"), null),
+        )
+        insertNewline.registerCustomShortcutSet(shortcuts, component)
     }
 
     private fun writeFromPreview(testCase: io.github.barsia.speqa.model.TestCase, commandName: String) {

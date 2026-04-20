@@ -128,12 +128,16 @@ object TestCaseSerializer {
                 }
             }
         }
-        (step.actionAttachments + step.expectedAttachments).forEach { appendAttachment(it, indent = "   ") }
-        step.ticket?.let { ticket ->
-            if (ticket.isNotBlank()) {
-                appendLine()
-                appendLine("   Ticket: $ticket")
+        step.attachments.forEach { appendAttachment(it, indent = "   ") }
+        if (step.tickets.isNotEmpty()) {
+            appendLine()
+            appendLine("   Ticket: ${step.tickets.joinToString(", ")}")
+        }
+        if (step.links.isNotEmpty()) {
+            val rendered = step.links.joinToString(", ") { link ->
+                if (link.title.isBlank()) link.url else "[${link.title}](${link.url})"
             }
+            appendLine("   Links: $rendered")
         }
     }
 }

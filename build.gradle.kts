@@ -6,7 +6,7 @@ plugins {
 }
 
 group = "io.github.barsia"
-version = "0.1.1"
+version = "0.1.2"
 
 val localProps = rootProject.file("local.properties")
     .takeIf { it.exists() }
@@ -39,6 +39,7 @@ dependencies {
         bundledPlugin("com.intellij.modules.json")
         bundledPlugin("org.jetbrains.plugins.yaml")
         bundledPlugin("org.intellij.plugins.markdown")
+        bundledPlugin("Git4Idea")
     }
 
     testImplementation("junit:junit:4.13.2")
@@ -52,15 +53,15 @@ intellijPlatform {
         }
 
         changeNotes = """
-            <h3>0.1.1</h3>
+            <h3>0.1.2</h3>
             <ul>
-                <li>Ticket linking in test cases and test runs. Attach ticket IDs to expected results, click to open in YouTrack, Linear, or your custom tracker</li>
-                <li>Auto-continue numbered and bulleted lists on Enter in text fields in preview</li>
-                <li>Rename selects only base name for <code>.tc.md</code> / <code>.tr.md</code></li>
-                <li>Better hover feedback on verdict buttons and comment toggle in test runs</li>
-                <li>Polished UI text across the board</li>
-                <li>Drag-and-drop step reordering with live preview and drop-target highlight</li>
-                <li>Redesigned step card — flat layout, delete in context menu</li>
+                <li>Test cases and test runs now share a two-column step editor</li>
+                <li>Test runs are fully editable</li>
+                <li>Create Test Run optionally imports tags, environment, tickets, links, and attachments from the test case</li>
+                <li>Attachment preview on hover</li>
+                <li>Sticky headers for test cases and test runs</li>
+                <li>New Project wizard: checkboxes to init Git and install the Claude Code skill</li>
+                <li><code>test-case-writer</code> skill rewritten with create/update flow and ISTQB-aligned priorities</li>
             </ul>
         """.trimIndent()
     }

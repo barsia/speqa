@@ -3,6 +3,7 @@ package io.github.barsia.speqa.run
 import io.github.barsia.speqa.model.Attachment
 import io.github.barsia.speqa.model.TestCase
 import io.github.barsia.speqa.model.TestStep
+import io.github.barsia.speqa.editor.RunImportOptions
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -29,24 +30,26 @@ class TestRunAttachmentPathTest {
                     TestStep(
                         action = "Do thing",
                         expected = "Done",
-                        actionAttachments = listOf(Attachment("attachments/sample-login/action.png")),
-                        expectedAttachments = listOf(Attachment("attachments/sample-login/expected.png")),
+                        attachments = listOf(
+                            Attachment("attachments/sample-login/action.png"),
+                            Attachment("attachments/sample-login/expected.png"),
+                        ),
                     ),
                 ),
             ),
             sourceFilePath = "test-cases/mcp/sample-login.tc.md",
             targetDirectoryPath = "test-runs",
+            importOptions = RunImportOptions(importAttachments = true),
             runner = "qa",
         )
 
         assertEquals(listOf(Attachment("../test-cases/mcp/attachments/sample-login/spec.pdf")), run.attachments)
         assertEquals(
-            listOf(Attachment("../test-cases/mcp/attachments/sample-login/action.png")),
-            run.stepResults.single().actionAttachments,
-        )
-        assertEquals(
-            listOf(Attachment("../test-cases/mcp/attachments/sample-login/expected.png")),
-            run.stepResults.single().expectedAttachments,
+            listOf(
+                Attachment("../test-cases/mcp/attachments/sample-login/action.png"),
+                Attachment("../test-cases/mcp/attachments/sample-login/expected.png"),
+            ),
+            run.stepResults.single().attachments,
         )
     }
 }

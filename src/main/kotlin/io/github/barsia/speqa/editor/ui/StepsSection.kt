@@ -274,23 +274,29 @@ internal fun StepsSection(
                                     pendingAddStepFocus = true
                                 }
                             },
-                            actionAttachments = step.actionAttachments,
-                            expectedAttachments = step.expectedAttachments,
-                            onActionAttachmentsChange = { newAttachments ->
+                            attachments = step.attachments,
+                            onAttachmentsChange = { newAttachments ->
                                 val tc = currentTestCase
                                 val s = tc.steps.getOrNull(index) ?: return@StepCard
-                                currentOnPatch(tc.copy(steps = tc.steps.updated(index, s.copy(actionAttachments = newAttachments))), PatchOperation.SetStepActionAttachments(index, newAttachments))
+                                currentOnPatch(
+                                    tc.copy(steps = tc.steps.updated(index, s.copy(attachments = newAttachments))),
+                                    PatchOperation.SetStepAttachments(index, newAttachments),
+                                )
                             },
-                            onExpectedAttachmentsChange = { newAttachments ->
+                            tickets = step.tickets,
+                            onTicketsChange = { newTickets ->
                                 val tc = currentTestCase
                                 val s = tc.steps.getOrNull(index) ?: return@StepCard
-                                currentOnPatch(tc.copy(steps = tc.steps.updated(index, s.copy(expectedAttachments = newAttachments))), PatchOperation.SetStepExpectedAttachments(index, newAttachments))
+                                currentOnPatch(tc.copy(steps = tc.steps.updated(index, s.copy(tickets = newTickets))), PatchOperation.SetStepTickets(index, newTickets))
                             },
-                            ticket = step.ticket,
-                            onTicketChange = { newTicket ->
+                            links = step.links,
+                            onLinksChange = { next ->
                                 val tc = currentTestCase
                                 val s = tc.steps.getOrNull(index) ?: return@StepCard
-                                currentOnPatch(tc.copy(steps = tc.steps.updated(index, s.copy(ticket = newTicket))), PatchOperation.SetStepTicket(index, newTicket))
+                                currentOnPatch(
+                                    tc.copy(steps = tc.steps.updated(index, s.copy(links = next))),
+                                    PatchOperation.SetStepLinks(index, next),
+                                )
                             },
                             project = project,
                             tcFile = tcFile,
@@ -318,6 +324,70 @@ internal fun StepsSection(
                             },
                             onDrag = { delta -> dragOffsetY += delta },
                             onDragEnd = { onDragEnd() },
+                            onInsertStepAfter = {
+                                val tc = currentTestCase
+                                val newStep = TestStep()
+                                val next = tc.steps.toMutableList().apply { add(index + 1, newStep) }
+                                currentOnPatch(tc.copy(steps = next), PatchOperation.AddStep(newStep))
+                                onFocusRequestStepIndexChange(index + 1)
+                            },
+                            onDuplicateStep = {
+                                val tc = currentTestCase
+                                val source = tc.steps.getOrNull(index) ?: return@StepCard
+                                val duplicate = source.copy(uid = TestStep.nextUid())
+                                val next = tc.steps.toMutableList().apply { add(index + 1, duplicate) }
+                                currentOnPatch(tc.copy(steps = next), PatchOperation.AddStep(duplicate))
+                                onFocusRequestStepIndexChange(index + 1)
+                            },
+                            onMoveStepUp = {
+                                if (index == 0) return@StepCard
+                                val tc = currentTestCase
+                                val next = tc.steps.toMutableList()
+                                val item = next.removeAt(index)
+                                next.add(index - 1, item)
+                                currentOnPatch(tc.copy(steps = next), PatchOperation.ReorderSteps(index, index - 1))
+                                onFocusRequestStepIndexChange(index - 1)
+                            },
+                            onMoveStepDown = {
+                                if (index >= testCase.steps.lastIndex) return@StepCard
+                                val tc = currentTestCase
+                                val next = tc.steps.toMutableList()
+                                val item = next.removeAt(index)
+                                next.add(index + 1, item)
+                                currentOnPatch(tc.copy(steps = next), PatchOperation.ReorderSteps(index, index + 1))
+                                onFocusRequestStepIndexChange(index + 1)
+                            },
+                            onEnterFromExpected = {
+                                val tc = currentTestCase
+                                if (index >= tc.steps.lastIndex) {
+                                    val newStep = TestStep()
+                                    val next = tc.steps.toMutableList().apply { add(index + 1, newStep) }
+                                    currentOnPatch(tc.copy(steps = next), PatchOperation.AddStep(newStep))
+                                }
+                                onFocusRequestStepIndexChange(index + 1)
+                            },
+                            onRequestDeleteStep = {
+                                val step = testCase.steps.getOrNull(index) ?: return@StepCard
+                                val confirmed = if (!step.expected.isNullOrBlank()) {
+                                    val result = com.intellij.openapi.ui.Messages.showOkCancelDialog(
+                                        SpeqaBundle.message("dialog.deleteStep.message"),
+                                        SpeqaBundle.message("dialog.deleteStep.title"),
+                                        com.intellij.openapi.ui.Messages.getOkButton(),
+                                        com.intellij.openapi.ui.Messages.getCancelButton(),
+                                        com.intellij.openapi.ui.Messages.getWarningIcon(),
+                                    )
+                                    result == com.intellij.openapi.ui.Messages.OK
+                                } else {
+                                    true
+                                }
+                                if (confirmed) {
+                                    val tc = currentTestCase
+                                    val nextSteps = tc.steps.filterIndexed { i, _ -> i != index }
+                                    currentOnPatch(tc.copy(steps = nextSteps), PatchOperation.DeleteStep(index))
+                                    val focusTarget = index.coerceAtMost(nextSteps.lastIndex).coerceAtLeast(0)
+                                    onFocusRequestStepIndexChange(focusTarget)
+                                }
+                            },
                         )
                     }
                     if (index < testCase.steps.lastIndex) {
@@ -325,6 +395,8 @@ internal fun StepsSection(
                     }
                  }
                 }
+
+                HorizontalHairline()
 
                 QuietActionText(
                     label = SpeqaBundle.message("form.addStep"),

@@ -12,10 +12,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
@@ -47,7 +50,11 @@ internal fun AttachmentList(
     modifier: Modifier = Modifier,
     showAddButton: Boolean = true,
     attachmentRevision: Long = 0L,
+    externalAddRequester: FocusRequester? = null,
 ) {
+    val addRequester = remember { FocusRequester() }
+    val effectiveAddRequester = externalAddRequester ?: if (showAddButton) addRequester else null
+    val restorer = rememberDeleteFocusRestorer(attachments.size, effectiveAddRequester)
     Column(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(0.dp),
@@ -60,6 +67,8 @@ internal fun AttachmentList(
             val missing = AttachmentSupport.resolveFile(project, tcFile, attachment) == null
             AttachmentRow(
                 attachment = attachment,
+                project = project,
+                tcFile = tcFile,
                 onClick = { onOpenFile(attachment) },
                 onDelete = {
                     val choice = Messages.showDialog(
@@ -73,14 +82,21 @@ internal fun AttachmentList(
                         0,
                         Messages.getQuestionIcon(),
                     )
-                    when (choice) {
-                        0 -> onAttachmentsChange(attachments - attachment)
+                    val removed = when (choice) {
+                        0 -> { onAttachmentsChange(attachments - attachment); true }
                         1 -> {
                             runWriteAction { AttachmentSupport.deleteFile(project, tcFile, attachment) }
                             onAttachmentsChange(attachments - attachment)
+                            true
                         }
+                        else -> false
+                    }
+                    if (removed) {
+                        val sizeBefore = attachments.size
+                        restorer.onDeleted(index, sizeBefore)
                     }
                 },
+                actionModifier = Modifier.focusRequester(restorer.itemRequesters[index]),
                 isMissing = missing,
                 onRelink = if (missing) {
                     {
@@ -105,7 +121,7 @@ internal fun AttachmentList(
         }
 
         if (showAddButton) {
-            AddAttachmentButton(project, tcFile, attachments, onAttachmentsChange)
+            AddAttachmentButton(project, tcFile, attachments, onAttachmentsChange, modifier = Modifier.focusRequester(addRequester))
         }
     }
 }

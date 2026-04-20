@@ -384,9 +384,8 @@ class TestCaseParserTest {
         val testCase = TestCaseParser.parse(content)
 
         assertEquals(1, testCase.steps.size)
-        assertTrue(testCase.steps[0].actionAttachments.isEmpty())
-        assertEquals(1, testCase.steps[0].expectedAttachments.size)
-        assertEquals("attachments/step-attachments/result.png", testCase.steps[0].expectedAttachments[0].path)
+        assertEquals(1, testCase.steps[0].attachments.size)
+        assertEquals("attachments/step-attachments/result.png", testCase.steps[0].attachments[0].path)
         assertEquals("User is redirected", testCase.steps[0].expected)
     }
 
@@ -408,8 +407,8 @@ class TestCaseParserTest {
 
         assertEquals(1, testCase.steps.size)
         assertEquals("User is redirected to dashboard", testCase.steps[0].expected)
-        assertEquals(1, testCase.steps[0].expectedAttachments.size)
-        assertEquals("attachments/expected-attachments/expected.png", testCase.steps[0].expectedAttachments[0].path)
+        assertEquals(1, testCase.steps[0].attachments.size)
+        assertEquals("attachments/expected-attachments/expected.png", testCase.steps[0].attachments[0].path)
     }
 
     @Test
@@ -513,11 +512,11 @@ class TestCaseParserTest {
             |   Ticket: PROJ-123, PROJ-456
         """.trimMargin()
         val tc = TestCaseParser.parse(content)
-        assertEquals("PROJ-123, PROJ-456", tc.steps[0].ticket)
+        assertEquals(listOf("PROJ-123", "PROJ-456"), tc.steps[0].tickets)
     }
 
     @Test
-    fun `parse step without ticket has null ticket`() {
+    fun `parse step without ticket has empty tickets`() {
         val content = """
             |---
             |title: Test
@@ -529,7 +528,7 @@ class TestCaseParserTest {
             |   > Expected outcome
         """.trimMargin()
         val tc = TestCaseParser.parse(content)
-        assertNull(tc.steps[0].ticket)
+        assertEquals(emptyList<String>(), tc.steps[0].tickets)
     }
 
     @Test
@@ -556,8 +555,8 @@ class TestCaseParserTest {
         """.trimMargin()
         val tc = TestCaseParser.parse(content)
         assertEquals(3, tc.steps.size)
-        assertEquals("BUG-1", tc.steps[0].ticket)
-        assertNull(tc.steps[1].ticket)
-        assertEquals("BUG-2, BUG-3", tc.steps[2].ticket)
+        assertEquals(listOf("BUG-1"), tc.steps[0].tickets)
+        assertEquals(emptyList<String>(), tc.steps[1].tickets)
+        assertEquals(listOf("BUG-2", "BUG-3"), tc.steps[2].tickets)
     }
 }

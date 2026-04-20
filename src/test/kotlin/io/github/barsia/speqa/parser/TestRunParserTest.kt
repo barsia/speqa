@@ -1,7 +1,9 @@
 package io.github.barsia.speqa.parser
 
+import io.github.barsia.speqa.model.Attachment
 import io.github.barsia.speqa.model.Priority
 import io.github.barsia.speqa.model.RunResult
+import io.github.barsia.speqa.model.Link
 import io.github.barsia.speqa.model.StepResult
 import io.github.barsia.speqa.model.StepVerdict
 import io.github.barsia.speqa.model.TestRun
@@ -85,7 +87,7 @@ class TestRunParserTest {
         val run = TestRunParser.parse("")
         assertFalse(run.manualResult)
         assertTrue(run.stepResults.isEmpty())
-        assertEquals("", run.environment)
+        assertTrue(run.environment.isEmpty())
         assertEquals("", run.runner)
         assertNull(run.startedAt)
         assertEquals(RunResult.NOT_STARTED, run.result)
@@ -103,6 +105,20 @@ class TestRunParserTest {
         val content = "---\ntitle: \"Test\"\nstarted_at: 2026-04-11T10:00:00\nresult: passed\n---"
         val run = TestRunParser.parse(content)
         assertTrue(run.tags.isEmpty())
+    }
+
+    @Test
+    fun `parses scalar environment as one entry even with commas`() {
+        val content = "---\ntitle: \"Test\"\nenvironment: \"Chrome 122, macOS 14\"\nresult: passed\n---"
+        val run = TestRunParser.parse(content)
+        assertEquals(listOf("Chrome 122, macOS 14"), run.environment)
+    }
+
+    @Test
+    fun `parses unquoted scalar environment with commas as one entry`() {
+        val content = "---\ntitle: \"Test\"\nenvironment: test1, env20\nresult: passed\n---"
+        val run = TestRunParser.parse(content)
+        assertEquals(listOf("test1, env20"), run.environment)
     }
 
     @Test
@@ -191,6 +207,67 @@ class TestRunParserTest {
     }
 
     @Test
+    fun `parses step links and step attachments separately`() {
+        val content = """
+            ---
+            title: "Test"
+            result: passed
+            ---
+
+            Scenario:
+
+            1. Open login page
+               ![action.png](attachments/action.png)
+               > Login page is visible
+               Links: [Spec](https://example.com/spec)
+               [report.pdf](attachments/report.pdf)
+               - passed
+        """.trimIndent()
+
+        val run = TestRunParser.parse(content)
+        assertEquals(1, run.stepResults.size)
+        assertEquals("Open login page", run.stepResults[0].action)
+        assertEquals("Login page is visible", run.stepResults[0].expected)
+        assertEquals(
+            listOf(
+                Attachment("attachments/action.png"),
+                Attachment("attachments/report.pdf"),
+            ),
+            run.stepResults[0].attachments,
+        )
+        assertEquals(
+            listOf(Link("Spec", "https://example.com/spec")),
+            run.stepResults[0].links,
+        )
+    }
+
+    @Test
+    fun `parses step links with commas inside url`() {
+        val content = """
+            ---
+            title: "Test"
+            result: passed
+            ---
+
+            Scenario:
+
+            1. Open login page
+               > Login page is visible
+               Links: [Spec](https://example.com/spec?labels=a,b), [](https://example.com/raw?a=1,b=2)
+               - passed
+        """.trimIndent()
+
+        val run = TestRunParser.parse(content)
+        assertEquals(
+            listOf(
+                Link("Spec", "https://example.com/spec?labels=a,b"),
+                Link("", "https://example.com/raw?a=1,b=2"),
+            ),
+            run.stepResults.single().links,
+        )
+    }
+
+    @Test
     fun `parses multiline action`() {
         val content = "---\ntitle: \"Test\"\nresult: passed\n---\n\nScenario:\n\n1. Line one  \n   Line two  \n   Line three\n   > Expected result\n   - passed"
         val run = TestRunParser.parse(content)
@@ -224,6 +301,32 @@ class TestRunParserTest {
     }
 
     @Test
+    fun `run round trip preserves editable metadata and readonly scenario`() {
+        val original = TestRun(
+            title = "Login",
+            tags = listOf("smoke"),
+            environment = listOf("test1, env20"),
+            links = listOf(Link("Spec", "https://example.com/spec")),
+            attachments = listOf(Attachment("top.png")),
+            stepResults = listOf(
+                StepResult(
+                    action = "Open",
+                    expected = "Opened",
+                    tickets = listOf("QA-1"),
+                    links = listOf(Link("Step", "https://example.com/step")),
+                    attachments = listOf(
+                        Attachment("action.png"),
+                        Attachment("expected.png"),
+                    ),
+                ),
+            ),
+        )
+
+        val parsed = TestRunParser.parse(TestRunSerializer.serialize(original))
+        assertEquals(original, parsed)
+    }
+
+    @Test
     fun `step attachments are parsed without leaking into text fields`() {
         val content = "---\ntitle: \"Test\"\nresult: passed\n---\n\nScenario:\n\n1. Click button\n   > Page loads\n   ![screenshot.png](attachments/screenshot.png)\n   [report.pdf]\n   - passed"
         val run = TestRunParser.parse(content)
@@ -232,8 +335,7 @@ class TestRunParserTest {
         assertEquals("Page loads", run.stepResults[0].expected)
         assertEquals(StepVerdict.PASSED, run.stepResults[0].verdict)
         assertEquals("", run.stepResults[0].comment)
-        assertTrue(run.stepResults[0].actionAttachments.isEmpty())
-        assertEquals(listOf("attachments/screenshot.png", "report.pdf"), run.stepResults[0].expectedAttachments.map { it.path })
+        assertEquals(listOf("attachments/screenshot.png", "report.pdf"), run.stepResults[0].attachments.map { it.path })
     }
 
     @Test

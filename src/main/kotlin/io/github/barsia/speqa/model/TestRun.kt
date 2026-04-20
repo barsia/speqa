@@ -35,11 +35,11 @@ enum class RunResult(val label: String) {
 data class StepResult(
     val action: String = "",
     val expected: String = "",
+    val tickets: List<String> = emptyList(),
+    val links: List<Link> = emptyList(),
     val verdict: StepVerdict = StepVerdict.NONE,
     val comment: String = "",
-    val actionAttachments: List<Attachment> = emptyList(),
-    val expectedAttachments: List<Attachment> = emptyList(),
-    val ticket: String? = null,
+    val attachments: List<Attachment> = emptyList(),
 )
 
 data class TestRun(
@@ -51,7 +51,7 @@ data class TestRun(
     val startedAt: LocalDateTime? = null,
     val finishedAt: LocalDateTime? = null,
     val result: RunResult = RunResult.NOT_STARTED,
-    val environment: String = "",
+    val environment: List<String> = emptyList(),
     val runner: String = "",
     val bodyBlocks: List<TestCaseBodyBlock> = emptyList(),
     val links: List<Link> = emptyList(),

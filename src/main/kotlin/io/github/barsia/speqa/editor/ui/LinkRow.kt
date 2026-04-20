@@ -7,6 +7,7 @@ import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
@@ -59,7 +60,6 @@ internal fun LinkRow(
     ) {
         Box(
             modifier = Modifier
-                .weight(1f)
                 .semantics { role = Role.Button }
                 .border(
                     1.dp,
@@ -79,7 +79,8 @@ internal fun LinkRow(
                 .hoverable(hoverFocus.interactionSource)
                 .handOnHover()
                 .focusTarget()
-                .pointerInput(onClick) { detectTapGestures { onClick() } },
+                .pointerInput(onClick) { detectTapGestures { onClick() } }
+                .padding(end = 5.dp),
         ) {
             Tooltip(tooltip = { Text(link.url) }) {
                 Row(

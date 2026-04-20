@@ -69,22 +69,74 @@ internal object SpeqaMarkdown {
         }
 
         return tryParseYaml(yaml)
-            ?: tryParseYaml(normalizeBareCommaSeparatedValues(yaml))
+            ?: tryParseYaml(normalizeQuotedCommaSeparatedValues(yaml))
             ?: tryParseYamlDroppingBadLines(yaml)
             ?: emptyMap()
     }
 
-    private val BARE_CSV_LINE = Regex("""^(\w+):\s+(.+,.+)$""")
+    private val QUOTED_CSV_LINE = Regex("""^(\w+):\s+(.+,.+)$""")
 
-    private fun normalizeBareCommaSeparatedValues(yaml: String): String {
+    private fun normalizeQuotedCommaSeparatedValues(yaml: String): String {
         return yaml.lines().joinToString("\n") { line ->
-            val match = BARE_CSV_LINE.matchEntire(line)
+            val match = QUOTED_CSV_LINE.matchEntire(line)
             if (match != null) {
                 val key = match.groupValues[1]
                 val value = match.groupValues[2]
-                if (!value.startsWith("[")) "$key: [$value]" else line
+                if (value.contains('"')) {
+                    val items = splitQuotedCommaSeparatedValues(value)
+                    if (items.size > 1) {
+                        buildString {
+                            appendLine("$key:")
+                            items.forEach { item ->
+                                appendLine("  - ${quoteYamlScalar(item)}")
+                            }
+                        }.trimEnd()
+                    } else {
+                        line
+                    }
+                } else {
+                    line
+                }
             } else line
         }
+    }
+
+    private fun splitQuotedCommaSeparatedValues(raw: String): List<String> {
+        val parts = mutableListOf<String>()
+        val current = StringBuilder()
+        var inQuotes = false
+        var escaped = false
+
+        for (ch in raw) {
+            when {
+                escaped -> {
+                    current.append(ch)
+                    escaped = false
+                }
+                ch == '\\' && inQuotes -> {
+                    current.append(ch)
+                    escaped = true
+                }
+                ch == '"' -> {
+                    inQuotes = !inQuotes
+                    current.append(ch)
+                }
+                ch == ',' && !inQuotes -> {
+                    parts += current.toString().trim()
+                    current.clear()
+                }
+                else -> current.append(ch)
+            }
+        }
+
+        if (current.isNotBlank()) {
+            parts += current.toString().trim()
+        }
+
+        return parts
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .map { it.removeSurrounding("\"").replace("\\\"", "\"").replace("\\\\", "\\") }
     }
 
     @Suppress("UNCHECKED_CAST")
@@ -127,11 +179,39 @@ internal object SpeqaMarkdown {
         }
     }
 
+    fun parseTagList(value: Any?): List<String> {
+        return when (value) {
+            is List<*> -> value.filterNotNull().map { it.toString() }
+            is String -> splitCommaSeparatedScalar(value)
+                .map { it.trim().removeSurrounding("\"").removeSurrounding("'") }
+                .filter { it.isNotBlank() }
+            null -> emptyList()
+            else -> listOf(value.toString())
+        }
+    }
+
     fun parseScalar(value: Any?): String {
         return when (value) {
             null -> ""
             is String -> value
             else -> value.toString()
+        }
+    }
+
+    fun appendStringListField(
+        builder: StringBuilder,
+        key: String,
+        values: List<String>,
+    ) {
+        val filtered = values.filter { it.isNotBlank() }
+        if (filtered.isEmpty()) return
+        if (filtered.size == 1) {
+            builder.appendLine("$key: ${quoteYamlScalar(filtered.single())}")
+        } else {
+            builder.appendLine("$key:")
+            filtered.forEach { value ->
+                builder.appendLine("  - ${quoteYamlScalar(value)}")
+            }
         }
     }
 
@@ -147,5 +227,32 @@ internal object SpeqaMarkdown {
                 .forEach { append(it) }
             append('"')
         }
+    }
+
+    private fun splitCommaSeparatedScalar(value: String): List<String> {
+        val result = mutableListOf<String>()
+        val current = StringBuilder()
+        var quoteChar: Char? = null
+
+        for (char in value) {
+            when {
+                quoteChar == null && (char == '"' || char == '\'') -> {
+                    quoteChar = char
+                    current.append(char)
+                }
+                quoteChar != null && char == quoteChar -> {
+                    quoteChar = null
+                    current.append(char)
+                }
+                quoteChar == null && char == ',' -> {
+                    result += current.toString()
+                    current.setLength(0)
+                }
+                else -> current.append(char)
+            }
+        }
+
+        result += current.toString()
+        return result
     }
 }

@@ -39,7 +39,7 @@ object TestCaseParser {
             priority = if ("priority" in meta) Priority.fromString(SpeqaMarkdown.parseScalar(meta["priority"])) else null,
             status = if ("status" in meta) Status.fromString(SpeqaMarkdown.parseScalar(meta["status"])) else null,
             environment = if ("environment" in meta) SpeqaMarkdown.parseStringList(meta["environment"]) else null,
-            tags = if ("tags" in meta) SpeqaMarkdown.parseStringList(meta["tags"]) else null,
+            tags = if ("tags" in meta) SpeqaMarkdown.parseTagList(meta["tags"]) else null,
             attachments = parseGeneralAttachments(body),
             links = parseLinks(body),
             bodyBlocks = parseBodyBlocks(body),
@@ -144,11 +144,12 @@ object TestCaseParser {
     private fun parseSteps(body: String): List<TestStep> {
         val steps = mutableListOf<TestStep>()
         var actionLines = mutableListOf<String>()
-        var expectedAttachments = mutableListOf<Attachment>()
+        var attachments = mutableListOf<Attachment>()
         var currentExpected: MutableList<String>? = null
         var currentExpectedGroupSize = 1
         var groupStartIndex = 0
-        var currentTicket: String? = null
+        var currentTickets: List<String> = emptyList()
+        var currentLinks: List<Link> = emptyList()
         var afterMarker = false
         var inExpected = false
 
@@ -165,14 +166,14 @@ object TestCaseParser {
             actionLines = mutableListOf()
         }
 
-        fun flushExpectedAttachments() {
-            if (steps.isNotEmpty() && expectedAttachments.isNotEmpty()) {
+        fun flushAttachments() {
+            if (steps.isNotEmpty() && attachments.isNotEmpty()) {
                 val current = steps.last()
                 steps[steps.lastIndex] = current.copy(
-                    expectedAttachments = current.expectedAttachments + expectedAttachments,
+                    attachments = current.attachments + attachments,
                 )
             }
-            expectedAttachments = mutableListOf()
+            attachments = mutableListOf()
         }
 
         for (line in body.lines()) {
@@ -189,10 +190,14 @@ object TestCaseParser {
             // New step starts
             if (stepMatch != null) {
                 flushAction()
-                flushExpectedAttachments()
-                if (steps.isNotEmpty() && currentTicket != null) {
-                    steps[steps.lastIndex] = steps.last().copy(ticket = currentTicket)
-                    currentTicket = null
+                flushAttachments()
+                if (steps.isNotEmpty() && currentTickets.isNotEmpty()) {
+                    steps[steps.lastIndex] = steps.last().copy(tickets = currentTickets)
+                    currentTickets = emptyList()
+                }
+                if (steps.isNotEmpty() && currentLinks.isNotEmpty()) {
+                    steps[steps.lastIndex] = steps.last().copy(links = currentLinks)
+                    currentLinks = emptyList()
                 }
                 if (currentExpected != null) {
                     groupStartIndex = steps.size
@@ -231,7 +236,7 @@ object TestCaseParser {
             if (steps.isNotEmpty()) {
                 val attachment = parseAttachmentLine(trimmed)
                 if (attachment != null) {
-                    expectedAttachments += attachment
+                    attachments += attachment
                     continue
                 }
             }
@@ -239,7 +244,17 @@ object TestCaseParser {
             // Ticket line
             val ticketMatch = TICKET_PATTERN.matchEntire(trimmed)
             if (ticketMatch != null && steps.isNotEmpty()) {
-                currentTicket = ticketMatch.groupValues[1].trim()
+                currentTickets = ticketMatch.groupValues[1]
+                    .split(',')
+                    .map { it.trim() }
+                    .filter { it.isNotBlank() }
+                continue
+            }
+
+            // Step-level links line
+            val linksMatch = LINKS_PATTERN.matchEntire(trimmed)
+            if (linksMatch != null && steps.isNotEmpty()) {
+                currentLinks = parseStepLinksLine(linksMatch.groupValues[1])
                 continue
             }
 
@@ -252,9 +267,12 @@ object TestCaseParser {
         }
 
         flushAction()
-        flushExpectedAttachments()
-        if (steps.isNotEmpty() && currentTicket != null) {
-            steps[steps.lastIndex] = steps.last().copy(ticket = currentTicket)
+        flushAttachments()
+        if (steps.isNotEmpty() && currentTickets.isNotEmpty()) {
+            steps[steps.lastIndex] = steps.last().copy(tickets = currentTickets)
+        }
+        if (steps.isNotEmpty() && currentLinks.isNotEmpty()) {
+            steps[steps.lastIndex] = steps.last().copy(links = currentLinks)
         }
         return steps
     }
@@ -288,11 +306,47 @@ object TestCaseParser {
     private val LINKS_MARKER = Regex("""^[Ll]inks:\s*$""")
     private val LINK_PATTERN = Regex("""^\[([^\]]+)\]\(([^)]+)\)$""")
     private val TICKET_PATTERN = Regex("""^\s*Ticket:\s*(.+)$""", RegexOption.IGNORE_CASE)
+    private val LINKS_PATTERN = Regex("""^\s*Links:\s*(.+)$""", RegexOption.IGNORE_CASE)
 
     /** Strip up to 3 leading spaces — Markdown list continuation indent for `N. ` items. */
     private fun String.removeListContinuationIndent(): String {
         var i = 0
         while (i < 3 && i < length && this[i] == ' ') i++
         return substring(i)
+    }
+
+    private val STEP_LINK_MARKDOWN = Regex("""^\[([^\]]*)\]\(([^)]+)\)$""")
+
+    private fun parseStepLinksLine(raw: String): List<Link> {
+        val entries = splitTopLevelCommas(raw)
+        return entries.mapNotNull { entry ->
+            val trimmed = entry.trim()
+            if (trimmed.isEmpty()) return@mapNotNull null
+            val md = STEP_LINK_MARKDOWN.matchEntire(trimmed)
+            if (md != null) {
+                Link(title = md.groupValues[1], url = md.groupValues[2])
+            } else {
+                Link(title = "", url = trimmed)
+            }
+        }
+    }
+
+    private fun splitTopLevelCommas(raw: String): List<String> {
+        val parts = mutableListOf<String>()
+        val current = StringBuilder()
+        var depth = 0
+        for (ch in raw) {
+            when (ch) {
+                '[' -> { depth++; current.append(ch) }
+                ']' -> { if (depth > 0) depth--; current.append(ch) }
+                ',' -> if (depth == 0) {
+                    parts += current.toString()
+                    current.clear()
+                } else current.append(ch)
+                else -> current.append(ch)
+            }
+        }
+        if (current.isNotEmpty()) parts += current.toString()
+        return parts
     }
 }

@@ -24,6 +24,14 @@ class SpeqaTagRegistryParseTest {
     }
 
     @Test
+    fun `parseYamlList keeps unquoted comma scalar as one environment`() {
+        assertEquals(
+            listOf("browser, staging"),
+            SpeqaTagRegistry.parseYamlList("environment: browser, staging", "environment"),
+        )
+    }
+
+    @Test
     fun `parseYamlList handles inline list`() {
         assertEquals(listOf("a", "b", "c"), SpeqaTagRegistry.parseYamlList("tags: [a, b, c]", "tags"))
     }

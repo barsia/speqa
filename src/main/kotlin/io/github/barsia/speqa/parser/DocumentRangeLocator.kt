@@ -28,10 +28,10 @@ data class StepLayout(
     val wholeRange: TextRange,
     val numberRange: TextRange,
     val actionRange: TextRange,
-    val actionAttachmentsRange: TextRange?,
+    val attachmentsRange: TextRange?,
     val expectedRange: TextRange?,
-    val expectedAttachmentsRange: TextRange?,
     val ticketRange: TextRange?,
+    val linksRange: TextRange? = null,
 )
 
 data class DocumentLayout(
@@ -57,6 +57,7 @@ object DocumentRangeLocator {
     private val EXPECTED_PATTERN = Regex("""^>\s?(.*)$""")
     private val ATTACHMENT_LINE = Regex("""^\[.+]\(.+\)$|^!\[.*]\(.+\)$|^\[.+]$""")
     private val TICKET_LINE = Regex("""^\s*Ticket:\s*.+$""", RegexOption.IGNORE_CASE)
+    private val STEP_LINKS_LINE = Regex("""^\s*Links:\s*.+$""", RegexOption.IGNORE_CASE)
 
     fun locate(rawText: String): DocumentLayout {
         val text = SpeqaMarkdown.normalizeLineEndings(rawText)
@@ -360,14 +361,14 @@ object DocumentRangeLocator {
             var actionEndLine = stepLine
             var actionEndOffset = lineStarts.endOfLine(stepLine, text) // initial: end of first line
 
-            var actionAttStart: Int? = null
-            var actionAttEnd: Int? = null
+            var attachmentsStart: Int? = null
+            var attachmentsEnd: Int? = null
             var expectedStart: Int? = null
             var expectedEnd: Int? = null
-            var expectedAttStart: Int? = null
-            var expectedAttEnd: Int? = null
             var ticketStart: Int? = null
             var ticketEnd: Int? = null
+            var linksStart: Int? = null
+            var linksEnd: Int? = null
 
             for (i in (stepLine + 1)..lastContentLine) {
                 if (lines[i].isBlank()) continue
@@ -375,11 +376,18 @@ object DocumentRangeLocator {
                 val isExpected = EXPECTED_PATTERN.matches(trimmed)
                 val isAttachment = ATTACHMENT_LINE.matches(trimmed)
                 val isTicket = TICKET_LINE.matches(trimmed)
+                val isStepLinks = STEP_LINKS_LINE.matches(trimmed)
 
                 if (isTicket) {
                     ticketStart = lineStarts[i]
                     ticketEnd = lineStarts.endOfLine(i, text)
                     phase = "ticket"
+                    continue
+                }
+
+                if (isStepLinks) {
+                    linksStart = lineStarts[i]
+                    linksEnd = lineStarts.endOfLine(i, text)
                     continue
                 }
 
@@ -390,22 +398,22 @@ object DocumentRangeLocator {
                             expectedStart = lineStarts[i]
                             expectedEnd = lineStarts.endOfLine(i, text)
                         } else if (isAttachment) {
-                            phase = "action-attachments"
-                            actionAttStart = lineStarts[i]
-                            actionAttEnd = lineStarts.endOfLine(i, text)
+                            phase = "attachments"
+                            attachmentsStart = lineStarts[i]
+                            attachmentsEnd = lineStarts.endOfLine(i, text)
                         } else {
                             // Continuation line for action
                             actionEndLine = i
                             actionEndOffset = lineStarts.endOfLine(i, text)
                         }
                     }
-                    "action-attachments" -> {
+                    "attachments" -> {
                         if (isExpected) {
                             phase = "expected"
                             expectedStart = lineStarts[i]
                             expectedEnd = lineStarts.endOfLine(i, text)
                         } else if (isAttachment) {
-                            actionAttEnd = lineStarts.endOfLine(i, text)
+                            attachmentsEnd = lineStarts.endOfLine(i, text)
                         } else {
                             // Unexpected non-attachment, non-expected line — treat as action continuation
                             // (shouldn't happen in well-formed docs, but be robust)
@@ -417,14 +425,16 @@ object DocumentRangeLocator {
                         if (isExpected) {
                             expectedEnd = lineStarts.endOfLine(i, text)
                         } else if (isAttachment) {
-                            phase = "expected-attachments"
-                            expectedAttStart = lineStarts[i]
-                            expectedAttEnd = lineStarts.endOfLine(i, text)
+                            phase = "attachments"
+                            if (attachmentsStart == null) {
+                                attachmentsStart = lineStarts[i]
+                            }
+                            attachmentsEnd = lineStarts.endOfLine(i, text)
                         }
                     }
                     "expected-attachments" -> {
                         if (isAttachment) {
-                            expectedAttEnd = lineStarts.endOfLine(i, text)
+                            attachmentsEnd = lineStarts.endOfLine(i, text)
                         }
                     }
                 }
@@ -436,17 +446,17 @@ object DocumentRangeLocator {
                 wholeRange = wholeRange,
                 numberRange = numberRange,
                 actionRange = actionRange,
-                actionAttachmentsRange = if (actionAttStart != null && actionAttEnd != null) {
-                    TextRange(actionAttStart, actionAttEnd)
+                attachmentsRange = if (attachmentsStart != null && attachmentsEnd != null) {
+                    TextRange(attachmentsStart, attachmentsEnd)
                 } else null,
                 expectedRange = if (expectedStart != null && expectedEnd != null) {
                     TextRange(expectedStart, expectedEnd)
                 } else null,
-                expectedAttachmentsRange = if (expectedAttStart != null && expectedAttEnd != null) {
-                    TextRange(expectedAttStart, expectedAttEnd)
-                } else null,
                 ticketRange = if (ticketStart != null && ticketEnd != null) {
                     TextRange(ticketStart, ticketEnd)
+                } else null,
+                linksRange = if (linksStart != null && linksEnd != null) {
+                    TextRange(linksStart, linksEnd)
                 } else null,
             )
         }

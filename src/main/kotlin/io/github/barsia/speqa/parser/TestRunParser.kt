@@ -24,13 +24,13 @@ object TestRunParser {
         return TestRun(
             id = if ("id" in meta) (meta["id"] as? Number)?.toInt() else null,
             title = SpeqaMarkdown.parseScalar(meta["title"]),
-            tags = SpeqaMarkdown.parseStringList(meta["tags"]),
+            tags = SpeqaMarkdown.parseTagList(meta["tags"]),
             priority = if ("priority" in meta) Priority.fromString(SpeqaMarkdown.parseScalar(meta["priority"])) else null,
             startedAt = parseDateTime(meta["started_at"]),
             finishedAt = parseDateTime(meta["finished_at"]),
             result = RunResult.fromString(SpeqaMarkdown.parseScalar(meta["result"])),
             manualResult = meta["manual_result"]?.toString()?.trim().equals("true", ignoreCase = true),
-            environment = SpeqaMarkdown.parseScalar(meta["environment"]),
+            environment = SpeqaMarkdown.parseStringList(meta["environment"]),
             runner = SpeqaMarkdown.parseScalar(meta["runner"]),
             bodyBlocks = parseBodyBlocks(body),
             links = parseLinks(body),
@@ -140,6 +140,20 @@ object TestRunParser {
         return null
     }
 
+    private fun parseStepLinksLine(raw: String): List<Link> {
+        val entries = splitTopLevelCommas(raw)
+        return entries.mapNotNull { entry ->
+            val trimmed = entry.trim()
+            if (trimmed.isEmpty()) return@mapNotNull null
+            val markdown = STEP_LINK_MARKDOWN.matchEntire(trimmed)
+            if (markdown != null) {
+                Link(title = markdown.groupValues[1], url = markdown.groupValues[2])
+            } else {
+                Link(title = "", url = trimmed)
+            }
+        }
+    }
+
     private fun parseStepResults(body: String): List<StepResult> {
         val stepSection = extractStepSection(body)
         if (stepSection.isBlank()) return emptyList()
@@ -151,25 +165,26 @@ object TestRunParser {
         var inExpected = false
         var inComment = false
         var commentLines = mutableListOf<String>()
-        var expectedAttachments = mutableListOf<Attachment>()
-        var ticket: String? = null
+        var attachments = mutableListOf<Attachment>()
+        var tickets: List<String> = emptyList()
+        var links: List<Link> = emptyList()
 
         fun flush() {
             if (action != null) {
                 steps += StepResult(
                     action = action!!,
                     expected = expected,
+                    tickets = tickets,
+                    links = links,
                     verdict = verdict,
                     comment = commentLines.joinToString("\n"),
-                    expectedAttachments = expectedAttachments.toList(),
-                    ticket = ticket,
+                    attachments = attachments.toList(),
                 )
             }
         }
 
         for (line in stepSection.lines()) {
             val trimmed = line.trim()
-
             val isTopLevel = !line.startsWith(" ") && !line.startsWith("\t")
             val stepMatch = if (isTopLevel) STEP_PATTERN.matchEntire(trimmed) else null
             if (stepMatch != null) {
@@ -180,8 +195,9 @@ object TestRunParser {
                 inExpected = false
                 inComment = false
                 commentLines = mutableListOf()
-                expectedAttachments = mutableListOf()
-                ticket = null
+                attachments = mutableListOf()
+                tickets = emptyList()
+                links = emptyList()
                 continue
             }
 
@@ -203,8 +219,16 @@ object TestRunParser {
 
             val ticketMatch = TICKET_PATTERN.matchEntire(trimmed)
             if (ticketMatch != null) {
-                ticket = ticketMatch.groupValues[1].trim()
-                inExpected = false
+                tickets = ticketMatch.groupValues[1]
+                    .split(',')
+                    .map { it.trim() }
+                    .filter { it.isNotBlank() }
+                continue
+            }
+
+            val linksMatch = LINKS_PATTERN.matchEntire(trimmed)
+            if (linksMatch != null) {
+                links = parseStepLinksLine(linksMatch.groupValues[1])
                 continue
             }
 
@@ -223,8 +247,8 @@ object TestRunParser {
                 inComment = false
             }
 
-            if (STEP_ATTACHMENT_PATTERN.matchEntire(trimmed) != null) {
-                parseAttachmentLine(trimmed)?.let { expectedAttachments += it }
+            parseAttachmentLine(trimmed)?.let { attachment ->
+                attachments += attachment
                 continue
             }
 
@@ -240,7 +264,6 @@ object TestRunParser {
                 action = "$action\n${line.removeListContinuationIndent().trimEnd().removeSuffix("  ")}"
                 continue
             }
-
         }
         flush()
         return steps
@@ -319,6 +342,44 @@ object TestRunParser {
         }
     }
 
+    private fun splitTopLevelCommas(raw: String): List<String> {
+        val parts = mutableListOf<String>()
+        val current = StringBuilder()
+        var bracketDepth = 0
+        var parenDepth = 0
+        for (ch in raw) {
+            when (ch) {
+                '[' -> {
+                    bracketDepth += 1
+                    current.append(ch)
+                }
+                ']' -> {
+                    if (bracketDepth > 0) bracketDepth -= 1
+                    current.append(ch)
+                }
+                '(' -> {
+                    parenDepth += 1
+                    current.append(ch)
+                }
+                ')' -> {
+                    if (parenDepth > 0) parenDepth -= 1
+                    current.append(ch)
+                }
+                ',' -> if (bracketDepth == 0 && parenDepth == 0) {
+                    parts += current.toString()
+                    current.clear()
+                } else {
+                    current.append(ch)
+                }
+                else -> current.append(ch)
+            }
+        }
+        if (current.isNotEmpty()) {
+            parts += current.toString()
+        }
+        return parts
+    }
+
     private fun String.removeListContinuationIndent(): String {
         return when {
             startsWith("   ") -> drop(3)
@@ -335,8 +396,9 @@ object TestRunParser {
     private val ATTACHMENTS_MARKER = Regex("""^[Aa]ttachments:\s*$""")
     private val LINKS_MARKER = Regex("""^[Ll]inks:\s*$""")
     private val LINK_PATTERN = Regex("""^\[([^]]+)]\(([^)]+)\)$""")
+    private val STEP_LINK_MARKDOWN = Regex("""^\[([^\]]*)\]\(([^)]+)\)$""")
     private val ATTACHMENT_IMAGE = Regex("""^!?\[([^]]*)]\(([^)]+)\)$""")
     private val ATTACHMENT_BARE = Regex("""^\[([^]]+)]$""")
+    private val LINKS_PATTERN = Regex("""^\s*Links:\s*(.+)$""", RegexOption.IGNORE_CASE)
     private val TICKET_PATTERN = Regex("""^\s*Ticket:\s*(.+)$""", RegexOption.IGNORE_CASE)
-    private val STEP_ATTACHMENT_PATTERN = Regex("""^!?\[.*]\(.*\)$|^\[.*]$""")
 }

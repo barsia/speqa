@@ -1,6 +1,8 @@
 package io.github.barsia.speqa.run
 
 import com.intellij.openapi.editor.Document
+import io.github.barsia.speqa.editor.RunImportOptions
+import io.github.barsia.speqa.model.Attachment
 import io.github.barsia.speqa.model.SpeqaDefaults
 import io.github.barsia.speqa.model.RunResult
 import io.github.barsia.speqa.model.StepResult
@@ -58,26 +60,50 @@ internal object TestRunSupport {
         testCase: TestCase,
         sourceFilePath: String,
         targetDirectoryPath: String,
+        importOptions: RunImportOptions = RunImportOptions(),
         runner: String = defaultRunner(),
     ): TestRun {
         return TestRun(
             title = testCase.title,
-            tags = testCase.tags.orEmpty(),
+            tags = if (importOptions.importTags) testCase.tags.orEmpty() else emptyList(),
             priority = testCase.priority,
-            environment = testCase.environment?.firstOrNull().orEmpty(),
+            environment = if (importOptions.importEnvironment) testCase.environment.orEmpty() else emptyList(),
             runner = runner,
             bodyBlocks = testCase.bodyBlocks,
-            links = testCase.links,
-            attachments = rebaseAttachments(testCase.attachments, sourceFilePath, targetDirectoryPath),
+            links = if (importOptions.importLinks) testCase.links else emptyList(),
+            attachments = if (importOptions.importAttachments) {
+                rebaseAttachments(testCase.attachments, sourceFilePath, targetDirectoryPath)
+            } else {
+                emptyList()
+            },
             stepResults = testCase.steps.map { step ->
                 StepResult(
                     action = step.action,
                     expected = step.expected.orEmpty(),
-                    actionAttachments = rebaseAttachments(step.actionAttachments, sourceFilePath, targetDirectoryPath),
-                    expectedAttachments = rebaseAttachments(step.expectedAttachments, sourceFilePath, targetDirectoryPath),
-                    ticket = step.ticket,
+                    tickets = if (importOptions.importTickets) step.tickets else emptyList(),
+                    links = if (importOptions.importLinks) step.links else emptyList(),
+                    attachments = if (importOptions.importAttachments) {
+                        rebaseAttachments(step.attachments, sourceFilePath, targetDirectoryPath)
+                    } else {
+                        emptyList()
+                    },
                 )
             },
+        )
+    }
+
+    fun createInitialRun(
+        testCase: TestCase,
+        sourceFilePath: String,
+        targetDirectoryPath: String,
+        runner: String,
+    ): TestRun {
+        return createInitialRun(
+            testCase = testCase,
+            sourceFilePath = sourceFilePath,
+            targetDirectoryPath = targetDirectoryPath,
+            importOptions = RunImportOptions(),
+            runner = runner,
         )
     }
 
@@ -119,12 +145,12 @@ internal object TestRunSupport {
     fun defaultRunner(): String = System.getProperty("user.name").orEmpty()
 
     private fun rebaseAttachments(
-        attachments: List<io.github.barsia.speqa.model.Attachment>,
+        attachments: List<Attachment>,
         sourceFilePath: String,
         targetDirectoryPath: String,
-    ): List<io.github.barsia.speqa.model.Attachment> {
+    ): List<Attachment> {
         return attachments.map { attachment ->
-            io.github.barsia.speqa.model.Attachment(
+            Attachment(
                 rebaseAttachmentPath(attachment.path, sourceFilePath, targetDirectoryPath),
             )
         }

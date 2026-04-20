@@ -33,9 +33,9 @@ data class TestStep(
     val action: String = "",
     val expected: String? = null,
     val expectedGroupSize: Int = 1,
-    val actionAttachments: List<Attachment> = emptyList(),
-    val expectedAttachments: List<Attachment> = emptyList(),
-    val ticket: String? = null,
+    val attachments: List<Attachment> = emptyList(),
+    val tickets: List<String> = emptyList(),
+    val links: List<Link> = emptyList(),
     val uid: Long = nextUid(),
 ) {
     override fun equals(other: Any?): Boolean {
@@ -44,18 +44,18 @@ data class TestStep(
         return action == other.action &&
             expected == other.expected &&
             expectedGroupSize == other.expectedGroupSize &&
-            actionAttachments == other.actionAttachments &&
-            expectedAttachments == other.expectedAttachments &&
-            ticket == other.ticket
+            attachments == other.attachments &&
+            tickets == other.tickets &&
+            links == other.links
     }
 
     override fun hashCode(): Int {
         var result = action.hashCode()
         result = 31 * result + (expected?.hashCode() ?: 0)
         result = 31 * result + expectedGroupSize
-        result = 31 * result + actionAttachments.hashCode()
-        result = 31 * result + expectedAttachments.hashCode()
-        result = 31 * result + (ticket?.hashCode() ?: 0)
+        result = 31 * result + attachments.hashCode()
+        result = 31 * result + tickets.hashCode()
+        result = 31 * result + links.hashCode()
         return result
     }
 

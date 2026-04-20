@@ -11,7 +11,7 @@ class TestRunTest {
 
         assertEquals("", testRun.title)
         assertEquals(RunResult.NOT_STARTED, testRun.result)
-        assertEquals("", testRun.environment)
+        assertTrue(testRun.environment.isEmpty())
         assertEquals("", testRun.runner)
         assertTrue(testRun.stepResults.isEmpty())
     }
@@ -24,6 +24,7 @@ class TestRunTest {
         assertEquals("", stepResult.expected)
         assertEquals(StepVerdict.NONE, stepResult.verdict)
         assertEquals("", stepResult.comment)
+        assertTrue(stepResult.links.isEmpty())
     }
 
     @Test

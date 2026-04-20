@@ -26,8 +26,7 @@ internal object ListContinuation {
         if (contentAfterMarker.isBlank()) {
             val before = text.substring(0, lineStart)
             val after = text.substring(cursor)
-            val newText = before + after
-            return Result(newText, lineStart)
+            return Result(before + after, lineStart)
         }
 
         val before = text.substring(0, cursor)
@@ -46,8 +45,7 @@ internal object ListContinuation {
         if (contentAfterMarker.isBlank()) {
             val before = text.substring(0, lineStart)
             val after = text.substring(cursor)
-            val newText = before + after
-            return Result(newText, lineStart)
+            return Result(before + after, lineStart)
         }
 
         val nextPrefix = "$indent${number + 1}. "

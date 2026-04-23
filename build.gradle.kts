@@ -2,11 +2,10 @@ plugins {
     id("java")
     id("org.jetbrains.kotlin.jvm") version "2.3.0"
     id("org.jetbrains.intellij.platform") version "2.12.0"
-    id("org.jetbrains.kotlin.plugin.compose") version "2.3.0"
 }
 
 group = "io.github.barsia"
-version = "0.1.2"
+version = "0.1.3"
 
 val localProps = rootProject.file("local.properties")
     .takeIf { it.exists() }
@@ -33,8 +32,6 @@ dependencies {
         testFramework(org.jetbrains.intellij.platform.gradle.TestFrameworkType.Platform)
 
         // Add plugin dependencies for compilation here:
-
-        composeUI()
 
         bundledPlugin("com.intellij.modules.json")
         bundledPlugin("org.jetbrains.plugins.yaml")

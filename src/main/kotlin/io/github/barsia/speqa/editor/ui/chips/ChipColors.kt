@@ -1,0 +1,38 @@
+package io.github.barsia.speqa.editor.ui.chips
+
+import com.intellij.ui.JBColor
+import java.awt.Color
+
+/**
+ * Pure chip colour helpers. Deterministic per-tag colouring based on [String.hashCode].
+ * The palette is shared between themes via [JBColor] pairs (light / dark) so chips are
+ * legible in both modes. No raw hex literals leak to call sites.
+ */
+
+private val TAG_CHIP_PALETTE: List<JBColor> = listOf(
+    JBColor(Color(0x4A, 0x6F, 0xA5, 38), Color(0x6A, 0x8F, 0xC5, 52)),
+    JBColor(Color(0x6A, 0x9B, 0x6A, 38), Color(0x8A, 0xBB, 0x8A, 52)),
+    JBColor(Color(0xA5, 0x6A, 0x8A, 38), Color(0xC5, 0x8A, 0xAA, 52)),
+    JBColor(Color(0xB5, 0x94, 0x4A, 38), Color(0xD5, 0xB4, 0x6A, 52)),
+    JBColor(Color(0x5A, 0x9B, 0x9B, 38), Color(0x7A, 0xBB, 0xBB, 52)),
+    JBColor(Color(0xA5, 0x6A, 0x5A, 38), Color(0xC5, 0x8A, 0x7A, 52)),
+    JBColor(Color(0x7A, 0x6A, 0xB5, 38), Color(0x9A, 0x8A, 0xD5, 52)),
+    JBColor(Color(0x8A, 0x9B, 0x5A, 38), Color(0xAA, 0xBB, 0x7A, 52)),
+    JBColor(Color(0x5A, 0x8A, 0xAA, 38), Color(0x7A, 0xAA, 0xCA, 52)),
+    JBColor(Color(0xAA, 0x7A, 0x5A, 38), Color(0xCA, 0x9A, 0x7A, 52)),
+    JBColor(Color(0x6A, 0xAA, 0x8A, 38), Color(0x8A, 0xCA, 0xAA, 52)),
+    JBColor(Color(0xAA, 0x5A, 0x7A, 38), Color(0xCA, 0x7A, 0x9A, 52)),
+    JBColor(Color(0x8A, 0x7A, 0xAA, 38), Color(0xAA, 0x9A, 0xCA, 52)),
+    JBColor(Color(0xAA, 0xAA, 0x5A, 38), Color(0xCA, 0xCA, 0x7A, 52)),
+    JBColor(Color(0x5A, 0xAA, 0xAA, 38), Color(0x7A, 0xCA, 0xCA, 52)),
+    JBColor(Color(0xAA, 0x8A, 0x5A, 38), Color(0xCA, 0xAA, 0x7A, 52)),
+)
+
+/** Deterministic per-tag background colour. Same input always returns the same colour. */
+fun tagChipColor(tag: String): Color {
+    val index = (tag.hashCode() and 0x7FFFFFFF) % TAG_CHIP_PALETTE.size
+    return TAG_CHIP_PALETTE[index]
+}
+
+/** Number of distinct entries in the shared chip palette (for tests). */
+internal val tagChipPaletteSize: Int get() = TAG_CHIP_PALETTE.size

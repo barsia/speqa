@@ -3,6 +3,8 @@ package io.github.barsia.speqa.parser
 import io.github.barsia.speqa.model.Attachment
 import io.github.barsia.speqa.model.Link
 import io.github.barsia.speqa.model.PreconditionsMarkerStyle
+import io.github.barsia.speqa.model.RunResult
+import io.github.barsia.speqa.model.StepVerdict
 import io.github.barsia.speqa.model.TestStep
 
 /**
@@ -33,6 +35,21 @@ sealed interface PatchOperation {
     data class SetLinks(val links: List<Link>) : PatchOperation
     data class SetStepTickets(val stepIndex: Int, val tickets: List<String>) : PatchOperation
     data class SetStepLinks(val stepIndex: Int, val links: List<Link>) : PatchOperation
+
+    // Run-side frontmatter ops
+    data class SetRunVerdict(val verdict: RunResult?) : PatchOperation
+    data class SetRunner(val name: String) : PatchOperation
+    data class SetRunTags(val tags: List<String>) : PatchOperation
+    data class SetRunEnvironment(val environment: List<String>) : PatchOperation
+
+    // Run-side step-body ops
+    data class SetRunStepVerdict(val stepIndex: Int, val verdict: StepVerdict) : PatchOperation
+    data class SetRunStepComment(val stepIndex: Int, val comment: String) : PatchOperation
+
+    // Run-side top-level links/attachments reuse the test-case edit paths; separate
+    // variants exist so callers stay symmetric with the TC-side naming.
+    data class SetRunLinks(val links: List<Link>) : PatchOperation
+    data class SetRunAttachments(val attachments: List<Attachment>) : PatchOperation
 }
 
 /**
@@ -47,7 +64,12 @@ object DocumentPatcher {
      * Canonical field order in frontmatter. Used to determine insertion position
      * when adding a new field.
      */
-    private val FIELD_ORDER = listOf("id", "title", "priority", "status", "environment", "tags")
+    private val FIELD_ORDER = listOf(
+        "id", "title", "priority", "status",
+        "started_at", "finished_at",
+        "result", "manual_result",
+        "environment", "runner", "tags",
+    )
 
     fun patch(text: String, operation: PatchOperation): List<DocumentEdit> {
         val normalized = SpeqaMarkdown.normalizeLineEndings(text)
@@ -82,6 +104,34 @@ object DocumentPatcher {
             )
             is PatchOperation.SetStepLinks -> buildSetStepLinksEdits(
                 layout, operation.stepIndex, operation.links,
+            )
+            is PatchOperation.SetRunVerdict -> patchFrontmatterField(
+                layout,
+                PatchOperation.SetFrontmatterField("result", operation.verdict?.label),
+            )
+            is PatchOperation.SetRunner -> patchFrontmatterField(
+                layout,
+                PatchOperation.SetFrontmatterField("runner", operation.name),
+            )
+            is PatchOperation.SetRunTags -> patchFrontmatterList(
+                layout,
+                PatchOperation.SetFrontmatterList("tags", operation.tags),
+            )
+            is PatchOperation.SetRunEnvironment -> patchFrontmatterList(
+                layout,
+                PatchOperation.SetFrontmatterList("environment", operation.environment),
+            )
+            is PatchOperation.SetRunStepVerdict -> buildSetRunStepVerdictEdits(
+                normalized, layout, operation.stepIndex, operation.verdict,
+            )
+            is PatchOperation.SetRunStepComment -> buildSetRunStepCommentEdits(
+                normalized, layout, operation.stepIndex, operation.comment,
+            )
+            is PatchOperation.SetRunLinks -> buildSetLinksEdits(
+                normalized, layout, operation.links,
+            )
+            is PatchOperation.SetRunAttachments -> buildSetAttachmentsEdits(
+                normalized, layout, operation.attachments,
             )
         }
     }
@@ -143,13 +193,15 @@ object DocumentPatcher {
     // ── Frontmatter formatting helpers ──────────────────────────
 
     private fun formatScalarField(key: String, value: String): String {
-        val formattedValue = if (key == "title") {
+        val formattedValue = if (key in QUOTED_SCALAR_KEYS) {
             SpeqaMarkdown.quoteYamlScalar(value)
         } else {
             value
         }
         return "$key: $formattedValue\n"
     }
+
+    private val QUOTED_SCALAR_KEYS = setOf("title", "runner", "started_at", "finished_at")
 
     private fun formatListField(key: String, values: List<String>): String {
         if (values.isEmpty()) {
@@ -696,45 +748,41 @@ object DocumentPatcher {
         toIndex: Int,
     ): List<DocumentEdit> {
         if (fromIndex == toIndex) return emptyList()
+        if (fromIndex !in layout.steps.indices || toIndex !in layout.steps.indices) return emptyList()
 
-        val stepFrom = layout.steps[fromIndex]
-        val stepTo = layout.steps[toIndex]
+        val startIndex = minOf(fromIndex, toIndex)
+        val endIndex = maxOf(fromIndex, toIndex)
+        val affectedSteps = layout.steps.subList(startIndex, endIndex + 1)
+        val replacementStart = affectedSteps.first().wholeRange.start
+        val replacementEnd = affectedSteps.last().wholeRange.end
 
-        val fromText = text.substring(stepFrom.wholeRange.start, stepFrom.wholeRange.end)
-        val toText = text.substring(stepTo.wholeRange.start, stepTo.wholeRange.end)
-
-        // Renumber the swapped content: fromText goes to toIndex position, toText goes to fromIndex position
-        val fromContent = renumberStepText(fromText, toIndex + 1)
-        val toContent = renumberStepText(toText, fromIndex + 1)
-
-        val edits = mutableListOf<DocumentEdit>()
-
-        // Apply later offset first to avoid shifting
-        if (stepFrom.wholeRange.start > stepTo.wholeRange.start) {
-            edits += DocumentEdit(
-                offset = stepFrom.wholeRange.start,
-                length = stepFrom.wholeRange.length,
-                replacement = toContent,
-            )
-            edits += DocumentEdit(
-                offset = stepTo.wholeRange.start,
-                length = stepTo.wholeRange.length,
-                replacement = fromContent,
-            )
-        } else {
-            edits += DocumentEdit(
-                offset = stepTo.wholeRange.start,
-                length = stepTo.wholeRange.length,
-                replacement = fromContent,
-            )
-            edits += DocumentEdit(
-                offset = stepFrom.wholeRange.start,
-                length = stepFrom.wholeRange.length,
-                replacement = toContent,
-            )
+        val reordered = (startIndex..endIndex).toMutableList().also { indices ->
+            val moved = indices.removeAt(fromIndex - startIndex)
+            indices.add(toIndex - startIndex, moved)
         }
 
-        return edits
+        val separators = (startIndex until endIndex).map { index ->
+            text.substring(layout.steps[index].wholeRange.end, layout.steps[index + 1].wholeRange.start)
+        }
+
+        val replacement = buildString {
+            reordered.forEachIndexed { offset, originalIndex ->
+                val stepLayout = layout.steps[originalIndex]
+                val stepText = text.substring(stepLayout.wholeRange.start, stepLayout.wholeRange.end)
+                append(renumberStepText(stepText, startIndex + offset + 1))
+                if (offset < separators.size) {
+                    append(separators[offset])
+                }
+            }
+        }
+
+        return listOf(
+            DocumentEdit(
+                offset = replacementStart,
+                length = replacementEnd - replacementStart,
+                replacement = replacement,
+            )
+        )
     }
 
     /**
@@ -975,4 +1023,126 @@ object DocumentPatcher {
 
     private fun ensureTrailingNewline(s: String): String =
         if (s.endsWith("\n")) s else s + "\n"
+
+    // ── Run-side: step verdict ──────────────────────────────────
+    //
+    // Run step verdict is serialized as a trailing `   - <label>` line inside
+    // the step body. `StepVerdict.NONE` suppresses the line entirely.
+
+    private val RUN_STEP_VERDICT_LINE = Regex(
+        """(?m)^[ \t]*-\s+(passed|failed|skipped|blocked)\s*$""",
+        RegexOption.IGNORE_CASE,
+    )
+
+    private fun buildSetRunStepVerdictEdits(
+        text: String,
+        layout: DocumentLayout,
+        stepIndex: Int,
+        verdict: StepVerdict,
+    ): List<DocumentEdit> {
+        if (stepIndex !in layout.steps.indices) return emptyList()
+        val step = layout.steps[stepIndex]
+        val stepText = text.substring(step.wholeRange.start, step.wholeRange.end)
+        val existing = RUN_STEP_VERDICT_LINE.find(stepText)
+        val commentOffsetInStep = findRunStepCommentSectionStart(stepText)
+
+        if (existing != null) {
+            val absStart = step.wholeRange.start + existing.range.first
+            val absEnd = step.wholeRange.start + existing.range.last + 1
+            return if (verdict == StepVerdict.NONE) {
+                // Remove the line and its trailing \n if present.
+                val removeEnd = if (absEnd < text.length && text[absEnd] == '\n') absEnd + 1 else absEnd
+                val removeStart = if (absStart > 0 && text[absStart - 1] == '\n') absStart else absStart
+                listOf(DocumentEdit(removeStart, removeEnd - removeStart, ""))
+            } else {
+                listOf(DocumentEdit(absStart, absEnd - absStart, "   - ${verdict.label}"))
+            }
+        }
+
+        if (verdict == StepVerdict.NONE) return emptyList()
+
+        // Insert just before any Comment: block, else at end of step.
+        val insertOffsetInStep = commentOffsetInStep ?: stepText.length
+        val absInsert = step.wholeRange.start + insertOffsetInStep
+        val needsLeadingNewline = insertOffsetInStep > 0 && stepText[insertOffsetInStep - 1] != '\n'
+        val replacement = buildString {
+            if (needsLeadingNewline) append('\n')
+            append("   - ").append(verdict.label).append('\n')
+        }
+        return listOf(DocumentEdit(absInsert, 0, replacement))
+    }
+
+    // ── Run-side: step comment ──────────────────────────────────
+    //
+    // Run step comment is serialized as a `   Comment:` marker line followed by
+    // indented body lines. Empty comment removes the block entirely.
+
+    private val RUN_STEP_COMMENT_MARKER = Regex("""(?m)^[ \t]*Comment:\s*$""")
+
+    /** Returns the offset (within stepText) where the comment block starts, or null. */
+    private fun findRunStepCommentSectionStart(stepText: String): Int? {
+        val match = RUN_STEP_COMMENT_MARKER.find(stepText) ?: return null
+        // Move back over any immediately preceding blank line so the block
+        // boundary covers the separating newline as well.
+        var start = match.range.first
+        while (start > 0 && stepText[start - 1] == '\n') {
+            val prevLineEnd = start - 1
+            var prevLineStart = prevLineEnd
+            while (prevLineStart > 0 && stepText[prevLineStart - 1] != '\n') {
+                prevLineStart--
+            }
+            val lineContent = stepText.substring(prevLineStart, prevLineEnd)
+            if (lineContent.isNotBlank()) break
+            start = prevLineStart
+        }
+        return start
+    }
+
+    private fun buildSetRunStepCommentEdits(
+        text: String,
+        layout: DocumentLayout,
+        stepIndex: Int,
+        comment: String,
+    ): List<DocumentEdit> {
+        if (stepIndex !in layout.steps.indices) return emptyList()
+        val step = layout.steps[stepIndex]
+        val stepText = text.substring(step.wholeRange.start, step.wholeRange.end)
+
+        val existingStart = findRunStepCommentSectionStart(stepText)
+
+        if (existingStart != null) {
+            val absStart = step.wholeRange.start + existingStart
+            val absEnd = step.wholeRange.end
+            if (comment.isBlank()) {
+                return listOf(DocumentEdit(absStart, absEnd - absStart, ""))
+            }
+            return listOf(
+                DocumentEdit(
+                    offset = absStart,
+                    length = absEnd - absStart,
+                    replacement = formatRunStepCommentBlock(comment, leadingBlankLine = existingStart > 0),
+                )
+            )
+        }
+
+        if (comment.isBlank()) return emptyList()
+
+        val absInsert = step.wholeRange.end
+        val needsLeadingNewline = stepText.isNotEmpty() && !stepText.endsWith("\n")
+        val replacement = buildString {
+            if (needsLeadingNewline) append('\n')
+            append(formatRunStepCommentBlock(comment, leadingBlankLine = true))
+        }
+        return listOf(DocumentEdit(absInsert, 0, replacement))
+    }
+
+    private fun formatRunStepCommentBlock(comment: String, leadingBlankLine: Boolean): String {
+        return buildString {
+            if (leadingBlankLine) append('\n')
+            append("   Comment:\n")
+            comment.lines().forEach { line ->
+                append("   ").append(line).append('\n')
+            }
+        }
+    }
 }

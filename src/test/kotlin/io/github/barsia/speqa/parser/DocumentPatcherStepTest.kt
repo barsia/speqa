@@ -245,7 +245,7 @@ class DocumentPatcherStepTest {
     // ── 10. Reorder steps - verify numbers update ───────────────
 
     @Test
-    fun `reorder steps - swap first and third, verify numbers`() {
+    fun `reorder steps moves first step to the end and renumbers the span`() {
         val doc = """
             |---
             |title: "Test"
@@ -267,9 +267,37 @@ class DocumentPatcherStepTest {
 
         val result = applyEdits(doc, edits)
 
-        assertTrue(result.contains("1. Third step"))
-        assertTrue(result.contains("2. Second step"))
+        assertTrue(result.contains("1. Second step"))
+        assertTrue(result.contains("2. Third step"))
         assertTrue(result.contains("3. First step"))
+    }
+
+    @Test
+    fun `reorder steps moves middle step to the top and preserves other order`() {
+        val doc = """
+            |---
+            |title: "Test"
+            |---
+            |
+            |Scenario:
+            |
+            |1. First step
+            |   > First expected
+            |
+            |2. Second step
+            |   > Second expected
+            |
+            |3. Third step
+            |   > Third expected
+        """.trimMargin()
+
+        val edits = DocumentPatcher.patch(doc, PatchOperation.ReorderSteps(1, 0))
+
+        val result = applyEdits(doc, edits)
+
+        assertTrue(result.contains("1. Second step"))
+        assertTrue(result.contains("2. First step"))
+        assertTrue(result.contains("3. Third step"))
     }
 
     // ── 11. Edit step preserves surrounding blank lines ─────────
@@ -299,6 +327,31 @@ class DocumentPatcherStepTest {
 
         assertTrue(result.contains("   > First expected\n\n2. Updated second step"))
         assertTrue(result.contains("   > Second expected\n\n3. Third step"))
+    }
+
+    @Test
+    fun `edit first step action in a two-step scenario does not move text into second step`() {
+        val doc = """
+            |---
+            |title: "Test"
+            |---
+            |
+            |Scenario:
+            |
+            |1. First step
+            |   > First expected
+            |
+            |2. Second step
+            |   > Second expected
+        """.trimMargin()
+
+        val edits = DocumentPatcher.patch(doc, PatchOperation.SetStepAction(0, "Updated first step"))
+
+        val result = applyEdits(doc, edits)
+
+        assertTrue(result.contains("1. Updated first step"))
+        assertTrue(result.contains("   > First expected\n\n2. Second step"))
+        assertFalse(result.contains("2. Updated first step"))
     }
 
     // ── 12. Multiline expected (multiple > lines) ───────────────

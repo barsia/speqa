@@ -4,6 +4,7 @@ import com.intellij.icons.AllIcons
 import com.intellij.util.ui.JBUI
 import io.github.barsia.speqa.SpeqaBundle
 import io.github.barsia.speqa.editor.ui.primitives.DeleteFocusRestorer
+import io.github.barsia.speqa.editor.ui.primitives.WrapLayout
 import io.github.barsia.speqa.editor.ui.primitives.speqaIconButton
 import java.awt.FlowLayout
 import java.awt.event.FocusAdapter
@@ -31,7 +32,7 @@ class TagCloud(
      * the inline editor via [startAdd].
      */
     private val hideAddButton: Boolean = false,
-) : JPanel(FlowLayout(FlowLayout.LEFT, JBUI.scale(4), JBUI.scale(4))) {
+) : JPanel(WrapLayout(FlowLayout.LEFT, JBUI.scale(4), JBUI.scale(4))) {
 
     private var tags: List<String> = emptyList()
     private var allKnownTagsSupplier: () -> Set<String> = { emptySet() }

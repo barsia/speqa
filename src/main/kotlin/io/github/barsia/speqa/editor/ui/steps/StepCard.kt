@@ -430,7 +430,18 @@ class StepCard(
 
     private fun updateStep(newStep: TestStep) {
         if (newStep == step) return
+        val previous = step
         step = newStep
+        // When a meta-row field (tickets/links/attachments) changed locally the
+        // document patch is suppressed on re-parse, so StepsSection.updateStep
+        // never round-trips a fresh setStep back here. Refresh metaRow directly
+        // so the newly added chip / row / file is visible in the preview.
+        if (previous.tickets != newStep.tickets ||
+            previous.links != newStep.links ||
+            previous.attachments != newStep.attachments
+        ) {
+            metaRow.setData(newStep.tickets, newStep.links, newStep.attachments)
+        }
         onChange(newStep)
     }
 

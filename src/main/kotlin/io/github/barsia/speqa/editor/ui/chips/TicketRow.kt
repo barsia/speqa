@@ -4,6 +4,7 @@ import com.intellij.icons.AllIcons
 import com.intellij.util.ui.JBUI
 import io.github.barsia.speqa.SpeqaBundle
 import io.github.barsia.speqa.editor.ui.primitives.DeleteFocusRestorer
+import io.github.barsia.speqa.editor.ui.primitives.WrapLayout
 import io.github.barsia.speqa.editor.ui.primitives.speqaIconButton
 import java.awt.FlowLayout
 import javax.swing.JComponent
@@ -18,7 +19,7 @@ class TicketRow(
     private val onActivate: (String) -> Unit = {},
     private val onAdd: (String) -> Unit = {},
     private val onRemove: (String) -> Unit = {},
-) : JPanel(FlowLayout(FlowLayout.LEFT, JBUI.scale(4), JBUI.scale(2))) {
+) : JPanel(WrapLayout(FlowLayout.LEFT, JBUI.scale(4), JBUI.scale(2))) {
 
     private val chips = mutableListOf<TicketChip>()
     private var tickets: List<String> = emptyList()

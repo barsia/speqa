@@ -73,6 +73,49 @@ class DocumentPatcherBodyTest {
         assertTrue(result.contains("1. Do something"))
     }
 
+    @Test
+    fun `add description does not duplicate blank line before next section`() {
+        val doc = """
+            |---
+            |title: "Has links"
+            |---
+            |
+            |Links:
+            |
+            |[example](https://example.com)
+        """.trimMargin()
+
+        val edits = DocumentPatcher.patch(doc, PatchOperation.SetDescription("13"))
+
+        val result = applyEdits(doc, edits)
+
+        assertFalse("must not contain triple newline before Links", result.contains("13\n\n\nLinks:"))
+        assertTrue("description and Links must be separated by exactly one blank line", result.contains("13\n\nLinks:"))
+    }
+
+    @Test
+    fun `add preconditions does not duplicate blank line before next section`() {
+        val doc = """
+            |---
+            |title: "Has links"
+            |---
+            |
+            |Links:
+            |
+            |[example](https://example.com)
+        """.trimMargin()
+
+        val edits = DocumentPatcher.patch(
+            doc,
+            PatchOperation.SetPreconditions(PreconditionsMarkerStyle.PRECONDITIONS, "1"),
+        )
+
+        val result = applyEdits(doc, edits)
+
+        assertFalse("must not contain triple newline before Links", result.contains("1\n\n\nLinks:"))
+        assertTrue("preconditions and Links must be separated by exactly one blank line", result.contains("1\n\nLinks:"))
+    }
+
     // ── 3. Clear description (set to blank) ──────────────────────
 
     @Test

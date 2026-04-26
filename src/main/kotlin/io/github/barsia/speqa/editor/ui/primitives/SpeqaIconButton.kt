@@ -13,6 +13,14 @@ import javax.swing.Icon
 import javax.swing.JComponent
 
 /**
+ * Shared alpha for all secondary/inline action icons across Speqa (edit
+ * pencils, delete trash/close, header "+", "Add …" leading icons, etc.) so
+ * they render at the same visual weight. Applied via
+ * [IconLoader.getTransparentIcon].
+ */
+const val SPEQA_MUTED_ICON_ALPHA: Float = 0.6f
+
+/**
  * Compact icon-only action button rendered as an IntelliJ [ActionButton]
  * wrapping a [DumbAwareAction]. Includes a hand cursor and native tooltip.
  *
@@ -23,10 +31,10 @@ import javax.swing.JComponent
 fun speqaIconButton(
     icon: Icon,
     @NlsActions.ActionText tooltip: String,
-    muted: Boolean = false,
+    muted: Boolean = true,
     onAction: () -> Unit,
 ): JComponent {
-    val baseIcon = if (muted) IconLoader.getTransparentIcon(icon, 0.6f) else icon
+    val baseIcon = if (muted) IconLoader.getTransparentIcon(icon, SPEQA_MUTED_ICON_ALPHA) else icon
     val action = object : DumbAwareAction(tooltip, null, baseIcon) {
         override fun actionPerformed(e: AnActionEvent) {
             onAction()

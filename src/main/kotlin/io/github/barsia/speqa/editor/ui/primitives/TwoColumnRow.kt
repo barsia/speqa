@@ -3,6 +3,7 @@ package io.github.barsia.speqa.editor.ui.primitives
 import com.intellij.util.ui.JBUI
 import java.awt.BorderLayout
 import java.awt.Component
+import java.awt.Dimension
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
 import java.awt.GridLayout
@@ -54,7 +55,12 @@ private fun buildColumn(
     column.isOpaque = false
     column.alignmentX = Component.LEFT_ALIGNMENT
 
-    val header = JPanel(GridBagLayout())
+    val header = object : JPanel(GridBagLayout()) {
+        override fun getMaximumSize(): Dimension {
+            val pref = preferredSize
+            return Dimension(Integer.MAX_VALUE, pref.height)
+        }
+    }
     header.isOpaque = false
     header.alignmentX = Component.LEFT_ALIGNMENT
     header.add(
@@ -92,5 +98,9 @@ private fun buildColumn(
     bodyWrapper.alignmentX = Component.LEFT_ALIGNMENT
     bodyWrapper.add(body, BorderLayout.CENTER)
     column.add(bodyWrapper)
+    // Absorb any extra vertical space at the bottom so the caption and body stay
+    // pinned to the top of the column, regardless of how tall the sibling column
+    // is in the enclosing GridLayout cell.
+    column.add(Box.createVerticalGlue())
     return column
 }

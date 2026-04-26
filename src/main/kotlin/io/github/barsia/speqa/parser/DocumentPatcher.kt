@@ -271,13 +271,17 @@ object DocumentPatcher {
         }
 
         if (descRange == null && markdown.isNotBlank()) {
-            // Insert description after frontmatter close delimiter (before preconditions/steps)
+            // Insert description after frontmatter close delimiter (before preconditions/steps).
+            // Only emit a trailing blank line when one is not already present in the document,
+            // otherwise we accumulate empty lines on every insertion.
             val insertOffset = findDescriptionInsertOffset(text, layout)
+            val followedByBlankLine = insertOffset < text.length && text[insertOffset] == '\n'
+            val tail = if (followedByBlankLine || insertOffset >= text.length) "" else "\n"
             return listOf(
                 DocumentEdit(
                     offset = insertOffset,
                     length = 0,
-                    replacement = "\n" + ensureTrailingNewline(markdown) + "\n",
+                    replacement = "\n" + ensureTrailingNewline(markdown) + tail,
                 )
             )
         }
@@ -324,14 +328,19 @@ object DocumentPatcher {
         }
 
         if (markerRange == null && markdown.isNotBlank()) {
-            // Insert preconditions before steps/attachments
+            // Insert preconditions before steps/attachments. Mirror the description
+            // insertion logic: drop the trailing blank line when one is already
+            // present (or we're at EOF) so the section is separated by exactly one
+            // blank line on each side.
             val insertOffset = findPreconditionsInsertOffset(text, layout)
             val marker = markerStyle.ifBlank { "Preconditions:" }
+            val followedByBlankLine = insertOffset < text.length && text[insertOffset] == '\n'
+            val tail = if (followedByBlankLine || insertOffset >= text.length) "" else "\n"
             return listOf(
                 DocumentEdit(
                     offset = insertOffset,
                     length = 0,
-                    replacement = "\n" + marker + "\n\n" + ensureTrailingNewline(markdown) + "\n",
+                    replacement = "\n" + marker + "\n\n" + ensureTrailingNewline(markdown) + tail,
                 )
             )
         }

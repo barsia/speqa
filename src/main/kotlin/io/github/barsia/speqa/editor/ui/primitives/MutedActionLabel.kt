@@ -26,7 +26,7 @@ fun mutedActionLabel(
     icon: Icon? = null,
     onClick: () -> Unit,
 ): JComponent {
-    val mutedIcon = icon?.let { IconLoader.getTransparentIcon(it, 0.7f) }
+    val mutedIcon = icon?.let { IconLoader.getTransparentIcon(it, SPEQA_MUTED_ICON_ALPHA) }
     val label = JBLabel(text, mutedIcon, JBLabel.LEFT)
     label.iconTextGap = JBUI.scale(4)
     label.foreground = UIUtil.getContextHelpForeground()

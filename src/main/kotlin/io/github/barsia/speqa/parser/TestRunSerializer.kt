@@ -23,7 +23,7 @@ object TestRunSerializer {
             testRun.startedAt?.let { appendLine("started_at: ${SpeqaMarkdown.quoteYamlScalar(formatter.format(it))}") }
             testRun.finishedAt?.let { appendLine("finished_at: ${SpeqaMarkdown.quoteYamlScalar(formatter.format(it))}") }
             appendLine("result: ${testRun.result.label}")
-            if (testRun.manualResult) appendLine("manual_result: true")
+            if (testRun.resultOverride) appendLine("result_override: true")
             SpeqaMarkdown.appendStringListField(this, "environment", testRun.environment)
             appendLine("runner: ${SpeqaMarkdown.quoteYamlScalar(testRun.runner)}")
             SpeqaMarkdown.appendStringListField(this, "tags", testRun.tags)

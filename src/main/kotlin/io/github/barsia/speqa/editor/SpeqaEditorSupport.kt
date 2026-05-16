@@ -27,7 +27,7 @@ import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
-import java.util.concurrent.ConcurrentHashMap
+import java.util.Collections
 
 internal data class TestCaseHeaderMeta(
     val createdLabel: String,
@@ -45,13 +45,30 @@ internal class CreatedAtResolver(
         val timestamp: Long,
     )
 
-    private val cache = ConcurrentHashMap<CacheKey, Instant?>()
+    private val cache: MutableMap<CacheKey, Instant?> = Collections.synchronizedMap(
+        object : LinkedHashMap<CacheKey, Instant?>(64, 0.75f, true) {
+            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<CacheKey, Instant?>): Boolean {
+                return size > MAX_ENTRIES
+            }
+        }
+    )
 
     fun resolve(projectBasePath: String, filePath: String, timestamp: Long): Instant? {
         val key = CacheKey(projectBasePath, filePath, timestamp)
-        return cache.computeIfAbsent(key) {
-            resolveCreatedAt(projectBasePath, filePath)
+        synchronized(cache) {
+            if (cache.containsKey(key)) {
+                return cache[key]
+            }
         }
+        val value = resolveCreatedAt(projectBasePath, filePath)
+        synchronized(cache) {
+            cache[key] = value
+        }
+        return value
+    }
+
+    companion object {
+        private const val MAX_ENTRIES = 512
     }
 }
 

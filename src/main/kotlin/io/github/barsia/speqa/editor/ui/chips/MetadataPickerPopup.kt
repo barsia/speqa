@@ -1,7 +1,9 @@
 package io.github.barsia.speqa.editor.ui.chips
 
+import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.ui.popup.JBPopup
 import com.intellij.openapi.ui.popup.JBPopupFactory
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.ui.JBColor
@@ -45,7 +47,16 @@ fun showMetadataMatches(
     query: String,
     candidates: List<VirtualFile>,
     onPick: (VirtualFile) -> Unit,
-) {
+): JBPopup = showMetadataMatches(anchor, project, query, candidates, Point(0, anchor.height + JBUI.scale(2)), onPick)
+
+fun showMetadataMatches(
+    anchor: Component,
+    project: Project,
+    query: String,
+    candidates: List<VirtualFile>,
+    anchorPoint: Point,
+    onPick: (VirtualFile) -> Unit,
+): JBPopup {
     val basePath = project.basePath
     val lowerQuery = query.trim().lowercase()
     val currentFiles = FileEditorManager.getInstance(project).selectedFiles.toSet()
@@ -115,7 +126,8 @@ fun showMetadataMatches(
         .setResizable(false)
         .setMovable(false)
         .createPopup()
-    popupRef.show(RelativePoint(anchor, Point(0, anchor.height + JBUI.scale(2))))
+    popupRef.show(RelativePoint(anchor, anchorPoint))
+    return popupRef
 }
 
 private fun toDisplay(
@@ -126,18 +138,9 @@ private fun toDisplay(
 ): Pair<IndexedFileMatchDisplay, VirtualFile>? {
     val relativePath = if (basePath != null) file.path.removePrefix("$basePath/") else file.path
     val isCurrent = file in currentFiles
-    val isTestRun = file.name.endsWith(".tr.md")
-    val idText: String?
-    val titleRaw: String
-    if (isTestRun) {
-        val run = runCatching { TestRunParser.parse(file.inputStream.reader().use { it.readText() }) }.getOrNull()
-        idText = run?.id?.let { "TR-$it" }
-        titleRaw = run?.title.orEmpty()
-    } else {
-        val tc = runCatching { TestCaseParser.parse(file.inputStream.reader().use { it.readText() }) }.getOrNull()
-        idText = tc?.id?.let { "TC-$it" }
-        titleRaw = tc?.title.orEmpty()
-    }
+    val metadata = cachedMetadata(file)
+    val idText = metadata?.first
+    val titleRaw = metadata?.second.orEmpty()
     val haystack = (titleRaw + " " + file.name).lowercase()
     if (lowerQuery.isNotEmpty() && !haystack.contains(lowerQuery)) return null
     val display = indexedFileMatchFrom(
@@ -148,6 +151,17 @@ private fun toDisplay(
         isCurrent = isCurrent,
     )
     return display to file
+}
+
+private fun cachedMetadata(file: VirtualFile): Pair<String?, String>? {
+    val text = FileDocumentManager.getInstance().getCachedDocument(file)?.text ?: return null
+    return if (file.name.endsWith(".tr.md")) {
+        val run = runCatching { TestRunParser.parse(text) }.getOrNull()
+        run?.id?.let { "TR-$it" } to run?.title.orEmpty()
+    } else {
+        val tc = runCatching { TestCaseParser.parse(text) }.getOrNull()
+        tc?.id?.let { "TC-$it" } to tc?.title.orEmpty()
+    }
 }
 
 private class MatchRenderer : ListCellRenderer<IndexedFileMatchDisplay> {

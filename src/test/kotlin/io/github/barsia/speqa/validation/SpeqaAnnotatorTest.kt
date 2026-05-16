@@ -5,7 +5,7 @@ import com.intellij.testFramework.fixtures.BasePlatformTestCase
 
 class SpeqaAnnotatorTest : BasePlatformTestCase() {
 
-    override fun getTestDataPath(): String = "src/test/resources/testData/annotator"
+    override fun getTestDataPath(): String = java.nio.file.Path.of("src/test/resources/annotator").toAbsolutePath().toString()
 
     fun `test valid title shows no title warning`() {
         myFixture.configureByFile("validTitle.tc.md")

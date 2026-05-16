@@ -109,7 +109,7 @@ class SpeqaIdRegistry(private val project: Project) {
     }
 
     private fun subscribeToVfsEvents() {
-        project.messageBus.connect().subscribe(VirtualFileManager.VFS_CHANGES, object : BulkFileListener {
+        project.messageBus.connect(project).subscribe(VirtualFileManager.VFS_CHANGES, object : BulkFileListener {
             override fun after(events: List<VFileEvent>) {
                 val hasSpeqaChange = events.any { event ->
                     when (event) {

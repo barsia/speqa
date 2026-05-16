@@ -22,12 +22,12 @@ class TestRunSerializerTest {
     }
 
     @Test
-    fun `serializes manual_result only when true`() {
-        val runTrue = TestRun(title = "Test", manualResult = true, startedAt = LocalDateTime.of(2026, 4, 11, 10, 0))
-        assertTrue(TestRunSerializer.serialize(runTrue).contains("manual_result: true"))
+    fun `serializes result_override only when true`() {
+        val runTrue = TestRun(title = "Test", resultOverride = true, startedAt = LocalDateTime.of(2026, 4, 11, 10, 0))
+        assertTrue(TestRunSerializer.serialize(runTrue).contains("result_override: true"))
 
-        val runFalse = TestRun(title = "Test", manualResult = false, startedAt = LocalDateTime.of(2026, 4, 11, 10, 0))
-        assertFalse(TestRunSerializer.serialize(runFalse).contains("manual_result"))
+        val runFalse = TestRun(title = "Test", resultOverride = false, startedAt = LocalDateTime.of(2026, 4, 11, 10, 0))
+        assertFalse(TestRunSerializer.serialize(runFalse).contains("result_override"))
     }
 
     @Test

@@ -20,8 +20,11 @@ The user uses **voice input** (speech-to-text). Keep in mind:
 
 ## Documents to keep current
 
-- [`docs/specs/2026-04-06-speqa-design.md`](docs/specs/2026-04-06-speqa-design.md) is the current product and UX specification.
-- [`docs/plans/2026-04-06-speqa-implementation.md`](docs/plans/2026-04-06-speqa-implementation.md) is the implementation plan. Update it only when the plan changes, not as a completion log.
+- Feature-level specs and plans live under `docs/superpowers/specs/` and `docs/plans/`. Each non-trivial change should have a current spec and plan in those directories.
+
+## Releases
+
+Plugin releases are produced by the GitHub Actions workflow `.github/workflows/build-plugin.yml`. Trigger it manually from the Actions tab: leave `release_tag` empty for a dry run (artifact only) or supply a tag like `v0.1.4` to create a GitHub Release with the ZIP attached. Download the ZIP from the workflow run or the Release page and upload it to the JetBrains Marketplace. Do not build releases on a developer machine.
 
 ## Engineering rules
 

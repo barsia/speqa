@@ -29,7 +29,7 @@ object TestRunParser {
             startedAt = parseDateTime(meta["started_at"]),
             finishedAt = parseDateTime(meta["finished_at"]),
             result = RunResult.fromString(SpeqaMarkdown.parseScalar(meta["result"])),
-            manualResult = meta["manual_result"]?.toString()?.trim().equals("true", ignoreCase = true),
+            resultOverride = meta["result_override"]?.toString()?.trim().equals("true", ignoreCase = true),
             environment = SpeqaMarkdown.parseStringList(meta["environment"]),
             runner = SpeqaMarkdown.parseScalar(meta["runner"]),
             bodyBlocks = parseBodyBlocks(body),

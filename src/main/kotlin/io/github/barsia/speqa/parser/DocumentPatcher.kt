@@ -38,6 +38,7 @@ sealed interface PatchOperation {
 
     // Run-side frontmatter ops
     data class SetRunVerdict(val verdict: RunResult?) : PatchOperation
+    data class SetRunResultOverride(val value: Boolean) : PatchOperation
     data class SetRunner(val name: String) : PatchOperation
     data class SetRunTags(val tags: List<String>) : PatchOperation
     data class SetRunEnvironment(val environment: List<String>) : PatchOperation
@@ -67,7 +68,7 @@ object DocumentPatcher {
     private val FIELD_ORDER = listOf(
         "id", "title", "priority", "status",
         "started_at", "finished_at",
-        "result", "manual_result",
+        "result", "result_override",
         "environment", "runner", "tags",
     )
 
@@ -108,6 +109,13 @@ object DocumentPatcher {
             is PatchOperation.SetRunVerdict -> patchFrontmatterField(
                 layout,
                 PatchOperation.SetFrontmatterField("result", operation.verdict?.label),
+            )
+            is PatchOperation.SetRunResultOverride -> patchFrontmatterField(
+                layout,
+                PatchOperation.SetFrontmatterField(
+                    "result_override",
+                    if (operation.value) "true" else null,
+                ),
             )
             is PatchOperation.SetRunner -> patchFrontmatterField(
                 layout,

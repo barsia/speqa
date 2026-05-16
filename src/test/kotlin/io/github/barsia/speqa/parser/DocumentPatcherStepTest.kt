@@ -155,6 +155,32 @@ class DocumentPatcherStepTest {
         assertTrue(result.contains("   > Second expected\n"))
     }
 
+    @Test
+    fun `add blank step to end of existing steps section`() {
+        val doc = """
+            |---
+            |title: "Test"
+            |---
+            |
+            |Scenario:
+            |
+            |1. First step
+        """.trimMargin()
+
+        val edits = DocumentPatcher.patch(
+            doc,
+            PatchOperation.AddStep(TestStep()),
+        )
+
+        val result = applyEdits(doc, edits)
+
+        assertTrue(result.contains("1. First step"))
+        assertTrue(result.contains("2. \n"))
+        assertFalse(result.contains("> Expected"))
+        assertFalse(result.contains("New step"))
+        assertFalse(result.contains("Expected result"))
+    }
+
     // ── 7. Add step when no steps section exists ────────────────
 
     @Test

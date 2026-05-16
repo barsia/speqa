@@ -8,7 +8,7 @@ import io.github.barsia.speqa.editor.AttachmentRefactoringListener
 class SpeqaIdRegistryStartup : ProjectActivity {
     override suspend fun execute(project: Project) {
         SpeqaIdRegistry.getInstance(project).ensureInitialized()
-        project.messageBus.connect().subscribe(
+        project.messageBus.connect(project).subscribe(
             VirtualFileManager.VFS_CHANGES,
             AttachmentRefactoringListener(project),
         )

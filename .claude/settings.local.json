@@ -1,38 +1,17 @@
 {
   "permissions": {
     "allow": [
-      "Bash(./gradlew *)",
-      "Bash(printf *)",
-      "mcp__plugin_context7_context7__resolve-library-id",
-      "Bash(claude plugin:*)",
-      "Skill(update-config)",
-      "Bash(jar tf:*)"
-    ]
-  },
-  "hooks": {
-    "PostToolUse": [
-      {
-        "matcher": "Edit|Write",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/post-spec-edit.sh",
-            "statusMessage": "Tracking spec edits"
-          }
-        ]
-      }
-    ],
-    "PreToolUse": [
-      {
-        "matcher": "Edit|Write",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/pre-kt-edit.sh",
-            "statusMessage": "Checking spec-first workflow"
-          }
-        ]
-      }
+      "Bash(./gradlew test *)",
+      "Bash(./gradlew prepareSandbox)",
+      "Bash(/Users/Siarhei.Baradulia/.claude/plugins/cache/claude-plugins-official/superpowers/5.1.0/skills/brainstorming/scripts/start-server.sh *)",
+      "mcp__plugin_playwright_playwright__browser_navigate",
+      "mcp__plugin_playwright_playwright__browser_evaluate",
+      "mcp__plugin_playwright_playwright__browser_close",
+      "Bash(awk NR>=2618 && NR<=2624; NR>=2653 && NR<=2659; NR>=2707 && NR<=2713; NR>=2722 && NR<=2728; NR>=2736 && NR<=2742 *)",
+      "Bash(awk 'NR>=3737 && NR<=3970' src/main/resources/webview/test-case-preview/index.html)",
+      "Bash(awk 'NR>=3737 && NR<=4000 {print NR\": \"$0}' src/main/resources/webview/test-case-preview/index.html)",
+      "Bash(awk 'NR>=846 && NR<=855' /Users/Siarhei.Baradulia/Marketplace_IDE/speqa-webview/src/test/kotlin/io/github/barsia/speqa/editor/webview/SpeqaWebViewPreviewHtmlTest.kt)",
+      "Bash(awk *)"
     ]
   }
 }

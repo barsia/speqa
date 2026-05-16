@@ -57,6 +57,32 @@ class DocumentPatcherRunTest {
     }
 
     @Test
+    fun `SetRunResultOverride true adds result_override line`() {
+        val doc = runDoc()
+        val edits = DocumentPatcher.patch(doc, PatchOperation.SetRunResultOverride(true))
+        val result = applyEdits(doc, edits)
+        assertTrue(result.contains("result_override: true"))
+    }
+
+    @Test
+    fun `SetRunResultOverride false removes result_override line when present`() {
+        val withFlag = runDoc().replace(
+            "result: in_progress",
+            "result: in_progress\nresult_override: true",
+        )
+        val edits = DocumentPatcher.patch(withFlag, PatchOperation.SetRunResultOverride(false))
+        val result = applyEdits(withFlag, edits)
+        assertFalse(result.contains("result_override"))
+    }
+
+    @Test
+    fun `SetRunResultOverride false is a no-op when line absent`() {
+        val doc = runDoc()
+        val edits = DocumentPatcher.patch(doc, PatchOperation.SetRunResultOverride(false))
+        assertEquals(emptyList<DocumentEdit>(), edits)
+    }
+
+    @Test
     fun `SetRunner rewrites runner scalar with YAML quoting`() {
         val doc = runDoc()
         val edits = DocumentPatcher.patch(doc, PatchOperation.SetRunner("bob"))

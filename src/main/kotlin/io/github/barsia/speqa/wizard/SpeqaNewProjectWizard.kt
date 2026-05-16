@@ -60,6 +60,9 @@ class SpeqaAssetsStep(parent: NewProjectWizardStep) : AbstractNewProjectWizardSt
 }
 
 internal fun openInitialTestCase(project: Project, file: VirtualFile) {
+    // runAfterOpened is @ApiStatus.Internal and trips Plugin Verifier (see SpeqaProjectGenerator),
+    // so stick with the deprecated public API here.
+    @Suppress("DEPRECATION")
     com.intellij.openapi.startup.StartupManager.getInstance(project).runWhenProjectIsInitialized {
         ApplicationManager.getApplication().invokeLater({
             if (project.isDisposed || !file.isValid) return@invokeLater

@@ -10,14 +10,21 @@
             <li>Test runs with verdicts and comments per step</li>
             <li>Git-friendly: diff, blame, revert any change</li>
         </ul>
-        <p><a href="https://github.com/barsia/speqa/issues/new?template=bug_report.yml">Report a bug</a> · <a href="https://github.com/barsia/speqa/issues/new?template=feature_request.yml">Request a feature</a> · <a href="https://barsia.github.io/speqa">Docs</a> · <a href="https://github.com/barsia/speqa">GitHub</a> · <a href="https://barsia.github.io">Author</a></p>
+        <p><a href="https://github.com/barsia/speqa/issues/new?template=bug_report.yml">Report a bug</a> · <a href="https://github.com/barsia/speqa/issues/new?template=feature_request.yml">Request a feature</a> · <a href="https://barsia.github.io/speqa">Docs</a> · <a href="https://github.com/barsia/speqa">GitHub</a> · <a href="https://barsia.github.io">Author’s blog</a></p>
     ]]></description>
 
     <depends>com.intellij.modules.platform</depends>
+    <depends>com.intellij.modules.lang</depends>
     <depends>org.intellij.plugins.markdown</depends>
     <depends>com.intellij.modules.json</depends>
     <depends>Git4Idea</depends>
     <resource-bundle>messages.SpeqaBundle</resource-bundle>
+
+    <extensionPoints>
+        <extensionPoint name="overlayShapeResolver"
+                        interface="io.github.barsia.speqa.webview.OverlayShapeResolver"
+                        dynamic="true"/>
+    </extensionPoints>
 
     <extensions defaultExtensionNs="com.intellij">
         <iconProvider implementation="io.github.barsia.speqa.filetype.SpeqaIconProvider"/>
@@ -26,6 +33,11 @@
         <fileEditorProvider implementation="io.github.barsia.speqa.run.TestRunEditorProvider"/>
 
         <annotator language="Markdown" implementationClass="io.github.barsia.speqa.validation.SpeqaAnnotator"/>
+
+        <enterHandlerDelegate implementation="io.github.barsia.speqa.editor.SpeqaBlockquoteEnterHandler" order="first"/>
+        <lang.lineWrapStrategy language="Markdown"
+                               implementationClass="io.github.barsia.speqa.editor.SpeqaMarkdownLineWrapPositionStrategy"
+                               order="first"/>
 
         <projectConfigurable parentId="tools"
                              instance="io.github.barsia.speqa.settings.SpeqaSettingsConfigurable"

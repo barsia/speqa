@@ -1,11 +1,11 @@
 package io.github.barsia.speqa.wizard
 
 import com.intellij.ide.util.projectWizard.SettingsStep
-import com.intellij.ide.util.projectWizard.WebProjectTemplate
 import com.intellij.openapi.application.runWriteAction
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.platform.DirectoryProjectGeneratorBase
 import com.intellij.platform.GeneratorPeerImpl
 import com.intellij.platform.ProjectGeneratorPeer
 import com.intellij.ui.components.JBCheckBox
@@ -23,13 +23,13 @@ class SpeqaProjectSettings {
     var initGit: Boolean = true
 }
 
-class SpeqaProjectGenerator : WebProjectTemplate<SpeqaProjectSettings>() {
+class SpeqaProjectGenerator : DirectoryProjectGeneratorBase<SpeqaProjectSettings>() {
 
     override fun getName(): String = SpeqaBundle.message("wizard.projectName")
 
     override fun getDescription(): String = SpeqaBundle.message("wizard.projectDescription")
 
-    override fun getIcon(): Icon = SpeqaIcons.PluginIcon
+    override fun getLogo(): Icon = SpeqaIcons.PluginIcon
 
     override fun generateProject(
         project: Project,
@@ -110,10 +110,10 @@ class SpeqaProjectGenerator : WebProjectTemplate<SpeqaProjectSettings>() {
 
     private fun registerVcsMapping(project: Project, baseDir: VirtualFile) {
         val vcsManager = com.intellij.openapi.vcs.ProjectLevelVcsManager.getInstance(project)
-        val existing = vcsManager.directoryMappings
+        val existing = vcsManager.getDirectoryMappings()
         if (existing.any { it.directory == baseDir.path && it.vcs == "Git" }) return
         val mapping = com.intellij.openapi.vcs.VcsDirectoryMapping(baseDir.path, "Git")
-        vcsManager.directoryMappings = existing + mapping
+        vcsManager.setDirectoryMappings(existing + mapping)
     }
 
     private fun ensureGitignore(dir: java.io.File) {
@@ -166,6 +166,7 @@ private class SpeqaProjectGeneratorPeer : GeneratorPeerImpl<SpeqaProjectSettings
         return settings
     }
 
+    @Suppress("OVERRIDE_DEPRECATION")
     override fun getComponent(): JComponent {
         val panel = JPanel(GridBagLayout()).apply {
             border = BorderFactory.createEmptyBorder(6, 0, 6, 0)

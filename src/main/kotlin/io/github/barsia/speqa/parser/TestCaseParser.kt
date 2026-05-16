@@ -102,13 +102,25 @@ object TestCaseParser {
     }
 
     private fun bodyBeforeScenarioMarker(body: String): String {
+        // Collect description and preconditions content. Skip lines belonging to
+        // Links/Attachments sections (which may appear between description and
+        // preconditions), but resume on a Preconditions: marker so a preconditions
+        // block written after a links/attachments block is preserved.
         val collected = mutableListOf<String>()
+        var insideSiblingSection = false
         for (line in body.lines()) {
             val trimmed = line.trim()
-            if (SCENARIO_MARKER.matches(trimmed) || ATTACHMENTS_MARKER.matches(trimmed) || LINKS_MARKER.matches(trimmed)) {
-                break
+            if (SCENARIO_MARKER.matches(trimmed)) break
+            if (LINKS_MARKER.matches(trimmed) || ATTACHMENTS_MARKER.matches(trimmed)) {
+                insideSiblingSection = true
+                continue
             }
-            collected += line
+            if (PreconditionsMarkerStyle.fromMarker(trimmed) != null) {
+                insideSiblingSection = false
+                collected += line
+                continue
+            }
+            if (!insideSiblingSection) collected += line
         }
         return collected.joinToString("\n")
     }
@@ -123,7 +135,10 @@ object TestCaseParser {
                 continue
             }
             if (inAttachmentsSection) {
-                if (SCENARIO_MARKER.matches(trimmed) || LINKS_MARKER.matches(trimmed)) break
+                if (SCENARIO_MARKER.matches(trimmed) ||
+                    LINKS_MARKER.matches(trimmed) ||
+                    PreconditionsMarkerStyle.fromMarker(trimmed) != null
+                ) break
                 if (trimmed.isBlank()) continue
                 parseAttachmentLine(trimmed)?.let { result += it }
             }
@@ -258,9 +273,12 @@ object TestCaseParser {
                 continue
             }
 
-            // Any other line — append to current step action (if we're not past expected)
+            // Any other line — append to current step action (if we're not past expected).
+            // Only INDENTED lines count as action continuation; a top-level non-special
+            // line is trailing prose (e.g. a stray "Note:" paragraph after the steps)
+            // and must not be glued onto the last step's action.
             // Strip up to 3 leading spaces (Markdown list continuation indent)
-            if (steps.isNotEmpty() && !inExpected) {
+            if (steps.isNotEmpty() && !inExpected && !isTopLevel) {
                 val stripped = line.removeListContinuationIndent()
                 actionLines += stripped.trimEnd().removeSuffix("  ")
             }
@@ -287,7 +305,10 @@ object TestCaseParser {
                 continue
             }
             if (inLinksSection) {
-                if (SCENARIO_MARKER.matches(trimmed)) break
+                if (SCENARIO_MARKER.matches(trimmed) ||
+                    ATTACHMENTS_MARKER.matches(trimmed) ||
+                    PreconditionsMarkerStyle.fromMarker(trimmed) != null
+                ) break
                 if (trimmed.isBlank()) continue
                 LINK_PATTERN.matchEntire(trimmed)?.let { match ->
                     result += Link(title = match.groupValues[1], url = match.groupValues[2])

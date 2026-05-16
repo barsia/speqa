@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SpeQA Test Case Preview</title>
+  <link rel="stylesheet" href="preview.css">
+  <script src="highlight.min.js"></script>
+</head>
+<body>
+  <div class="focus-trail" id="focusTrail" aria-hidden="true">
+    <span class="focus-trail-title" id="focusTrailTitle"></span>
+    <span class="focus-trail-progress" id="focusTrailProgress"></span>
+  </div>
+  <main class="shell">
+    <section class="card" id="app">
+      <div class="empty">Waiting for SpeQA preview data...</div>
+    </section>
+  </main>
+  <div class="scroll-indicator" id="scrollIndicator" aria-hidden="true">
+    <div class="scroll-indicator-thumb" id="scrollIndicatorThumb"></div>
+  </div>
+  <div class="overflow-tooltip" id="overflowTooltip" role="tooltip" aria-hidden="true"></div>
+
+  <script src="preview.js"></script>
+</body>
+</html>

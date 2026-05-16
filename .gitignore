@@ -56,3 +56,8 @@ docs/blog/
 *.p12
 *.jks
 local.properties
+.superpowers/
+.playwright-mcp/
+
+### Rust native bridges ###
+native/*/target/

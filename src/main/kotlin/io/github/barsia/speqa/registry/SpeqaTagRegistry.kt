@@ -37,6 +37,7 @@ class SpeqaTagRegistry(private val project: Project) {
     private var initialized = false
     private val initializationScheduled = AtomicBoolean(false)
     private val subscribedToVfs = AtomicBoolean(false)
+    private val initializationCallbacks = mutableListOf<() -> Unit>()
 
     val allTags: List<String> get() {
         ensureInitialized()
@@ -54,6 +55,22 @@ class SpeqaTagRegistry(private val project: Project) {
             subscribeToVfsEvents()
         }
         scheduleScan()
+    }
+
+    fun whenInitialized(action: () -> Unit) {
+        val runNow = synchronized(initializationCallbacks) {
+            if (initialized) {
+                true
+            } else {
+                initializationCallbacks += action
+                false
+            }
+        }
+        if (runNow) {
+            action()
+        } else {
+            ensureInitialized()
+        }
     }
 
     private fun scan() {
@@ -127,14 +144,20 @@ class SpeqaTagRegistry(private val project: Project) {
             scan()
         }
             .finishOnUiThread(com.intellij.openapi.application.ModalityState.any()) {
-                initialized = true
+                val callbacks = synchronized(initializationCallbacks) {
+                    initialized = true
+                    initializationCallbacks.toList().also {
+                        initializationCallbacks.clear()
+                    }
+                }
                 initializationScheduled.set(false)
+                callbacks.forEach { it() }
             }
             .submit(AppExecutorUtil.getAppExecutorService())
     }
 
     private fun subscribeToVfsEvents() {
-        project.messageBus.connect().subscribe(VirtualFileManager.VFS_CHANGES, object : BulkFileListener {
+        project.messageBus.connect(project).subscribe(VirtualFileManager.VFS_CHANGES, object : BulkFileListener {
             override fun after(events: List<VFileEvent>) {
                 val hasChange = events.any { event ->
                     when (event) {

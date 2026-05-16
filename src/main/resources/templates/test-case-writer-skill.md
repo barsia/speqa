@@ -56,14 +56,14 @@ tags:
 
 Optional one-line description if the title is not self-explanatory.
 
+Links:
+
+[Ticket key or short title](https://...)
+
 Preconditions:
 
 1. First precondition
 2. Second precondition
-
-Links:
-
-[Ticket key or short title](https://...)
 
 Scenario:
 
@@ -76,7 +76,7 @@ Scenario:
    > 2. Second expected result
 ```
 
-Section markers appear in this order when present: `Preconditions:` (optional), `Links:` (optional), `Scenario:` (required).
+Section markers appear in this order when present: `Links:` (optional), `Preconditions:` (optional), `Scenario:` (required).
 
 ## File Naming
 
@@ -110,13 +110,13 @@ Start with the behaviour under test as a noun phrase or short statement of what 
 - `Canceling the "Add" dialog discards entered data and leaves the list unchanged.`
 - `MCP server provisioning via the Command connection type, end to end.`
 
-## Preconditions
-
-Marker line: exactly `Preconditions:`, followed by a blank line, then items numbered `1.`, `2.`, …. Each item must be executable or verifiable — a command, a config key with a value, a role assignment, a feature flag state — not an abstract description. Include auth state, screen or service location, data setup. Omit the section if nothing is required.
-
 ## Links
 
-Marker line: exactly `Links:`, followed by a blank line, then one link per line: `[title](url)`. Placed between `Preconditions:` and `Scenario:`. URLs must start with `http://` or `https://`. Use the ticket key as the link title for ticket URLs (`[ABC-1234](https://youtrack.jetbrains.com/issue/ABC-1234)`). Use a short descriptive title for other links (`[Figma — MCP add dialog](https://...)`). When updating a case, append new links; do not replace existing ones. Do not fabricate URLs — omit the section if none exist.
+Marker line: exactly `Links:`, followed by a blank line, then one link per line: `[title](url)`. Placed between the description (or frontmatter, if no description) and `Preconditions:`. Always before `Preconditions:`, never after. URLs must start with `http://` or `https://`. Use the ticket key as the link title for ticket URLs (`[ABC-1234](https://youtrack.jetbrains.com/issue/ABC-1234)`). Use a short descriptive title for other links (`[Figma - MCP add dialog](https://...)`). When updating a case, append new links; do not replace existing ones. Do not fabricate URLs - omit the section if none exist.
+
+## Preconditions
+
+Marker line: exactly `Preconditions:`, followed by a blank line, then items numbered `1.`, `2.`, …. Each item must be executable or verifiable - a command, a config key with a value, a role assignment, a feature flag state - not an abstract description. Include auth state, screen or service location, data setup. Omit the section if nothing is required.
 
 ## Scenario Steps
 

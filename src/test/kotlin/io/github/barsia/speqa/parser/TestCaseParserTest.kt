@@ -498,6 +498,110 @@ class TestCaseParserTest {
     }
 
     @Test
+    fun `preconditions after links block are still parsed`() {
+        val content = """
+            |---
+            |title: "Login flow"
+            |---
+            |
+            |This test case verifies the standard login flow.
+            |
+            |Links:
+            |
+            |[Jira ticket](https://jira.example.com/TC-123)
+            |
+            |Preconditions:
+            |
+            |- User account exists
+            |- User is on the login page
+            |
+            |Scenario:
+            |
+            |1. Type username
+            |   > Field accepts input
+        """.trimMargin()
+
+        val testCase = TestCaseParser.parse(content)
+
+        assertEquals(1, testCase.links.size)
+        assertEquals("Jira ticket", testCase.links[0].title)
+        assertEquals(2, testCase.bodyBlocks.size)
+        assertTrue(testCase.bodyBlocks[0] is DescriptionBlock)
+        assertTrue(
+            "Description should contain 'standard login flow', but was: ${testCase.bodyBlocks[0].markdown}",
+            testCase.bodyBlocks[0].markdown.contains("standard login flow"),
+        )
+        assertTrue(testCase.bodyBlocks[1] is PreconditionsBlock)
+        assertTrue(
+            "Preconditions should contain 'User account exists', but was: ${testCase.bodyBlocks[1].markdown}",
+            testCase.bodyBlocks[1].markdown.contains("User account exists"),
+        )
+        assertTrue(testCase.bodyBlocks[1].markdown.contains("User is on the login page"))
+    }
+
+    @Test
+    fun `preconditions after attachments block are still parsed`() {
+        val content = """
+            |---
+            |title: "With attachments before preconditions"
+            |---
+            |
+            |Some description text.
+            |
+            |Attachments:
+            |
+            |[file.txt]
+            |
+            |Preconditions:
+            |
+            |- Setup is complete
+            |
+            |Scenario:
+            |
+            |1. Run check
+            |   > Passes
+        """.trimMargin()
+
+        val testCase = TestCaseParser.parse(content)
+
+        assertEquals(1, testCase.attachments.size)
+        assertEquals(2, testCase.bodyBlocks.size)
+        assertTrue(testCase.bodyBlocks[0] is DescriptionBlock)
+        assertTrue(testCase.bodyBlocks[1] is PreconditionsBlock)
+        assertTrue(testCase.bodyBlocks[1].markdown.contains("Setup is complete"))
+    }
+
+    @Test
+    fun `trailing prose after the last step does not glue onto its action`() {
+        val content = """
+            |---
+            |title: With trailing note
+            |---
+            |
+            |Scenario:
+            |
+            |1. Click button
+            |   > Modal opens
+            |
+            |2. Click Save
+            |   > Saved
+            |
+            |Note: this is some commentary that should not corrupt steps.
+        """.trimMargin()
+
+        val testCase = TestCaseParser.parse(content)
+
+        assertEquals(2, testCase.steps.size)
+        assertEquals("Click button", testCase.steps[0].action)
+        assertEquals("Click Save", testCase.steps[1].action)
+        assertEquals("Saved", testCase.steps[1].expected)
+        assertTrue(
+            "Last step action must not contain trailing prose, got: ${testCase.steps[1].action}",
+            !testCase.steps[1].action.contains("Note:"),
+        )
+    }
+
+    @Test
     fun `parse step with ticket line`() {
         val content = """
             |---

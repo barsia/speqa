@@ -23,17 +23,17 @@ class TestRunParserTest {
     }
 
     @Test
-    fun `parses manual_result flag`() {
-        val content = "---\ntitle: \"Test\"\nstarted_at: 2026-04-11T10:00:00\nresult: passed\nmanual_result: true\n---"
+    fun `parses result_override flag`() {
+        val content = "---\ntitle: \"Test\"\nstarted_at: 2026-04-11T10:00:00\nresult: passed\nresult_override: true\n---"
         val run = TestRunParser.parse(content)
-        assertTrue(run.manualResult)
+        assertTrue(run.resultOverride)
     }
 
     @Test
-    fun `manual_result defaults to false`() {
+    fun `result_override defaults to false`() {
         val content = "---\ntitle: \"Test\"\nstarted_at: 2026-04-11T10:00:00\nresult: passed\n---"
         val run = TestRunParser.parse(content)
-        assertFalse(run.manualResult)
+        assertFalse(run.resultOverride)
     }
 
     @Test
@@ -85,7 +85,7 @@ class TestRunParserTest {
     @Test
     fun `parse empty run returns defaults`() {
         val run = TestRunParser.parse("")
-        assertFalse(run.manualResult)
+        assertFalse(run.resultOverride)
         assertTrue(run.stepResults.isEmpty())
         assertTrue(run.environment.isEmpty())
         assertEquals("", run.runner)

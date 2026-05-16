@@ -47,7 +47,7 @@ data class TestRun(
     val title: String = "",
     val tags: List<String> = emptyList(),
     val priority: Priority? = null,
-    val manualResult: Boolean = false,
+    val resultOverride: Boolean = false,
     val startedAt: LocalDateTime? = null,
     val finishedAt: LocalDateTime? = null,
     val result: RunResult = RunResult.NOT_STARTED,

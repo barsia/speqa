@@ -8,6 +8,7 @@ import com.intellij.openapi.fileEditor.TextEditor
 import com.intellij.openapi.fileEditor.impl.text.PsiAwareTextEditorProvider
 import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.vfs.VirtualFile
 import io.github.barsia.speqa.model.SpeqaDefaults
 
@@ -22,7 +23,13 @@ class SpeqaEditorProvider : FileEditorProvider, DumbAware {
             ?: return PsiAwareTextEditorProvider().createEditor(project, file)
 
         val textEditor = PsiAwareTextEditorProvider().createEditor(project, file) as TextEditor
-        return SpeqaSplitEditor(textEditor, SpeqaPreviewEditor(project, file, document, textEditor.editor))
+        val previewEditor = try {
+            SpeqaPreviewEditor(project, file, document, textEditor.editor)
+        } catch (t: Throwable) {
+            Disposer.dispose(textEditor)
+            throw t
+        }
+        return SpeqaSplitEditor(textEditor, previewEditor)
     }
 
     override fun getEditorTypeId(): String = "speqa-test-case-editor"

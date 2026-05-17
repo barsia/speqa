@@ -53,7 +53,25 @@ internal class JcefWebViewFacade(
 
   fun initialize(onMessage: (String) -> Unit) {
     inboundMessageHandler = onMessage
-    // IPC wiring is added in Task 4. The skeleton stops here.
+
+    jsQuery.addHandler { raw ->
+      val payload = raw ?: return@addHandler null
+      inboundMessageHandler(payload)
+      null
+    }
+
+    // Inject the bootstrap shim at document-start for every load.
+    val loadHandler = object : org.cef.handler.CefLoadHandlerAdapter() {
+      override fun onLoadStart(
+        cefBrowser: org.cef.browser.CefBrowser,
+        frame: org.cef.browser.CefFrame,
+        transitionType: org.cef.network.CefRequest.TransitionType?,
+      ) {
+        val script = JcefBootstrapScript.build(queryInjection = jsQuery.inject("raw"))
+        cefBrowser.executeJavaScript(script, frame.url ?: "", 0)
+      }
+    }
+    browser.jbCefClient.addLoadHandler(loadHandler, browser.cefBrowser)
   }
 
   override fun loadUrl(url: String) {

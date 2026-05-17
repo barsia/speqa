@@ -64,6 +64,24 @@ internal object LinuxWebKitGtkBridge {
   private external fun clearFocusNative(handle: Long)
 
   @JvmStatic
+  private external fun dispatchMouseButtonNative(
+    handle: Long,
+    x: Double,
+    y: Double,
+    button: Int,
+    state: Int,
+    isPress: Boolean,
+  )
+
+  @JvmStatic
+  private external fun dispatchMouseMotionNative(
+    handle: Long,
+    x: Double,
+    y: Double,
+    state: Int,
+  )
+
+  @JvmStatic
   private external fun loadUrlNative(handle: Long, url: String)
 
   @JvmStatic
@@ -86,6 +104,12 @@ internal object LinuxWebKitGtkBridge {
   fun setVisible(handle: Long, visible: Boolean) = setVisibleNative(handle, visible)
   fun focus(handle: Long) = focusNative(handle)
   fun clearFocus(handle: Long) = clearFocusNative(handle)
+  fun dispatchMouseButton(handle: Long, x: Double, y: Double, button: Int, state: Int, isPress: Boolean) =
+    dispatchMouseButtonNative(handle, x, y, button, state, isPress)
+
+  fun dispatchMouseMotion(handle: Long, x: Double, y: Double, state: Int) =
+    dispatchMouseMotionNative(handle, x, y, state)
+
   fun loadUrl(handle: Long, url: String) = loadUrlNative(handle, url)
   fun loadHtml(handle: Long, html: String, baseUrl: String?) = loadHtmlNative(handle, html, baseUrl)
   fun evaluateJavaScript(handle: Long, evalId: Long, script: String) = evaluateJavaScriptNative(handle, evalId, script)

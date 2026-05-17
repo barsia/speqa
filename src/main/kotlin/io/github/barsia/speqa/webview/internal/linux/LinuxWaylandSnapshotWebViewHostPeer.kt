@@ -4,7 +4,10 @@ package io.github.barsia.speqa.webview.internal.linux
 import io.github.barsia.speqa.webview.SwingWebViewHostPanel
 import io.github.barsia.speqa.webview.internal.host.NativeWebViewHostPeer
 import java.awt.Component
+import java.awt.event.InputEvent
+import java.awt.event.MouseEvent
 import javax.swing.SwingUtilities
+import javax.swing.event.MouseInputAdapter
 
 internal class LinuxWaylandSnapshotWebViewHostPeer(
   private val facade: LinuxWebKitWebViewFacade,
@@ -13,6 +16,8 @@ internal class LinuxWaylandSnapshotWebViewHostPeer(
   private var attached = false
   private var lastAppliedFrame: AppliedFrame? = null
   private var snapshotHost: SwingWebViewHostPanel? = null
+  private var mouseListener: MouseInputAdapter? = null
+  private var lastScale: Double = 1.0
 
   override fun attach(host: Component): Boolean {
     val hostPanel = host as? SwingWebViewHostPanel ?: return false
@@ -24,6 +29,8 @@ internal class LinuxWaylandSnapshotWebViewHostPeer(
     attached = true
     lastAppliedFrame = null
 
+    installInputListeners(hostPanel)
+
     scheduleFrameUpdate(host)
     facade.setHidden(false)
     SwingUtilities.invokeLater { scheduleFrameUpdate(host) }
@@ -32,6 +39,12 @@ internal class LinuxWaylandSnapshotWebViewHostPeer(
 
   override fun detach() {
     if (!attached) return
+    val host = snapshotHost
+    if (host != null && mouseListener != null) {
+      host.removeMouseListener(mouseListener)
+      host.removeMouseMotionListener(mouseListener)
+    }
+    mouseListener = null
     snapshotHost?.clearSnapshotImage()
     snapshotHost = null
     facade.setSnapshotHandler(null)
@@ -45,7 +58,9 @@ internal class LinuxWaylandSnapshotWebViewHostPeer(
     val frame = AppliedFrame(host.width, host.height)
     if (frame == lastAppliedFrame) return
     lastAppliedFrame = frame
-    facade.setBounds(0, 0, host.width, host.height, 1.0)
+    val scale = host.graphicsConfiguration?.defaultTransform?.scaleX?.takeIf { it > 0.0 } ?: 1.0
+    lastScale = scale
+    facade.setBounds(0, 0, host.width, host.height, scale)
   }
 
   override fun updateVisibility(host: Component, hidden: Boolean) {
@@ -63,6 +78,79 @@ internal class LinuxWaylandSnapshotWebViewHostPeer(
   override fun clearFocus() {
     if (!attached) return
     facade.clearFocus()
+  }
+
+  private fun installInputListeners(host: SwingWebViewHostPanel) {
+    val adapter = object : MouseInputAdapter() {
+      override fun mousePressed(e: MouseEvent) {
+        facade.dispatchMouseButton(
+          x = e.x.toDouble() * lastScale,
+          y = e.y.toDouble() * lastScale,
+          button = awtButtonToGdk(e.button),
+          modifierState = awtModifiersToGdk(e.modifiersEx),
+          isPress = true,
+        )
+        host.requestFocusInWindow()
+      }
+
+      override fun mouseReleased(e: MouseEvent) {
+        facade.dispatchMouseButton(
+          x = e.x.toDouble() * lastScale,
+          y = e.y.toDouble() * lastScale,
+          button = awtButtonToGdk(e.button),
+          modifierState = awtModifiersToGdk(e.modifiersEx),
+          isPress = false,
+        )
+      }
+
+      override fun mouseMoved(e: MouseEvent) {
+        facade.dispatchMouseMotion(
+          x = e.x.toDouble() * lastScale,
+          y = e.y.toDouble() * lastScale,
+          modifierState = awtModifiersToGdk(e.modifiersEx),
+        )
+      }
+
+      override fun mouseDragged(e: MouseEvent) {
+        facade.dispatchMouseMotion(
+          x = e.x.toDouble() * lastScale,
+          y = e.y.toDouble() * lastScale,
+          modifierState = awtModifiersToGdk(e.modifiersEx),
+        )
+      }
+    }
+    mouseListener = adapter
+    host.addMouseListener(adapter)
+    host.addMouseMotionListener(adapter)
+  }
+
+  private fun awtButtonToGdk(awtButton: Int): Int = when (awtButton) {
+    MouseEvent.BUTTON1 -> 1
+    MouseEvent.BUTTON2 -> 2
+    MouseEvent.BUTTON3 -> 3
+    else -> 1
+  }
+
+  private fun awtModifiersToGdk(modifiersEx: Int): Int {
+    var state = 0
+    if ((modifiersEx and InputEvent.SHIFT_DOWN_MASK) != 0) state = state or GDK_SHIFT_MASK
+    if ((modifiersEx and InputEvent.CTRL_DOWN_MASK) != 0) state = state or GDK_CONTROL_MASK
+    if ((modifiersEx and InputEvent.ALT_DOWN_MASK) != 0) state = state or GDK_MOD1_MASK
+    if ((modifiersEx and InputEvent.META_DOWN_MASK) != 0) state = state or GDK_META_MASK
+    if ((modifiersEx and InputEvent.BUTTON1_DOWN_MASK) != 0) state = state or GDK_BUTTON1_MASK
+    if ((modifiersEx and InputEvent.BUTTON2_DOWN_MASK) != 0) state = state or GDK_BUTTON2_MASK
+    if ((modifiersEx and InputEvent.BUTTON3_DOWN_MASK) != 0) state = state or GDK_BUTTON3_MASK
+    return state
+  }
+
+  companion object {
+    private const val GDK_SHIFT_MASK = 1 shl 0
+    private const val GDK_CONTROL_MASK = 1 shl 2
+    private const val GDK_MOD1_MASK = 1 shl 3
+    private const val GDK_META_MASK = 1 shl 28
+    private const val GDK_BUTTON1_MASK = 1 shl 8
+    private const val GDK_BUTTON2_MASK = 1 shl 9
+    private const val GDK_BUTTON3_MASK = 1 shl 10
   }
 
   private data class AppliedFrame(

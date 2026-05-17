@@ -786,6 +786,47 @@ pub extern "system" fn Java_io_github_barsia_speqa_webview_internal_linux_LinuxW
 }
 
 #[no_mangle]
+pub extern "system" fn Java_io_github_barsia_speqa_webview_internal_linux_LinuxWebKitGtkBridge_dispatchMouseButtonNative(
+    mut env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+    x: jdouble,
+    y: jdouble,
+    button: jint,
+    state: jint,
+    is_press: jboolean,
+) {
+    let type_ = if is_press != 0 { GDK_BUTTON_PRESS } else { GDK_BUTTON_RELEASE };
+    run_with_handle(&mut env, handle, move |native| {
+        enqueue_gtk_task(move || {
+            with_locked_view(&native, |view| {
+                dispatch_button_event(view, type_, x, y, button as u32, state as u32);
+            });
+            request_snapshot_later(native.clone(), 16);
+        })
+    });
+}
+
+#[no_mangle]
+pub extern "system" fn Java_io_github_barsia_speqa_webview_internal_linux_LinuxWebKitGtkBridge_dispatchMouseMotionNative(
+    mut env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+    x: jdouble,
+    y: jdouble,
+    state: jint,
+) {
+    run_with_handle(&mut env, handle, move |native| {
+        enqueue_gtk_task(move || {
+            with_locked_view(&native, |view| {
+                dispatch_motion_event(view, x, y, state as u32);
+            });
+            request_snapshot_later(native.clone(), 16);
+        })
+    });
+}
+
+#[no_mangle]
 pub extern "system" fn Java_io_github_barsia_speqa_webview_internal_linux_LinuxWebKitGtkBridge_loadUrlNative(
     mut env: JNIEnv<'_>,
     _class: JClass<'_>,

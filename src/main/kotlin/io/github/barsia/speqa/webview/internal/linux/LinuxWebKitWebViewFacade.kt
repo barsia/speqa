@@ -231,6 +231,18 @@ internal class LinuxWebKitWebViewFacade(
     runOnEdt { LinuxWebKitGtkBridge.clearFocus(handle) }
   }
 
+  internal fun dispatchMouseButton(x: Double, y: Double, button: Int, modifierState: Int, isPress: Boolean) {
+    val handle = nativeHandle
+    if (handle == 0L || this.state.get() != State.Active) return
+    runOnEdt { LinuxWebKitGtkBridge.dispatchMouseButton(handle, x, y, button, modifierState, isPress) }
+  }
+
+  internal fun dispatchMouseMotion(x: Double, y: Double, modifierState: Int) {
+    val handle = nativeHandle
+    if (handle == 0L || this.state.get() != State.Active) return
+    runOnEdt { LinuxWebKitGtkBridge.dispatchMouseMotion(handle, x, y, modifierState) }
+  }
+
   override fun loadUrl(url: String) {
     val load = PendingLoad.Url(url)
     pendingLoad = load

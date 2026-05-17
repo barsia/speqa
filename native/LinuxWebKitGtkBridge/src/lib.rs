@@ -827,6 +827,27 @@ pub extern "system" fn Java_io_github_barsia_speqa_webview_internal_linux_LinuxW
 }
 
 #[no_mangle]
+pub extern "system" fn Java_io_github_barsia_speqa_webview_internal_linux_LinuxWebKitGtkBridge_dispatchMouseScrollNative(
+    mut env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+    x: jdouble,
+    y: jdouble,
+    delta_x: jdouble,
+    delta_y: jdouble,
+    state: jint,
+) {
+    run_with_handle(&mut env, handle, move |native| {
+        enqueue_gtk_task(move || {
+            with_locked_view(&native, |view| {
+                dispatch_scroll_event(view, x, y, delta_x, delta_y, state as u32);
+            });
+            request_snapshot_later(native.clone(), 16);
+        })
+    });
+}
+
+#[no_mangle]
 pub extern "system" fn Java_io_github_barsia_speqa_webview_internal_linux_LinuxWebKitGtkBridge_loadUrlNative(
     mut env: JNIEnv<'_>,
     _class: JClass<'_>,

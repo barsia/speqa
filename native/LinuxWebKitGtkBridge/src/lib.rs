@@ -36,18 +36,6 @@ type gpointer = *mut c_void;
 const G_PRIORITY_DEFAULT: gint = 0;
 const G_SOURCE_REMOVE: gboolean = 0;
 const GTK_WINDOW_POPUP: gint = 1;
-
-// GdkEventType
-const GDK_BUTTON_PRESS: i32 = 4;
-const GDK_BUTTON_RELEASE: i32 = 7;
-const GDK_MOTION_NOTIFY: i32 = 3;
-const GDK_SCROLL: i32 = 31;
-const GDK_KEY_PRESS: i32 = 8;
-const GDK_KEY_RELEASE: i32 = 9;
-
-// GdkScrollDirection
-const GDK_SCROLL_SMOOTH: i32 = 4;
-
 const IPC_HANDLER_NAME: &str = "webviewIpc";
 const REVERT_TO_PARENT: c_int = 2;
 const CURRENT_TIME: c_ulong = 0;
@@ -154,16 +142,6 @@ struct GdkDisplay {
 }
 
 #[repr(C)]
-struct GdkSeat {
-    _private: [u8; 0],
-}
-
-#[repr(C)]
-struct GdkDevice {
-    _private: [u8; 0],
-}
-
-#[repr(C)]
 struct CairoSurface {
     _private: [u8; 0],
 }
@@ -173,82 +151,6 @@ struct GError {
     domain: guint,
     code: gint,
     message: *mut c_char,
-}
-
-/// Sized to cover the largest GdkEvent union variant. `gdk_event_new` returns a heap
-/// allocation big enough for any variant; we cast to specific struct pointers for typed writes.
-#[repr(C)]
-struct GdkEventGeneric {
-    pub type_: i32,
-    pub window: *mut GdkWindow,
-    pub send_event: i8,
-    // Padding to cover the largest event variant — actual GdkEvent union size on x86_64 GTK 3 is ~96 bytes.
-    _padding: [u8; 200],
-}
-
-#[repr(C)]
-struct GdkEventButton {
-    pub type_: i32,
-    pub window: *mut GdkWindow,
-    pub send_event: i8,
-    pub time: u32,
-    pub x: f64,
-    pub y: f64,
-    pub axes: *mut f64,
-    pub state: u32,
-    pub button: u32,
-    pub device: *mut GdkDevice,
-    pub x_root: f64,
-    pub y_root: f64,
-}
-
-#[repr(C)]
-struct GdkEventMotion {
-    pub type_: i32,
-    pub window: *mut GdkWindow,
-    pub send_event: i8,
-    pub time: u32,
-    pub x: f64,
-    pub y: f64,
-    pub axes: *mut f64,
-    pub state: u32,
-    pub is_hint: i16,
-    pub device: *mut GdkDevice,
-    pub x_root: f64,
-    pub y_root: f64,
-}
-
-#[repr(C)]
-struct GdkEventScroll {
-    pub type_: i32,
-    pub window: *mut GdkWindow,
-    pub send_event: i8,
-    pub time: u32,
-    pub x: f64,
-    pub y: f64,
-    pub state: u32,
-    pub direction: i32,
-    pub device: *mut GdkDevice,
-    pub x_root: f64,
-    pub y_root: f64,
-    pub delta_x: f64,
-    pub delta_y: f64,
-    pub is_stop_and_flags: u32,
-}
-
-#[repr(C)]
-struct GdkEventKey {
-    pub type_: i32,
-    pub window: *mut GdkWindow,
-    pub send_event: i8,
-    pub time: u32,
-    pub state: u32,
-    pub keyval: u32,
-    pub length: i32,
-    pub string: *mut std::os::raw::c_char,
-    pub hardware_keycode: u16,
-    pub group: u8,
-    pub is_modifier_and_flags: u8,
 }
 
 type GSourceFunc = Option<unsafe extern "C" fn(gpointer) -> gboolean>;
@@ -349,17 +251,9 @@ extern "C" {
         connect_flags: gint,
     ) -> gulong;
 
-    fn gdk_display_get_default() -> *mut GdkDisplay;
-    fn gdk_display_get_default_seat(display: *mut GdkDisplay) -> *mut GdkSeat;
-    fn gdk_event_new(type_: i32) -> *mut GdkEventGeneric;
-    fn gdk_event_free(event: *mut GdkEventGeneric);
-    fn gdk_event_set_device(event: *mut GdkEventGeneric, device: *mut GdkDevice);
-    fn gdk_seat_get_pointer(seat: *mut GdkSeat) -> *mut GdkDevice;
-    fn gdk_seat_get_keyboard(seat: *mut GdkSeat) -> *mut GdkDevice;
     fn gdk_window_get_display(window: *mut GdkWindow) -> *mut GdkDisplay;
     fn gdk_x11_display_get_xdisplay(display: *mut GdkDisplay) -> gpointer;
     fn gdk_x11_window_get_xid(window: *mut GdkWindow) -> c_ulong;
-    fn gtk_main_do_event(event: *mut GdkEventGeneric);
 
     fn XFlush(display: gpointer) -> c_int;
     fn XMapRaised(display: gpointer, window: c_ulong) -> c_int;
@@ -1265,158 +1159,6 @@ fn apply_visibility(view: &NativeWebView) {
         } else {
             gtk_widget_hide(view.window);
         }
-    }
-}
-
-fn snapshot_window(view: &NativeWebView) -> *mut GdkWindow {
-    if view.webview.is_null() {
-        return std::ptr::null_mut();
-    }
-    unsafe { gtk_widget_get_window(view.webview) }
-}
-
-fn default_pointer_device() -> *mut GdkDevice {
-    unsafe {
-        let display = gdk_display_get_default();
-        if display.is_null() { return std::ptr::null_mut(); }
-        let seat = gdk_display_get_default_seat(display);
-        if seat.is_null() { return std::ptr::null_mut(); }
-        gdk_seat_get_pointer(seat)
-    }
-}
-
-fn default_keyboard_device() -> *mut GdkDevice {
-    unsafe {
-        let display = gdk_display_get_default();
-        if display.is_null() { return std::ptr::null_mut(); }
-        let seat = gdk_display_get_default_seat(display);
-        if seat.is_null() { return std::ptr::null_mut(); }
-        gdk_seat_get_keyboard(seat)
-    }
-}
-
-fn dispatch_button_event(
-    view: &NativeWebView,
-    type_: i32,
-    x: f64,
-    y: f64,
-    button: u32,
-    state: u32,
-) {
-    if view.destroyed || view.webview.is_null() { return; }
-    let window = snapshot_window(view);
-    if window.is_null() { return; }
-    let device = default_pointer_device();
-    unsafe {
-        let raw = gdk_event_new(type_);
-        if raw.is_null() { return; }
-        let event = raw as *mut GdkEventButton;
-        (*event).type_ = type_;
-        (*event).window = window;
-        (*event).send_event = 1;
-        (*event).time = 0;
-        (*event).x = x;
-        (*event).y = y;
-        (*event).axes = std::ptr::null_mut();
-        (*event).state = state;
-        (*event).button = button;
-        (*event).device = device;
-        (*event).x_root = x;
-        (*event).y_root = y;
-        gtk_main_do_event(raw);
-        gdk_event_free(raw);
-    }
-}
-
-fn dispatch_motion_event(view: &NativeWebView, x: f64, y: f64, state: u32) {
-    if view.destroyed || view.webview.is_null() { return; }
-    let window = snapshot_window(view);
-    if window.is_null() { return; }
-    let device = default_pointer_device();
-    unsafe {
-        let raw = gdk_event_new(GDK_MOTION_NOTIFY);
-        if raw.is_null() { return; }
-        let event = raw as *mut GdkEventMotion;
-        (*event).type_ = GDK_MOTION_NOTIFY;
-        (*event).window = window;
-        (*event).send_event = 1;
-        (*event).time = 0;
-        (*event).x = x;
-        (*event).y = y;
-        (*event).axes = std::ptr::null_mut();
-        (*event).state = state;
-        (*event).is_hint = 0;
-        (*event).device = device;
-        (*event).x_root = x;
-        (*event).y_root = y;
-        gtk_main_do_event(raw);
-        gdk_event_free(raw);
-    }
-}
-
-fn dispatch_scroll_event(
-    view: &NativeWebView,
-    x: f64,
-    y: f64,
-    delta_x: f64,
-    delta_y: f64,
-    state: u32,
-) {
-    if view.destroyed || view.webview.is_null() { return; }
-    let window = snapshot_window(view);
-    if window.is_null() { return; }
-    let device = default_pointer_device();
-    unsafe {
-        let raw = gdk_event_new(GDK_SCROLL);
-        if raw.is_null() { return; }
-        let event = raw as *mut GdkEventScroll;
-        (*event).type_ = GDK_SCROLL;
-        (*event).window = window;
-        (*event).send_event = 1;
-        (*event).time = 0;
-        (*event).x = x;
-        (*event).y = y;
-        (*event).state = state;
-        (*event).direction = GDK_SCROLL_SMOOTH;
-        (*event).device = device;
-        (*event).x_root = x;
-        (*event).y_root = y;
-        (*event).delta_x = delta_x;
-        (*event).delta_y = delta_y;
-        (*event).is_stop_and_flags = 0;
-        gtk_main_do_event(raw);
-        gdk_event_free(raw);
-    }
-}
-
-fn dispatch_key_event(
-    view: &NativeWebView,
-    type_: i32,
-    keyval: u32,
-    state: u32,
-) {
-    if view.destroyed || view.webview.is_null() { return; }
-    let window = snapshot_window(view);
-    if window.is_null() { return; }
-    let device = default_keyboard_device();
-    unsafe {
-        let raw = gdk_event_new(type_);
-        if raw.is_null() { return; }
-        let event = raw as *mut GdkEventKey;
-        (*event).type_ = type_;
-        (*event).window = window;
-        (*event).send_event = 1;
-        (*event).time = 0;
-        (*event).state = state;
-        (*event).keyval = keyval;
-        (*event).length = 0;
-        (*event).string = std::ptr::null_mut();
-        (*event).hardware_keycode = 0;
-        (*event).group = 0;
-        (*event).is_modifier_and_flags = 0;
-        gdk_event_set_device(raw, device);
-        gtk_main_do_event(raw);
-        gdk_event_free(raw);
     }
 }
 

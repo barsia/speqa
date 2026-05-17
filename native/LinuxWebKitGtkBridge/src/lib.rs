@@ -953,9 +953,13 @@ fn create_widgets(native: GtkNative) {
             );
             return;
         }
-        if view.backend == Backend::WaylandSnapshot {
-            disable_hardware_acceleration(webview);
-        }
+        // WebKitGTK's default HW acceleration policy uses OpenGL/EGL contexts that
+        // cannot bind to an embedded X11 child window — the page renders to a phantom
+        // buffer that never reaches the GdkWindow surface, leaving the X11 buffer at the
+        // GTK background colour (~0x1a1900 on the dark theme). CPU rendering paints to
+        // the GTK draw signal which goes straight to the X11 pixmap. WaylandSnapshot
+        // already disables HW acceleration for an unrelated reason; X11 needs it too.
+        disable_hardware_acceleration(webview);
         pin_web_context(webview);
 
         gtk_widget_set_can_focus(webview, 1);

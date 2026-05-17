@@ -98,15 +98,16 @@ object WebViewFacadeFactory {
 
   private fun linuxBackend(): LinuxWebKitBackend {
     check(SystemInfo.isLinux) { "System WebView is supported only on Linux" }
-    val backend = when {
+    return when {
+      // Both X11 and Wayland route through the snapshot backend — the WebKitGTK widget
+      // renders offscreen and the resulting bitmap is painted into Swing. Embedding a
+      // foreign GTK X11 child under the JBR top-level / Content window proved unstable
+      // (no rendering reached the X11 pixmap, JVM SIGABRTs from the native render thread,
+      // focus trapped in the embedded widget) — see the always-snapshot plan for details.
       LinuxWaylandWindowUtil.isSupportedToolkit() -> LinuxWebKitBackend.WaylandSnapshot
-      LinuxX11WindowUtil.isSupportedToolkit() -> LinuxWebKitBackend.X11
+      LinuxX11WindowUtil.isSupportedToolkit() -> LinuxWebKitBackend.WaylandSnapshot
       else -> error("Linux System WebView is supported only with X11 or Wayland/WLToolkit")
     }
-    com.intellij.openapi.diagnostic.Logger.getInstance("SpeqaDebug").warn(
-      "linux backend selected: $backend (wayland-toolkit=${LinuxWaylandWindowUtil.isSupportedToolkit()}, x11-toolkit=${LinuxX11WindowUtil.isSupportedToolkit()})"
-    )
-    return backend
   }
 }
 

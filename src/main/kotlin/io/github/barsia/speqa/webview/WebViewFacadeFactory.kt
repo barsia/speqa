@@ -2,10 +2,9 @@
 package io.github.barsia.speqa.webview
 
 import com.intellij.openapi.util.SystemInfo
-import io.github.barsia.speqa.webview.internal.linux.LinuxWaylandWindowUtil
-import io.github.barsia.speqa.webview.internal.linux.LinuxWebKitBackend
-import io.github.barsia.speqa.webview.internal.linux.LinuxX11WindowUtil
-import io.github.barsia.speqa.webview.internal.linux.createLinuxWebKitWebViewFacade
+import com.intellij.ui.jcef.JBCefApp
+import io.github.barsia.speqa.SpeqaBundle
+import io.github.barsia.speqa.webview.internal.linux.createJcefWebViewFacade
 import io.github.barsia.speqa.webview.internal.mac.createMacWebViewFacade
 import io.github.barsia.speqa.webview.internal.windows.createWinWebViewFacade
 import io.github.barsia.speqa.webview.interop.WebViewMessageBus
@@ -73,41 +72,32 @@ object WebViewFacadeFactory {
   }
 
   /**
-   * Creates a Linux [WebViewFacade] backed by WebKitGTK.
+   * Creates a Linux [WebViewFacade] backed by the bundled JCEF (Chromium) runtime.
    *
-   * Local Wayland/WLToolkit sessions use an offscreen WebKitGTK renderer with Swing snapshots
-   * until a JBR child-surface API is available.
+   * Throws [IllegalStateException] with a localized message if JCEF is not available
+   * on the current JetBrains Runtime; the caller is expected to surface it through the
+   * preview's unsupported-fallback panel.
    */
   @JvmStatic
   fun createLinuxFacade(scope: CoroutineScope, onMessage: (String) -> Unit = {}): WebViewFacade {
-    val facade = createLinuxWebKitWebViewFacade(scope, linuxBackend())
+    check(SystemInfo.isLinux) { "System WebView is supported only on Linux" }
+    check(JBCefApp.isSupported()) { SpeqaBundle.message("webview.unsupported.jcef") }
+    val facade = createJcefWebViewFacade(scope)
     facade.initialize(onMessage)
     return facade
   }
 
   /**
-   * Creates a Linux [WebViewFacade] together with a [WebViewMessageBus] wired over WebKitGTK IPC.
+   * Creates a Linux [WebViewFacade] together with a [WebViewMessageBus] wired over JCEF IPC.
    */
   @JvmStatic
   fun createLinuxFacadeWithBus(scope: CoroutineScope): WebViewFacadeWithBus {
-    val facade = createLinuxWebKitWebViewFacade(scope, linuxBackend())
+    check(SystemInfo.isLinux) { "System WebView is supported only on Linux" }
+    check(JBCefApp.isSupported()) { SpeqaBundle.message("webview.unsupported.jcef") }
+    val facade = createJcefWebViewFacade(scope)
     val bus = WebViewMessageBus(outgoingSink = { raw -> facade.deliverJsonToJavaScript(raw) })
     facade.initialize(onMessage = bus::onIncomingMessage)
     return WebViewFacadeWithBus(facade, bus)
-  }
-
-  private fun linuxBackend(): LinuxWebKitBackend {
-    check(SystemInfo.isLinux) { "System WebView is supported only on Linux" }
-    return when {
-      // Both X11 and Wayland route through the snapshot backend — the WebKitGTK widget
-      // renders offscreen and the resulting bitmap is painted into Swing. Embedding a
-      // foreign GTK X11 child under the JBR top-level / Content window proved unstable
-      // (no rendering reached the X11 pixmap, JVM SIGABRTs from the native render thread,
-      // focus trapped in the embedded widget) — see the always-snapshot plan for details.
-      LinuxWaylandWindowUtil.isSupportedToolkit() -> LinuxWebKitBackend.WaylandSnapshot
-      LinuxX11WindowUtil.isSupportedToolkit() -> LinuxWebKitBackend.WaylandSnapshot
-      else -> error("Linux System WebView is supported only with X11 or Wayland/WLToolkit")
-    }
   }
 }
 

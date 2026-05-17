@@ -3,8 +3,6 @@ package io.github.barsia.speqa.webview.internal.host
 
 import com.intellij.openapi.util.SystemInfo
 import io.github.barsia.speqa.webview.WebViewFacade
-import io.github.barsia.speqa.webview.internal.linux.LinuxNativeWebViewHostPeer
-import io.github.barsia.speqa.webview.internal.linux.LinuxWebKitWebViewFacade
 import io.github.barsia.speqa.webview.internal.mac.MacNativeWebViewHostPeer
 import io.github.barsia.speqa.webview.internal.mac.MacWebViewFacade
 import io.github.barsia.speqa.webview.internal.windows.WinNativeWebViewHostPeer
@@ -150,7 +148,8 @@ internal interface NativeWebViewHostPeer {
       return when {
         SystemInfo.isMac && facade is MacWebViewFacade -> MacNativeWebViewHostPeer(scope, facade)
         SystemInfo.isWindows && facade is WinWebViewFacade -> WinNativeWebViewHostPeer(facade)
-        SystemInfo.isLinux && facade is LinuxWebKitWebViewFacade -> LinuxNativeWebViewHostPeer(facade)
+        SystemInfo.isLinux && facade is io.github.barsia.speqa.webview.internal.linux.JcefWebViewFacade ->
+          io.github.barsia.speqa.webview.internal.linux.LinuxJcefWebViewHostPeer(facade)
         else -> null
       }
     }

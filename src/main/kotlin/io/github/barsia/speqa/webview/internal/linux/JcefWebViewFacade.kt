@@ -47,6 +47,54 @@ internal class JcefWebViewFacade(
     Disposer.register(this, jsQuery)
     state.set(State.Active)
     WebViewLogger.logLifecycle("linux-jcef-create", "JCEF browser ready")
+
+    // --- Diagnostic: render mode and JBCefApp flags ---
+    WebViewLogger.LOG.warn(
+      "SpeqaDebug: JBCefApp.isSupported=${com.intellij.ui.jcef.JBCefApp.isSupported()} " +
+        "isOffScreenRenderingModeEnabled=${tryReadOsrFlag()}"
+    )
+
+    // --- Diagnostic: JCEF Swing component class ---
+    val component = browser.component
+    WebViewLogger.LOG.warn(
+      "SpeqaDebug: JCEF component class=${component.javaClass.name} " +
+        "isLightweight=${component.isLightweight} " +
+        "isDisplayable=${component.isDisplayable} " +
+        "size=${component.width}x${component.height}"
+    )
+
+    // --- Diagnostic: AWT mouse event delivery ---
+    val seenEvents = java.util.concurrent.ConcurrentHashMap<String, Boolean>()
+    val mouseListener = object : java.awt.event.MouseAdapter() {
+      override fun mouseEntered(e: java.awt.event.MouseEvent) {
+        if (seenEvents.putIfAbsent("entered", true) == null) {
+          WebViewLogger.LOG.warn("SpeqaDebug: AWT MOUSE_ENTERED on JCEF component at (${e.x},${e.y})")
+        }
+      }
+      override fun mouseClicked(e: java.awt.event.MouseEvent) {
+        WebViewLogger.LOG.warn("SpeqaDebug: AWT MOUSE_CLICKED on JCEF component at (${e.x},${e.y}) button=${e.button}")
+      }
+      override fun mousePressed(e: java.awt.event.MouseEvent) {
+        if (seenEvents.putIfAbsent("pressed", true) == null) {
+          WebViewLogger.LOG.warn("SpeqaDebug: AWT MOUSE_PRESSED on JCEF component at (${e.x},${e.y})")
+        }
+      }
+    }
+    browser.component.addMouseListener(mouseListener)
+
+    val motionListener = object : java.awt.event.MouseMotionAdapter() {
+      override fun mouseMoved(e: java.awt.event.MouseEvent) {
+        if (seenEvents.putIfAbsent("moved", true) == null) {
+          WebViewLogger.LOG.warn("SpeqaDebug: AWT MOUSE_MOVED on JCEF component (first event only)")
+        }
+      }
+      override fun mouseDragged(e: java.awt.event.MouseEvent) {
+        if (seenEvents.putIfAbsent("dragged", true) == null) {
+          WebViewLogger.LOG.warn("SpeqaDebug: AWT MOUSE_DRAGGED on JCEF component (first event only) at (${e.x},${e.y})")
+        }
+      }
+    }
+    browser.component.addMouseMotionListener(motionListener)
   }
 
   val component: JComponent get() = browser.component
@@ -98,6 +146,7 @@ internal class JcefWebViewFacade(
 
     val displayHandler = object : org.cef.handler.CefDisplayHandlerAdapter() {
       override fun onCursorChange(cefBrowser: org.cef.browser.CefBrowser, cursorType: Int): Boolean {
+        WebViewLogger.LOG.warn("SpeqaDebug: onCursorChange fired cursorType=$cursorType")
         val cursor = mapCefCursorToAwt(cursorType)
         javax.swing.SwingUtilities.invokeLater {
           if (state.get() == State.Active) {
@@ -206,6 +255,18 @@ internal class JcefWebViewFacade(
       else -> java.awt.Cursor.DEFAULT_CURSOR
     }
     return java.awt.Cursor.getPredefinedCursor(awtType)
+  }
+
+  private fun tryReadOsrFlag(): String {
+    // JBR exposes JBCefApp.isOffScreenRenderingModeEnabled() in some versions and not others.
+    // Try via reflection so this diagnostic compiles across JBR versions.
+    return try {
+      val cls = com.intellij.ui.jcef.JBCefApp::class.java
+      val method = cls.getMethod("isOffScreenRenderingModeEnabled")
+      method.invoke(null).toString()
+    } catch (t: Throwable) {
+      "<unavailable: ${t.javaClass.simpleName}>"
+    }
   }
 
   private fun escapeJsString(value: String): String {

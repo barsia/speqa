@@ -17,7 +17,6 @@ internal class LinuxWaylandSnapshotWebViewHostPeer(
   private var lastAppliedFrame: AppliedFrame? = null
   private var snapshotHost: SwingWebViewHostPanel? = null
   private var mouseListener: MouseInputAdapter? = null
-  private var wheelListener: java.awt.event.MouseWheelListener? = null
   private var lastScale: Double = 1.0
 
   override fun attach(host: Component): Boolean {
@@ -46,10 +45,6 @@ internal class LinuxWaylandSnapshotWebViewHostPeer(
       host.removeMouseMotionListener(mouseListener)
     }
     mouseListener = null
-    if (host != null && wheelListener != null) {
-      host.removeMouseWheelListener(wheelListener)
-    }
-    wheelListener = null
     snapshotHost?.clearSnapshotImage()
     snapshotHost = null
     facade.setSnapshotHandler(null)
@@ -127,23 +122,6 @@ internal class LinuxWaylandSnapshotWebViewHostPeer(
     mouseListener = adapter
     host.addMouseListener(adapter)
     host.addMouseMotionListener(adapter)
-
-    val wheelAdapter = java.awt.event.MouseWheelListener { e ->
-      // 40 px per notch matches the IDE editor's typical scroll step.
-      // Shift+wheel = horizontal scroll, matching browser convention.
-      val scrollStep = 40.0
-      val deltaX = if (e.isShiftDown) e.preciseWheelRotation * scrollStep else 0.0
-      val deltaY = if (e.isShiftDown) 0.0 else e.preciseWheelRotation * scrollStep
-      facade.dispatchMouseScroll(
-        x = e.x.toDouble() * lastScale,
-        y = e.y.toDouble() * lastScale,
-        deltaX = deltaX,
-        deltaY = deltaY,
-        modifierState = awtModifiersToGdk(e.modifiersEx),
-      )
-    }
-    wheelListener = wheelAdapter
-    host.addMouseWheelListener(wheelAdapter)
   }
 
   private fun awtButtonToGdk(awtButton: Int): Int = when (awtButton) {

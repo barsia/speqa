@@ -18,6 +18,7 @@ internal class LinuxWaylandSnapshotWebViewHostPeer(
   private var snapshotHost: SwingWebViewHostPanel? = null
   private var mouseListener: MouseInputAdapter? = null
   private var wheelListener: java.awt.event.MouseWheelListener? = null
+  private var keyDispatcher: java.awt.KeyEventDispatcher? = null
   private var lastScale: Double = 1.0
 
   override fun attach(host: Component): Boolean {
@@ -31,6 +32,8 @@ internal class LinuxWaylandSnapshotWebViewHostPeer(
     lastAppliedFrame = null
 
     installInputListeners(hostPanel)
+    hostPanel.isFocusable = true
+    hostPanel.focusTraversalKeysEnabled = false
 
     scheduleFrameUpdate(host)
     facade.setHidden(false)
@@ -50,6 +53,10 @@ internal class LinuxWaylandSnapshotWebViewHostPeer(
       host.removeMouseWheelListener(wheelListener)
     }
     wheelListener = null
+    keyDispatcher?.let {
+      java.awt.KeyboardFocusManager.getCurrentKeyboardFocusManager().removeKeyEventDispatcher(it)
+    }
+    keyDispatcher = null
     snapshotHost?.clearSnapshotImage()
     snapshotHost = null
     facade.setSnapshotHandler(null)
@@ -144,6 +151,27 @@ internal class LinuxWaylandSnapshotWebViewHostPeer(
     }
     wheelListener = wheelAdapter
     host.addMouseWheelListener(wheelAdapter)
+
+    val keyDispatcher = java.awt.KeyEventDispatcher { event ->
+      if (event.component !== host && !javax.swing.SwingUtilities.isDescendingFrom(event.component, host)) {
+        return@KeyEventDispatcher false
+      }
+      val keyval = AwtToGtkKeyMap.gdkKeyval(event.keyCode, event.keyChar)
+      if (keyval == 0) return@KeyEventDispatcher false
+      val isPress = when (event.id) {
+        java.awt.event.KeyEvent.KEY_PRESSED -> true
+        java.awt.event.KeyEvent.KEY_RELEASED -> false
+        else -> return@KeyEventDispatcher false
+      }
+      facade.dispatchKey(
+        keyval = keyval,
+        modifierState = awtModifiersToGdk(event.modifiersEx),
+        isPress = isPress,
+      )
+      true
+    }
+    this.keyDispatcher = keyDispatcher
+    java.awt.KeyboardFocusManager.getCurrentKeyboardFocusManager().addKeyEventDispatcher(keyDispatcher)
   }
 
   private fun awtButtonToGdk(awtButton: Int): Int = when (awtButton) {

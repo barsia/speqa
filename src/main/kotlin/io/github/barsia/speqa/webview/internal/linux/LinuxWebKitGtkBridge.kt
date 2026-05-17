@@ -92,6 +92,9 @@ internal object LinuxWebKitGtkBridge {
   )
 
   @JvmStatic
+  private external fun dispatchKeyNative(handle: Long, keyval: Int, state: Int, isPress: Boolean)
+
+  @JvmStatic
   private external fun loadUrlNative(handle: Long, url: String)
 
   @JvmStatic
@@ -122,6 +125,9 @@ internal object LinuxWebKitGtkBridge {
 
   fun dispatchMouseScroll(handle: Long, x: Double, y: Double, deltaX: Double, deltaY: Double, state: Int) =
     dispatchMouseScrollNative(handle, x, y, deltaX, deltaY, state)
+
+  fun dispatchKey(handle: Long, keyval: Int, state: Int, isPress: Boolean) =
+    dispatchKeyNative(handle, keyval, state, isPress)
 
   fun loadUrl(handle: Long, url: String) = loadUrlNative(handle, url)
   fun loadHtml(handle: Long, html: String, baseUrl: String?) = loadHtmlNative(handle, html, baseUrl)

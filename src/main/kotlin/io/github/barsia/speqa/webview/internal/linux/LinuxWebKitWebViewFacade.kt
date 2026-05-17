@@ -249,6 +249,12 @@ internal class LinuxWebKitWebViewFacade(
     runOnEdt { LinuxWebKitGtkBridge.dispatchMouseScroll(handle, x, y, deltaX, deltaY, modifierState) }
   }
 
+  internal fun dispatchKey(keyval: Int, modifierState: Int, isPress: Boolean) {
+    val handle = nativeHandle
+    if (handle == 0L || this.state.get() != State.Active) return
+    runOnEdt { LinuxWebKitGtkBridge.dispatchKey(handle, keyval, modifierState, isPress) }
+  }
+
   override fun loadUrl(url: String) {
     val load = PendingLoad.Url(url)
     pendingLoad = load

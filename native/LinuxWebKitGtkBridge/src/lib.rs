@@ -848,6 +848,27 @@ pub extern "system" fn Java_io_github_barsia_speqa_webview_internal_linux_LinuxW
 }
 
 #[no_mangle]
+pub extern "system" fn Java_io_github_barsia_speqa_webview_internal_linux_LinuxWebKitGtkBridge_dispatchKeyNative(
+    mut env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+    keyval: jint,
+    state: jint,
+    is_press: jboolean,
+) {
+    if keyval == 0 { return; }
+    let type_ = if is_press != 0 { GDK_KEY_PRESS } else { GDK_KEY_RELEASE };
+    run_with_handle(&mut env, handle, move |native| {
+        enqueue_gtk_task(move || {
+            with_locked_view(&native, |view| {
+                dispatch_key_event(view, type_, keyval as u32, state as u32);
+            });
+            request_snapshot_later(native.clone(), 16);
+        })
+    });
+}
+
+#[no_mangle]
 pub extern "system" fn Java_io_github_barsia_speqa_webview_internal_linux_LinuxWebKitGtkBridge_loadUrlNative(
     mut env: JNIEnv<'_>,
     _class: JClass<'_>,

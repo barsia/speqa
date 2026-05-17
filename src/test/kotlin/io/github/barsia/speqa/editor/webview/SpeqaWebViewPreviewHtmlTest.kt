@@ -905,4 +905,33 @@ class SpeqaWebViewPreviewHtmlTest {
       assertTrue(html.contains("length: inner.length + prefixLength,"))
       assertTrue(html.contains("offset: inner.found ? inner.offset + prefixLength : inner.length + prefixLength,"))
   }
+
+  @Test
+  fun `omits initial-snapshot script when no snapshot supplied`() {
+    val html = SpeqaWebViewPreviewSupport.buildInlinedPreviewHtml("light")
+    assertTrue(!html.contains("id=\"speqa-initial-snapshot\""))
+  }
+
+  @Test
+  fun `embeds initial-snapshot script when snapshot supplied`() {
+    val html = SpeqaWebViewPreviewSupport.buildInlinedPreviewHtml(
+      theme = "dark",
+      initialSnapshotJson = """{"theme":"dark","title":"hello"}""",
+    )
+    assertTrue(html.contains("<script type=\"application/json\" id=\"speqa-initial-snapshot\">"))
+    assertTrue(html.contains("\"title\":\"hello\""))
+    val headEnd = html.indexOf("</head>")
+    val scriptIdx = html.indexOf("id=\"speqa-initial-snapshot\"")
+    assertTrue(scriptIdx in 0..<headEnd)
+  }
+
+  @Test
+  fun `escapes inner closing script tag inside initial snapshot json`() {
+    val html = SpeqaWebViewPreviewSupport.buildInlinedPreviewHtml(
+      theme = "light",
+      initialSnapshotJson = """{"x":"a</script>b"}""",
+    )
+    assertTrue(!html.contains("\"a</script>b\""))
+    assertTrue(html.contains("\"a<\\/script>b\""))
+  }
 }

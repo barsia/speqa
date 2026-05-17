@@ -12,6 +12,15 @@ internal object SpeqaWebViewPreviewSupport {
       .replace("<body>", "<body class=\"dark\">")
   }
 
+  private fun withInitialSnapshot(html: String, snapshotJson: String): String {
+    // Escape `</` so a literal `</script>` substring inside the JSON cannot terminate the
+    // host <script> tag. `<\/` is still valid JSON (the `\/` is a recognised escape for `/`
+    // per RFC 8259 §7) so `JSON.parse` recovers the original content byte-for-byte.
+    val safe = snapshotJson.replace("</", "<\\/")
+    val tag = "<script type=\"application/json\" id=\"speqa-initial-snapshot\">$safe</script>"
+    return html.replace("</head>", "$tag\n</head>", ignoreCase = false)
+  }
+
   /**
    * Replaces `<script src="…"></script>` for [scriptSrc] with an inline `<script>` block
    * holding [scriptBody]. Required because WKWebView's `loadHTMLString:baseURL:` does not
@@ -48,7 +57,7 @@ internal object SpeqaWebViewPreviewSupport {
    * HTML blob suitable for `WKWebView.loadHTMLString:baseURL:nil` (and the Windows / Linux
    * equivalents that share the same blob-input contract).
    */
-  fun buildInlinedPreviewHtml(theme: String): String {
+  fun buildInlinedPreviewHtml(theme: String, initialSnapshotJson: String? = null): String {
     val skeleton = readResource("$PREVIEW_RESOURCE_ROOT/index.html")
     val css = readResource("$PREVIEW_RESOURCE_ROOT/$STYLESHEET_NAME")
     val js = readResource("$PREVIEW_RESOURCE_ROOT/$SCRIPT_NAME")
@@ -56,7 +65,11 @@ internal object SpeqaWebViewPreviewSupport {
     var html = withInlinedStylesheet(skeleton, STYLESHEET_NAME, css)
     html = withInlinedScript(html, SCRIPT_NAME, js)
     html = withInlinedScript(html, HIGHLIGHT_SCRIPT_NAME, highlight)
-    return withInitialTheme(html, theme)
+    html = withInitialTheme(html, theme)
+    if (initialSnapshotJson != null) {
+      html = withInitialSnapshot(html, initialSnapshotJson)
+    }
+    return html
   }
 
   private fun readResource(path: String): String {

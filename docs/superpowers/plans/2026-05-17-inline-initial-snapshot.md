@@ -403,6 +403,22 @@ Stop. Report which step failed and what you observed (which substring appeared v
 
 ---
 
+---
+
+## Follow-up fix: seed panels with real model at construction (2026-05-17)
+
+**Problem:** After the original plan landed, users reported the steps section still shows "No steps yet" on first paint. Root cause: `loadPreviewHtml()` runs inside the panel's `init` block, when `current` is still the default empty model (`TestCase()` / `TestRun()`). The real data only arrives via the subsequent `updateFrom()` call, by which point the inline snapshot JSON is already baked into the HTML.
+
+**Fix:** Accept the initial value as a constructor parameter (with `TestCase()` / `TestRun()` default for backwards compatibility). Callers that already have the real value (`SpeqaPreviewEditor` has `parsed` initialized before the panel field; `TestRunEditor` has `current` initialized before `panel`) pass it in, so `current` is correct when `loadPreviewHtml()` runs.
+
+Files modified:
+- `SpeqaWebViewPreviewPanel` — add `initialTestCase: TestCase = TestCase()` parameter; initialize `current = initialTestCase`
+- `SpeqaPreviewEditor` — pass `initialTestCase = parsed.testCase` to the panel constructor
+- `SpeqaWebViewRunPanel` — add `initialRun: TestRun = TestRun()` parameter; initialize `current = initialRun`
+- `TestRunEditor` — pass `initialRun = current` to the panel constructor (uses runner-normalized `current`, not raw `initialRun`)
+
+The existing `updateFrom(...)` calls in `init` blocks are left intact — they remain the path for subsequent updates.
+
 ## Self-review notes
 
 - **Spec coverage**: there is no separate spec for this UX change. The fix is small and self-justifying. README documentation for the rendering model already says "snapshots pushed back into Swing at a limited refresh rate" — that statement remains correct (snapshots still flow over the bus for all edits). No README update needed.

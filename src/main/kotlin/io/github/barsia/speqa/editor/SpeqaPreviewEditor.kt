@@ -43,6 +43,7 @@ class SpeqaPreviewEditor(
     private val webViewPreviewPanel = SpeqaWebViewPreviewPanel(
         project = project,
         file = file,
+        initialTestCase = parsed.testCase,
         onPatch = { updated, op ->
             patchFromPreview(updated, op, "Speqa: Update preview")
         },

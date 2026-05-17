@@ -61,6 +61,7 @@ import javax.swing.JPanel
 internal class SpeqaWebViewRunPanel(
   private val project: Project,
   private val file: VirtualFile,
+  initialRun: TestRun = TestRun(),
   private val onPatch: (TestRun, PatchOperation) -> Unit,
   private val onPreviewTextFocusChanged: (Boolean) -> Unit = {},
   private val onPreviewScrolled: (Float) -> Unit = {},
@@ -77,7 +78,7 @@ internal class SpeqaWebViewRunPanel(
 
   private var webView: WebViewFacadeWithBus? = null
   private var host: SwingWebViewHostPanel? = null
-  private var current = TestRun()
+  private var current = initialRun
   private val scrollState = SpeqaWebViewScrollState()
   private var activeMetadataMatchesPopup: com.intellij.openapi.ui.popup.JBPopup? = null
   private var metadataFilterRequestId = 0

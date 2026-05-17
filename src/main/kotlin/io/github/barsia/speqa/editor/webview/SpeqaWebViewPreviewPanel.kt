@@ -62,6 +62,7 @@ internal fun newPreviewStep(): TestStep = SpeqaWebViewPreviewSupport.newStep()
 internal class SpeqaWebViewPreviewPanel(
   private val project: Project,
   private val file: VirtualFile,
+  initialTestCase: TestCase = TestCase(),
   private val onPatch: (TestCase, PatchOperation) -> Unit,
   private val onRun: () -> Unit,
   private val onPreviewTextFocusChanged: (Boolean) -> Unit = {},
@@ -79,7 +80,7 @@ internal class SpeqaWebViewPreviewPanel(
 
   private var webView: WebViewFacadeWithBus? = null
   private var host: SwingWebViewHostPanel? = null
-  private var current = TestCase()
+  private var current = initialTestCase
   private val scrollState = SpeqaWebViewScrollState()
   private var activeMetadataMatchesPopup: com.intellij.openapi.ui.popup.JBPopup? = null
   private var metadataFilterRequestId = 0

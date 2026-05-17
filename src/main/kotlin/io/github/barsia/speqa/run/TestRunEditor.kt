@@ -47,6 +47,7 @@ class TestRunEditor(
     private val panel = SpeqaWebViewRunPanel(
         project = project,
         file = file,
+        initialRun = current,
         onPatch = { updated, op ->
             current = updated
             patchFromPreview(updated, op)

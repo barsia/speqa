@@ -98,11 +98,15 @@ object WebViewFacadeFactory {
 
   private fun linuxBackend(): LinuxWebKitBackend {
     check(SystemInfo.isLinux) { "System WebView is supported only on Linux" }
-    return when {
+    val backend = when {
       LinuxWaylandWindowUtil.isSupportedToolkit() -> LinuxWebKitBackend.WaylandSnapshot
       LinuxX11WindowUtil.isSupportedToolkit() -> LinuxWebKitBackend.X11
       else -> error("Linux System WebView is supported only with X11 or Wayland/WLToolkit")
     }
+    com.intellij.openapi.diagnostic.Logger.getInstance("SpeqaDebug").warn(
+      "linux backend selected: $backend (wayland-toolkit=${LinuxWaylandWindowUtil.isSupportedToolkit()}, x11-toolkit=${LinuxX11WindowUtil.isSupportedToolkit()})"
+    )
+    return backend
   }
 }
 

@@ -72,12 +72,27 @@ package of `LinuxWebKitGtkBridge`: `io.github.barsia.speqa.webview.internal.linu
 A contract test (`LinuxWebKitGtkBridgeJniSymbolsTest`) guards this and also
 verifies the cfg-gated extern blocks and shim functions exist for both features.
 
-## Wayland support
+## Rendering
 
-Real overlay rendering on top of the IntelliJ window is only available on X11.
-Under Wayland the bridge falls back to a snapshot mode: the WebView renders into
-an offscreen GTK window and bitmap snapshots are pushed back into Swing at a
-limited refresh rate.
+On both X11 and Wayland the bridge renders WebKit content into an offscreen
+`GtkOffscreenWindow`, captures the resulting pixel buffer, and hands it to
+`SwingWebViewHostPanel.setSnapshotImage`, which paints it as a regular Swing
+image inside the editor.
+
+This is reliable across both display servers because the bridge never embeds
+a foreign GTK widget as an X11 child of the JBR top-level window. Embedded
+X11 children of a JBR/Swing parent do not receive proper expose / focus
+events under either GNOME / Mutter compositing or vanilla X11, and the
+WebKitGTK render output rarely reaches the X11 pixmap. The native X11
+overlay path remains in the codebase for a future re-enable but is not
+reached at runtime.
+
+Trade-offs:
+  * No GPU-accelerated scrolling — refresh runs at the snapshot cadence
+    (~30 fps when content is dirty, idle otherwise).
+  * Input events are dispatched through the GTK widget tree on the
+    offscreen window; keyboard focus and text input are handled by Swing
+    over the painted bitmap.
 
 ## CI build & glibc floor
 

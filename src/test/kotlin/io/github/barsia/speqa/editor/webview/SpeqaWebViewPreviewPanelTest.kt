@@ -101,7 +101,7 @@ class SpeqaWebViewPreviewPanelTest {
     val panelSource = source("src/main/kotlin/io/github/barsia/speqa/editor/webview/SpeqaWebViewPreviewPanel.kt")
     val inlinedHtml = SpeqaWebViewPreviewSupport.buildInlinedPreviewHtml("dark")
 
-    assertTrue(panelSource.contains("SpeqaWebViewPreviewSupport.buildInlinedPreviewHtml(currentTheme())"))
+    assertTrue(panelSource.contains("SpeqaWebViewPreviewSupport.buildInlinedPreviewHtml(currentTheme(), initialSnapshotJson)"))
     assertTrue(panelSource.contains("if (!scrollState.isReady) return"))
     assertTrue(!panelSource.contains("RENDERED_METHOD"))
     assertTrue(!inlinedHtml.contains("speqa/testCase/rendered"))

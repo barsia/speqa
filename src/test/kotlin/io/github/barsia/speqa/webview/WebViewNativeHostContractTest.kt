@@ -6,13 +6,9 @@ import org.junit.Test
 
 class WebViewNativeHostContractTest {
   @Test
-  fun `factory keeps system webview backends explicit and does not route through JBCef`() {
+  fun `factory exposes per-platform with-bus constructors and SpeqaWebViewPreviewPanel routes by SystemInfo`() {
     val factory = source("src/main/kotlin/io/github/barsia/speqa/webview/WebViewFacadeFactory.kt")
     val previewPanel = source("src/main/kotlin/io/github/barsia/speqa/editor/webview/SpeqaWebViewPreviewPanel.kt")
-    val webviewSources = File(System.getProperty("user.dir"), "src/main/kotlin/io/github/barsia/speqa/webview")
-      .walkTopDown()
-      .filter { it.isFile && it.extension == "kt" }
-      .joinToString("\n") { it.readText() }
 
     assertTrue(previewPanel.contains("SystemInfo.isMac -> WebViewFacadeFactory.createMacOsFacadeWithBus(scope)"))
     assertTrue(previewPanel.contains("SystemInfo.isWindows -> WebViewFacadeFactory.createWindowsFacadeWithBus(scope)"))
@@ -20,7 +16,6 @@ class WebViewNativeHostContractTest {
     assertTrue(factory.contains("fun createMacOsFacadeWithBus(scope: CoroutineScope): WebViewFacadeWithBus"))
     assertTrue(factory.contains("fun createWindowsFacadeWithBus(scope: CoroutineScope): WebViewFacadeWithBus"))
     assertTrue(factory.contains("fun createLinuxFacadeWithBus(scope: CoroutineScope): WebViewFacadeWithBus"))
-    assertTrue(!webviewSources.contains("JBCef"))
   }
 
   @Test
@@ -64,15 +59,18 @@ class WebViewNativeHostContractTest {
   }
 
   @Test
-  fun `linux wayland host uses offscreen snapshots and clears the handler on detach`() {
-    val source = source("src/main/kotlin/io/github/barsia/speqa/webview/internal/linux/LinuxWaylandSnapshotWebViewHostPeer.kt")
+  fun `linux host uses JCEF browser embedded as a Swing child of the host panel`() {
+    val peer = source("src/main/kotlin/io/github/barsia/speqa/webview/internal/linux/LinuxJcefWebViewHostPeer.kt")
+    val facade = source("src/main/kotlin/io/github/barsia/speqa/webview/internal/linux/JcefWebViewFacade.kt")
+    val factory = source("src/main/kotlin/io/github/barsia/speqa/webview/WebViewFacadeFactory.kt")
 
-    assertTrue(source.contains("facade.setSnapshotHandler { width, height, pixels ->"))
-    assertTrue(source.contains("hostPanel.setSnapshotImage(width, height, pixels)"))
-    assertTrue(source.contains("facade.attachOffscreen()"))
-    assertTrue(source.contains("snapshotHost?.clearSnapshotImage()"))
-    assertTrue(source.contains("facade.setSnapshotHandler(null)"))
-    assertTrue(source.contains("facade.detach()"))
+    assertTrue(facade.contains("import com.intellij.ui.jcef.JBCefBrowser"))
+    assertTrue(facade.contains("import com.intellij.ui.jcef.JBCefJSQuery"))
+    assertTrue(facade.contains("window.__KWRY__"))
+    assertTrue(peer.contains("container.add(component, BorderLayout.CENTER)"))
+    assertTrue(peer.contains("container.remove(component)"))
+    assertTrue(factory.contains("JBCefApp.isSupported()"))
+    assertTrue(factory.contains("createJcefWebViewFacade(scope)"))
   }
 
   @Test

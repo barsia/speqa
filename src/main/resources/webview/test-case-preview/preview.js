@@ -3594,5 +3594,18 @@ window.__KWRY__.subscribe(methods.snapshot, function(snapshot) {
 window.__KWRY__.subscribe(methods.scrollToFraction, scrollToFraction);
 window.__KWRY__.subscribe(methods.pastePreviewText, pastePreviewText);
 window.addEventListener("DOMContentLoaded", function() {
+  // If Kotlin embedded an initial snapshot in <head>, render it synchronously so the user
+  // sees the test case immediately instead of a 1-second "loading" state while waiting for
+  // the ready → snapshot round-trip. The ready notify still fires after — Kotlin uses it to
+  // wire up the bus for subsequent edits, scroll restore, theme changes, etc.
+  var initialScript = document.getElementById("speqa-initial-snapshot");
+  if (initialScript) {
+    try {
+      render(JSON.parse(initialScript.textContent));
+    } catch (e) {
+      // Parse failures fall through to the handshake path — Kotlin will publish a fresh
+      // snapshot after ready, producing an identical render to what we would have done.
+    }
+  }
   window.__KWRY__.notify(methods.ready);
 });

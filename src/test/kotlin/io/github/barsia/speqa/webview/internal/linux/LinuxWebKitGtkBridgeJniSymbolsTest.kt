@@ -37,4 +37,46 @@ class LinuxWebKitGtkBridgeJniSymbolsTest {
       !source.contains("Java_com_intellij_ui_webview_internal_linux_"),
     )
   }
+
+  @Test
+  fun `lib_rs declares both webkit40 and webkit41 cfg-gated JS-eval shims`() {
+    val source = File(System.getProperty("user.dir"), "native/LinuxWebKitGtkBridge/src/lib.rs").readText()
+    assertTrue(
+      "lib.rs must declare js_eval_async / js_eval_finish shims",
+      source.contains("fn js_eval_async") && source.contains("fn js_eval_finish"),
+    )
+    assertTrue(
+      "lib.rs must gate code on the webkit41 feature",
+      source.contains("#[cfg(feature = \"webkit41\")]"),
+    )
+    assertTrue(
+      "lib.rs must gate code on the webkit40 feature",
+      source.contains("#[cfg(feature = \"webkit40\")]"),
+    )
+    // 4.0-only symbol (run_javascript_finish is unambiguous — not a substring of any 4.1 symbol).
+    assertTrue(
+      "lib.rs must reference webkit_web_view_run_javascript_finish under the webkit40 cfg",
+      source.contains("webkit_web_view_run_javascript_finish"),
+    )
+    // 4.0-only symbol for releasing the boxed result.
+    assertTrue(
+      "lib.rs must declare webkit_javascript_result_unref for the webkit40 path",
+      source.contains("webkit_javascript_result_unref"),
+    )
+    // 4.1-only symbol (evaluate_javascript_finish — distinct identifier from any 4.0 symbol).
+    assertTrue(
+      "lib.rs must reference webkit_web_view_evaluate_javascript_finish under the webkit41 cfg",
+      source.contains("webkit_web_view_evaluate_javascript_finish"),
+    )
+    // Defensive: make sure both cfg-gated extern blocks exist (so the symbol checks above
+    // can't be satisfied by the symbols leaking into the shared extern "C" block).
+    assertTrue(
+      "lib.rs must have a separate #[cfg(feature = \"webkit41\")] extern block",
+      source.contains("#[cfg(feature = \"webkit41\")]\nextern \"C\""),
+    )
+    assertTrue(
+      "lib.rs must have a separate #[cfg(feature = \"webkit40\")] extern block",
+      source.contains("#[cfg(feature = \"webkit40\")]\nextern \"C\""),
+    )
+  }
 }

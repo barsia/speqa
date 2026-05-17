@@ -10,11 +10,12 @@ internal object NativeLibraryLoader {
   fun findBundledLibrary(
     candidateFileNames: List<String>,
     resourceDirectory: String,
-    ownerClass: Class<*>,
+    ownerClass: Class<*>? = null,
+    classLoader: ClassLoader = ownerClass?.classLoader ?: NativeLibraryLoader::class.java.classLoader,
   ): Path? {
     for (fileName in candidateFileNames) {
       val resourcePath = "$resourceDirectory/$fileName"
-      val resource = ownerClass.classLoader.getResource(resourcePath) ?: continue
+      val resource = classLoader.getResource(resourcePath) ?: continue
       if (resource.protocol == "file") {
         runCatching { Path.of(resource.toURI()) }
           .getOrNull()
@@ -22,7 +23,7 @@ internal object NativeLibraryLoader {
           ?.let { return it }
       }
 
-      val extracted = extractResource(resourcePath, fileName, ownerClass) ?: continue
+      val extracted = extractResource(resourcePath, fileName, classLoader) ?: continue
       if (Files.isRegularFile(extracted)) return extracted
     }
     return null
@@ -32,8 +33,8 @@ internal object NativeLibraryLoader {
     return candidateFileNames.map { "$resourceDirectory/$it" }
   }
 
-  private fun extractResource(resourcePath: String, fileName: String, ownerClass: Class<*>): Path? {
-    val bytes = ownerClass.classLoader.getResourceAsStream(resourcePath)?.use { it.readBytes() } ?: return null
+  private fun extractResource(resourcePath: String, fileName: String, classLoader: ClassLoader): Path? {
+    val bytes = classLoader.getResourceAsStream(resourcePath)?.use { it.readBytes() } ?: return null
     val targetDir = Path.of(PathManager.getTempPath()).resolve("speqa-webview-native")
     Files.createDirectories(targetDir)
     val prefix = fileName.substringBeforeLast('.', fileName)

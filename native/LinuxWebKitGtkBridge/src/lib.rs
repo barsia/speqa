@@ -3,6 +3,12 @@
 #![cfg(target_os = "linux")]
 #![allow(non_camel_case_types)]
 
+#[cfg(all(feature = "webkit40", feature = "webkit41"))]
+compile_error!("Enable exactly one of the `webkit40` / `webkit41` cargo features, not both.");
+
+#[cfg(not(any(feature = "webkit40", feature = "webkit41")))]
+compile_error!("Enable exactly one of the `webkit40` / `webkit41` cargo features.");
+
 use std::{
     env,
     ffi::{c_char, c_int, c_uint, c_ulong, c_void, CStr, CString},
@@ -195,21 +201,6 @@ extern "C" {
         base_uri: *const c_char,
     );
     fn webkit_web_view_load_uri(web_view: *mut WebKitWebView, uri: *const c_char);
-    fn webkit_web_view_evaluate_javascript(
-        web_view: *mut WebKitWebView,
-        script: *const c_char,
-        length: gssize,
-        world_name: *const c_char,
-        source_uri: *const c_char,
-        cancellable: *mut GCancellable,
-        callback: GAsyncReadyCallback,
-        user_data: gpointer,
-    );
-    fn webkit_web_view_evaluate_javascript_finish(
-        web_view: *mut WebKitWebView,
-        result: *mut GAsyncResult,
-        error: *mut *mut GError,
-    ) -> *mut JSCValue;
     fn webkit_web_view_get_snapshot(
         web_view: *mut WebKitWebView,
         region: gint,
@@ -282,6 +273,102 @@ extern "C" {
         y: c_int,
     ) -> c_int;
     fn XSetInputFocus(display: gpointer, focus: c_ulong, revert_to: c_int, time: c_ulong) -> c_int;
+}
+
+#[cfg(feature = "webkit41")]
+extern "C" {
+    fn webkit_web_view_evaluate_javascript(
+        web_view: *mut WebKitWebView,
+        script: *const c_char,
+        length: gssize,
+        world_name: *const c_char,
+        source_uri: *const c_char,
+        cancellable: *mut GCancellable,
+        callback: GAsyncReadyCallback,
+        user_data: gpointer,
+    );
+    fn webkit_web_view_evaluate_javascript_finish(
+        web_view: *mut WebKitWebView,
+        result: *mut GAsyncResult,
+        error: *mut *mut GError,
+    ) -> *mut JSCValue;
+}
+
+#[cfg(feature = "webkit40")]
+extern "C" {
+    fn webkit_web_view_run_javascript(
+        web_view: *mut WebKitWebView,
+        script: *const c_char,
+        cancellable: *mut GCancellable,
+        callback: GAsyncReadyCallback,
+        user_data: gpointer,
+    );
+    fn webkit_web_view_run_javascript_finish(
+        web_view: *mut WebKitWebView,
+        result: *mut GAsyncResult,
+        error: *mut *mut GError,
+    ) -> *mut WebKitJavascriptResult;
+    fn webkit_javascript_result_unref(result: *mut WebKitJavascriptResult);
+}
+
+#[cfg(feature = "webkit41")]
+unsafe fn js_eval_async(
+    view: *mut WebKitWebView,
+    script: *const c_char,
+    cancellable: *mut GCancellable,
+    cb: GAsyncReadyCallback,
+    user_data: gpointer,
+) {
+    webkit_web_view_evaluate_javascript(
+        view,
+        script,
+        -1,
+        ptr::null(),
+        ptr::null(),
+        cancellable,
+        cb,
+        user_data,
+    );
+}
+
+#[cfg(feature = "webkit40")]
+unsafe fn js_eval_async(
+    view: *mut WebKitWebView,
+    script: *const c_char,
+    cancellable: *mut GCancellable,
+    cb: GAsyncReadyCallback,
+    user_data: gpointer,
+) {
+    webkit_web_view_run_javascript(view, script, cancellable, cb, user_data);
+}
+
+#[cfg(feature = "webkit41")]
+unsafe fn js_eval_finish(
+    view: *mut WebKitWebView,
+    result: *mut GAsyncResult,
+    error: *mut *mut GError,
+) -> *mut JSCValue {
+    webkit_web_view_evaluate_javascript_finish(view, result, error)
+}
+
+#[cfg(feature = "webkit40")]
+unsafe fn js_eval_finish(
+    view: *mut WebKitWebView,
+    result: *mut GAsyncResult,
+    error: *mut *mut GError,
+) -> *mut JSCValue {
+    let js_result = webkit_web_view_run_javascript_finish(view, result, error);
+    if js_result.is_null() {
+        return ptr::null_mut();
+    }
+    let value = webkit_javascript_result_get_js_value(js_result);
+    // get_js_value returns a (transfer none) JSCValue (a GObject) — ref it so it
+    // outlives the boxed WebKitJavascriptResult we're about to release.
+    if !value.is_null() {
+        g_object_ref(value as gpointer);
+    }
+    webkit_javascript_result_unref(js_result);
+    value
 }
 
 struct JavaCallbacks {
@@ -1102,12 +1189,9 @@ fn evaluate_javascript(native: GtkNative, eval_id: jlong, script: String) {
     };
     let request = Box::new(EvalRequest { native, eval_id });
     unsafe {
-        webkit_web_view_evaluate_javascript(
+        js_eval_async(
             webview as *mut WebKitWebView,
             script.as_ptr(),
-            -1,
-            ptr::null(),
-            ptr::null(),
             ptr::null_mut(),
             Some(evaluate_javascript_finished),
             Box::into_raw(request) as gpointer,
@@ -1124,12 +1208,9 @@ fn evaluate_javascript_ignoring_result(native: GtkNative, script: String) {
         return;
     };
     unsafe {
-        webkit_web_view_evaluate_javascript(
+        js_eval_async(
             webview as *mut WebKitWebView,
             script.as_ptr(),
-            -1,
-            ptr::null(),
-            ptr::null(),
             ptr::null_mut(),
             None,
             ptr::null_mut(),
@@ -1149,7 +1230,7 @@ unsafe extern "C" fn evaluate_javascript_finished(
 ) {
     let request = Box::from_raw(user_data as *mut EvalRequest);
     let mut error: *mut GError = ptr::null_mut();
-    let value = webkit_web_view_evaluate_javascript_finish(
+    let value = js_eval_finish(
         source_object as *mut WebKitWebView,
         result,
         &mut error,

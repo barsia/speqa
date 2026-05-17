@@ -9,17 +9,29 @@ import org.jetbrains.annotations.ApiStatus
 import java.nio.file.Files
 import java.nio.file.Path
 
+private val candidateFileNames = listOf(
+  "libLinuxWebKitGtkBridge.so",
+  "liblinux_webkitgtk_bridge.so",
+)
+
+internal fun findBundledLibraryForRuntime(
+  runtime: LinuxWebKitGtkRuntime,
+  classLoader: ClassLoader = LinuxWebKitGtkBridge::class.java.classLoader,
+): Path? = NativeLibraryLoader.findBundledLibrary(
+  candidateFileNames = candidateFileNames,
+  resourceDirectory = runtime.bundleSubdir,
+  classLoader = classLoader,
+)
+
 @ApiStatus.Internal
 internal object LinuxWebKitGtkBridge {
-  private val candidateFileNames = listOf(
-    "libLinuxWebKitGtkBridge.so",
-    "liblinux_webkitgtk_bridge.so",
-  )
   private val sourceRootMarkers = listOf(
     ".ultimate.root.marker",
     "intellij.idea.community.main.iml",
     "settings.gradle.kts",
   )
+
+  private val runtimeProbe: LinuxWebKitGtkRuntimeProbe = LdconfigLinuxWebKitGtkRuntimeProbe()
 
   init {
     if (SystemInfo.isLinux) {
@@ -81,28 +93,35 @@ internal object LinuxWebKitGtkBridge {
   fun shutdownRuntimeForTests() = shutdownRuntimeNative()
 
   private fun loadNativeLibrary() {
-    val libraryPath = findNativeLibrary()
-                      ?: error("Linux WebKitGTK bridge library is missing. Checked: ${candidateDescriptions().joinToString()}")
-    WebViewLogger.logLifecycle("linux-webkitgtk-load", libraryPath.toString())
+    val runtime = LinuxWebKitGtkRuntime.selectPreferred { runtimeProbe.isInstalled(it) }
+                  ?: throw LinuxWebKitGtkMissingException(
+                    "WebKitGTK runtime not found. Install libwebkit2gtk-4.1-0 (Ubuntu 22.04+) or libwebkit2gtk-4.0-37 (Ubuntu 20.04 / Debian 11).",
+                  )
+
+    WebViewLogger.logLifecycle("linux-webkitgtk-runtime-selected", runtime.name)
+
+    val libraryPath = findNativeLibrary(runtime)
+                      ?: error("Linux WebKitGTK bridge library is missing for ${runtime.name}. Checked: ${candidateDescriptions(runtime).joinToString()}")
+    WebViewLogger.logLifecycle("linux-webkitgtk-load", "${runtime.name}: $libraryPath")
     try {
       System.load(libraryPath.toString())
     }
     catch (e: UnsatisfiedLinkError) {
       throw IllegalStateException(
-        "Failed to load Linux WebKitGTK bridge. The Linux WebView backend requires GTK3 and WebKitGTK 4.1 runtime libraries.",
+        "Failed to load Linux WebKitGTK bridge (${runtime.name}). Soname expected on this host: ${runtime.soname}.",
         e,
       )
     }
   }
 
-  private fun findNativeLibrary(): Path? {
+  private fun findNativeLibrary(runtime: LinuxWebKitGtkRuntime): Path? {
     for (fileName in candidateFileNames) {
       PathManager.findBinFile(fileName)?.let { return it }
     }
 
-    NativeLibraryLoader.findBundledLibrary(candidateFileNames, "native/linux", javaClass)?.let { return it }
+    findBundledLibraryForRuntime(runtime)?.let { return it }
 
-    for (root in nativeLibraryTargetRoots()) {
+    for (root in nativeLibraryTargetRoots(runtime)) {
       for (fileName in candidateFileNames) {
         val candidate = root.resolve(fileName)
         if (Files.isRegularFile(candidate)) return candidate
@@ -111,15 +130,19 @@ internal object LinuxWebKitGtkBridge {
     return null
   }
 
-  private fun candidateDescriptions(): List<String> {
+  private fun candidateDescriptions(runtime: LinuxWebKitGtkRuntime): List<String> {
     return candidateFileNames.map { "bin/$it" } +
-           NativeLibraryLoader.bundledResourceDescriptions(candidateFileNames, "native/linux") +
-           nativeLibraryTargetRoots().flatMap { root ->
+           NativeLibraryLoader.bundledResourceDescriptions(candidateFileNames, runtime.bundleSubdir) +
+           nativeLibraryTargetRoots(runtime).flatMap { root ->
              candidateFileNames.map { root.resolve(it).toString() }
            }
   }
 
-  private fun nativeLibraryTargetRoots(): List<Path> {
+  private fun nativeLibraryTargetRoots(runtime: LinuxWebKitGtkRuntime): List<Path> {
+    val featureDir = when (runtime) {
+      LinuxWebKitGtkRuntime.Wk41 -> "target-wk41"
+      LinuxWebKitGtkRuntime.Wk40 -> "target-wk40"
+    }
     val roots = buildList {
       add(Path.of(PathManager.getHomePath()))
       add(Path.of(System.getProperty("user.dir")))
@@ -131,10 +154,10 @@ internal object LinuxWebKitGtkBridge {
       .distinct()
       .flatMap { root ->
         sequenceOf(
-          root.resolve("native/LinuxWebKitGtkBridge/target/debug"),
-          root.resolve("plugins/speqa/native/LinuxWebKitGtkBridge/target/debug"),
-          root.resolve("native/LinuxWebKitGtkBridge/target/release"),
-          root.resolve("plugins/speqa/native/LinuxWebKitGtkBridge/target/release"),
+          root.resolve("native/LinuxWebKitGtkBridge/$featureDir/debug"),
+          root.resolve("plugins/speqa/native/LinuxWebKitGtkBridge/$featureDir/debug"),
+          root.resolve("native/LinuxWebKitGtkBridge/$featureDir/release"),
+          root.resolve("plugins/speqa/native/LinuxWebKitGtkBridge/$featureDir/release"),
         )
       }
       .distinct()
@@ -162,3 +185,6 @@ internal object LinuxWebKitGtkBridge {
     fun onLog(level: Int, message: String)
   }
 }
+
+@ApiStatus.Internal
+internal class LinuxWebKitGtkMissingException(message: String) : RuntimeException(message)

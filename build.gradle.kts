@@ -136,7 +136,8 @@ tasks {
     }
 
     val linuxBridgeDir = layout.projectDirectory.dir("native/LinuxWebKitGtkBridge")
-    val linuxBridgeSo = linuxBridgeDir.dir("target/release").file("liblinux_webkitgtk_bridge.so")
+    val linuxBridgeSo41 = linuxBridgeDir.dir("target-wk41/release").file("liblinux_webkitgtk_bridge.so")
+    val linuxBridgeSo40 = linuxBridgeDir.dir("target-wk40/release").file("liblinux_webkitgtk_bridge.so")
 
     fun pkgConfigHas(pkg: String): Boolean {
         return try {
@@ -149,49 +150,69 @@ tasks {
         }
     }
 
-    val buildLinuxWebKitGtkBridge by registering(Exec::class) {
+    fun registerLinuxBridgeBuild(
+        suffix: String,
+        feature: String,
+        pkg: String,
+        outputSo: org.gradle.api.file.RegularFile,
+    ) = registering(Exec::class) {
         group = "speqa native"
-        description = "Compile the Linux WebKitGTK bridge .so via cargo (Linux only)."
+        description = "Compile the Linux WebKitGTK bridge .so against $pkg (cargo feature $feature)."
         onlyIf {
             if (skipNativeBuild.get()) {
-                logger.lifecycle("Skipping buildLinuxWebKitGtkBridge: -PskipNativeBuild=true")
+                logger.lifecycle("Skipping buildLinuxWebKitGtkBridge$suffix: -PskipNativeBuild=true")
                 return@onlyIf false
             }
             if (!isLinuxHost) return@onlyIf false
             if (!linuxBridgeDir.file("Cargo.toml").asFile.isFile) {
-                logger.lifecycle("Skipping buildLinuxWebKitGtkBridge: native/LinuxWebKitGtkBridge/Cargo.toml is missing")
+                logger.lifecycle("Skipping buildLinuxWebKitGtkBridge$suffix: native/LinuxWebKitGtkBridge/Cargo.toml is missing")
                 return@onlyIf false
             }
             if (!cargoOnPath()) {
-                logger.lifecycle("Skipping buildLinuxWebKitGtkBridge: 'cargo' not on PATH (install Rust via https://rustup.rs/)")
+                logger.lifecycle("Skipping buildLinuxWebKitGtkBridge$suffix: 'cargo' not on PATH (install Rust via https://rustup.rs/ to enable the native bridge build)")
                 return@onlyIf false
             }
-            for (pkg in listOf("webkit2gtk-4.1", "gtk+-x11-3.0", "x11")) {
-                if (!pkgConfigHas(pkg)) {
-                    logger.lifecycle("Skipping buildLinuxWebKitGtkBridge: pkg-config cannot find '$pkg' (install libwebkit2gtk-4.1-dev, libgtk-3-dev, libx11-dev)")
+            for (p in listOf(pkg, "gtk+-x11-3.0", "x11")) {
+                if (!pkgConfigHas(p)) {
+                    logger.lifecycle("Skipping buildLinuxWebKitGtkBridge$suffix: pkg-config cannot find '$p' (install libwebkit2gtk-4.1-dev / libwebkit2gtk-4.0-dev, libgtk-3-dev, libx11-dev)")
                     return@onlyIf false
                 }
             }
             true
         }
         workingDir = linuxBridgeDir.asFile
-        commandLine("cargo", "build", "--release")
+        commandLine(
+            "cargo", "build", "--release",
+            "--no-default-features",
+            "--features", feature,
+            "--target-dir", "target-wk$suffix",
+        )
         inputs.file(linuxBridgeDir.file("Cargo.toml"))
         inputs.file(linuxBridgeDir.file("Cargo.lock"))
         inputs.file(linuxBridgeDir.file("build.rs"))
         inputs.dir(linuxBridgeDir.dir("src"))
-        outputs.file(linuxBridgeSo)
+        outputs.file(outputSo)
     }
+
+    val buildLinuxWebKitGtkBridge41 by registerLinuxBridgeBuild("41", "webkit41", "webkit2gtk-4.1", linuxBridgeSo41)
+    val buildLinuxWebKitGtkBridge40 by registerLinuxBridgeBuild("40", "webkit40", "webkit2gtk-4.0", linuxBridgeSo40)
 
     processResources {
         if (isWindowsHost) dependsOn(buildWinWebView2Bridge)
-        if (isLinuxHost) dependsOn(buildLinuxWebKitGtkBridge)
+        if (isLinuxHost) {
+            dependsOn(buildLinuxWebKitGtkBridge41)
+            dependsOn(buildLinuxWebKitGtkBridge40)
+        }
         from(winBridgeDll.asFile) {
             into("native/windows")
             rename { "WinWebView2Bridge.dll" }
         }
-        from(linuxBridgeSo.asFile) {
-            into("native/linux")
+        from(linuxBridgeSo41.asFile) {
+            into("native/linux/wk41")
+            rename { "libLinuxWebKitGtkBridge.so" }
+        }
+        from(linuxBridgeSo40.asFile) {
+            into("native/linux/wk40")
             rename { "libLinuxWebKitGtkBridge.so" }
         }
     }

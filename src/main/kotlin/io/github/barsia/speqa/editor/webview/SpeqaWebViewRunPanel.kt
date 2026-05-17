@@ -586,7 +586,7 @@ internal class SpeqaWebViewRunPanel(
     // producing an unexpected backdrop behind the failure message.
     root.isOpaque = true
     root.add(
-      JBLabel("SpeQA WebView preview is unavailable: ${t.message ?: t.javaClass.simpleName}").apply {
+      JBLabel("SpeQA WebView preview is unavailable: ${rootFailureMessage(t)}").apply {
         border = JBUI.Borders.empty(12)
       },
       BorderLayout.NORTH,

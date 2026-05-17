@@ -9,5 +9,10 @@ build = "build.rs"
 name = "linux_webkitgtk_bridge"
 crate-type = ["cdylib"]
 
+[features]
+default = ["webkit41"]
+webkit41 = []
+webkit40 = []
+
 [dependencies]
 jni = "0.21.1"

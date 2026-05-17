@@ -29,89 +29,10 @@ jobs:
           path: native/WinWebView2Bridge/target/release/win_webview2_bridge.dll
           if-no-files-found: error
 
-  build-linux-so:
-    name: Build Linux .so (webkit40 + webkit41, zigbuild)
-    runs-on: ubuntu-22.04
-    env:
-      WK40_GLIBC_FLOOR: "2.28"
-      WK41_GLIBC_FLOOR: "2.35"
-    steps:
-      - uses: actions/checkout@v6
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            pkg-config \
-            libwebkit2gtk-4.1-dev \
-            libwebkit2gtk-4.0-dev \
-            libgtk-3-dev \
-            libx11-dev \
-            build-essential \
-            binutils
-      - name: Install Rust (GNU) + zigbuild
-        run: |
-          rustup default stable-x86_64-unknown-linux-gnu
-          rustup target add x86_64-unknown-linux-gnu
-          pip install --user cargo-zigbuild ziglang
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-          rustc --version
-          cargo --version
-          "$HOME/.local/bin/cargo-zigbuild" --version
-      - name: Build liblinux_webkitgtk_bridge.so (webkit41, glibc>=${{ env.WK41_GLIBC_FLOOR }})
-        working-directory: native/LinuxWebKitGtkBridge
-        run: |
-          cargo zigbuild --release --no-default-features --features webkit41 \
-            --target "x86_64-unknown-linux-gnu.${WK41_GLIBC_FLOOR}" \
-            --target-dir target-wk41
-          mkdir -p target-wk41/release
-          cp target-wk41/x86_64-unknown-linux-gnu/release/liblinux_webkitgtk_bridge.so \
-             target-wk41/release/liblinux_webkitgtk_bridge.so
-      - name: Build liblinux_webkitgtk_bridge.so (webkit40, glibc>=${{ env.WK40_GLIBC_FLOOR }})
-        working-directory: native/LinuxWebKitGtkBridge
-        run: |
-          cargo zigbuild --release --no-default-features --features webkit40 \
-            --target "x86_64-unknown-linux-gnu.${WK40_GLIBC_FLOOR}" \
-            --target-dir target-wk40
-          mkdir -p target-wk40/release
-          cp target-wk40/x86_64-unknown-linux-gnu/release/liblinux_webkitgtk_bridge.so \
-             target-wk40/release/liblinux_webkitgtk_bridge.so
-      - name: Verify glibc floor — wk41 must not reference symbols above ${{ env.WK41_GLIBC_FLOOR }}
-        working-directory: native/LinuxWebKitGtkBridge
-        run: |
-          SO=target-wk41/release/liblinux_webkitgtk_bridge.so
-          MAX=$(objdump -T "$SO" | awk '{for (i=1;i<=NF;i++) if ($i ~ /^GLIBC_[0-9]/) print $i}' | sed 's/^GLIBC_//' | sort -V | tail -1)
-          echo "wk41 max GLIBC symbol: ${MAX:-<none>} (floor ${WK41_GLIBC_FLOOR})"
-          if [ -z "$MAX" ]; then exit 0; fi
-          HIGHEST=$(printf '%s\n%s\n' "$MAX" "$WK41_GLIBC_FLOOR" | sort -V | tail -1)
-          if [ "$HIGHEST" != "$WK41_GLIBC_FLOOR" ]; then
-            echo "::error::wk41 requires GLIBC_$MAX, exceeds declared floor GLIBC_${WK41_GLIBC_FLOOR}"
-            exit 1
-          fi
-      - name: Verify glibc floor — wk40 must not reference symbols above ${{ env.WK40_GLIBC_FLOOR }}
-        working-directory: native/LinuxWebKitGtkBridge
-        run: |
-          SO=target-wk40/release/liblinux_webkitgtk_bridge.so
-          MAX=$(objdump -T "$SO" | awk '{for (i=1;i<=NF;i++) if ($i ~ /^GLIBC_[0-9]/) print $i}' | sed 's/^GLIBC_//' | sort -V | tail -1)
-          echo "wk40 max GLIBC symbol: ${MAX:-<none>} (floor ${WK40_GLIBC_FLOOR})"
-          if [ -z "$MAX" ]; then exit 0; fi
-          HIGHEST=$(printf '%s\n%s\n' "$MAX" "$WK40_GLIBC_FLOOR" | sort -V | tail -1)
-          if [ "$HIGHEST" != "$WK40_GLIBC_FLOOR" ]; then
-            echo "::error::wk40 requires GLIBC_$MAX, exceeds declared floor GLIBC_${WK40_GLIBC_FLOOR}"
-            exit 1
-          fi
-      - name: Upload .so artifacts
-        uses: actions/upload-artifact@v7
-        with:
-          name: linux-native
-          path: |
-            native/LinuxWebKitGtkBridge/target-wk41/release/liblinux_webkitgtk_bridge.so
-            native/LinuxWebKitGtkBridge/target-wk40/release/liblinux_webkitgtk_bridge.so
-          if-no-files-found: error
-
   package:
     name: Package plugin ZIP
     runs-on: ubuntu-latest
-    needs: [build-windows-dll, build-linux-so]
+    needs: [build-windows-dll]
     permissions:
       contents: write
     steps:
@@ -126,16 +47,9 @@ jobs:
         with:
           name: windows-native
           path: native/WinWebView2Bridge/target/release/
-      - name: Download Linux .so
-        uses: actions/download-artifact@v8
-        with:
-          name: linux-native
-          path: native/LinuxWebKitGtkBridge/
       - name: List staged native artifacts
         run: |
           ls -lah native/WinWebView2Bridge/target/release/
-          ls -lah native/LinuxWebKitGtkBridge/target-wk41/release/
-          ls -lah native/LinuxWebKitGtkBridge/target-wk40/release/
       - name: Compute plugin version and canonical tag
         id: version
         run: |
@@ -167,8 +81,6 @@ jobs:
           TMP=$(mktemp -d)
           unzip -p "$ZIP" "$PLUGIN_JAR" > "$TMP/plugin.jar"
           unzip -l "$TMP/plugin.jar" | grep -E "native/windows/WinWebView2Bridge\.dll" || (echo "Windows bridge not packaged under native/windows/ in $PLUGIN_JAR" && unzip -l "$TMP/plugin.jar" | grep -i native && exit 1)
-          unzip -l "$TMP/plugin.jar" | grep -E "native/linux/wk41/libLinuxWebKitGtkBridge\.so" || (echo "WebKitGTK 4.1 variant not packaged at native/linux/wk41/ in $PLUGIN_JAR" && unzip -l "$TMP/plugin.jar" | grep -i native && exit 1)
-          unzip -l "$TMP/plugin.jar" | grep -E "native/linux/wk40/libLinuxWebKitGtkBridge\.so" || (echo "WebKitGTK 4.0 variant not packaged at native/linux/wk40/ in $PLUGIN_JAR" && unzip -l "$TMP/plugin.jar" | grep -i native && exit 1)
       - name: Upload plugin ZIP artifact
         if: always()
         uses: actions/upload-artifact@v7

@@ -96,7 +96,6 @@ tasks {
     val winBridgeDir = layout.projectDirectory.dir("native/WinWebView2Bridge")
     val winBridgeDll = winBridgeDir.dir("target/release").file("win_webview2_bridge.dll")
     val isWindowsHost = org.gradle.internal.os.OperatingSystem.current().isWindows
-    val isLinuxHost = org.gradle.internal.os.OperatingSystem.current().isLinux
     val skipNativeBuild = providers.gradleProperty("skipNativeBuild")
         .map { it.toBoolean() }
         .orElse(false)
@@ -135,85 +134,11 @@ tasks {
         outputs.file(winBridgeDll)
     }
 
-    val linuxBridgeDir = layout.projectDirectory.dir("native/LinuxWebKitGtkBridge")
-    val linuxBridgeSo41 = linuxBridgeDir.dir("target-wk41/release").file("liblinux_webkitgtk_bridge.so")
-    val linuxBridgeSo40 = linuxBridgeDir.dir("target-wk40/release").file("liblinux_webkitgtk_bridge.so")
-
-    fun pkgConfigHas(pkg: String): Boolean {
-        return try {
-            val proc = ProcessBuilder("pkg-config", "--exists", pkg)
-                .redirectErrorStream(true)
-                .start()
-            proc.waitFor() == 0
-        } catch (_: Exception) {
-            false
-        }
-    }
-
-    fun registerLinuxBridgeBuild(
-        suffix: String,
-        feature: String,
-        pkg: String,
-        outputSo: org.gradle.api.file.RegularFile,
-    ) = registering(Exec::class) {
-        group = "speqa native"
-        description = "Compile the Linux WebKitGTK bridge .so against $pkg (cargo feature $feature)."
-        onlyIf {
-            if (skipNativeBuild.get()) {
-                logger.lifecycle("Skipping buildLinuxWebKitGtkBridge$suffix: -PskipNativeBuild=true")
-                return@onlyIf false
-            }
-            if (!isLinuxHost) return@onlyIf false
-            if (!linuxBridgeDir.file("Cargo.toml").asFile.isFile) {
-                logger.lifecycle("Skipping buildLinuxWebKitGtkBridge$suffix: native/LinuxWebKitGtkBridge/Cargo.toml is missing")
-                return@onlyIf false
-            }
-            if (!cargoOnPath()) {
-                logger.lifecycle("Skipping buildLinuxWebKitGtkBridge$suffix: 'cargo' not on PATH (install Rust via https://rustup.rs/ to enable the native bridge build)")
-                return@onlyIf false
-            }
-            for (p in listOf(pkg, "gtk+-x11-3.0", "x11")) {
-                if (!pkgConfigHas(p)) {
-                    logger.lifecycle("Skipping buildLinuxWebKitGtkBridge$suffix: pkg-config cannot find '$p' (install libwebkit2gtk-4.1-dev / libwebkit2gtk-4.0-dev, libgtk-3-dev, libx11-dev)")
-                    return@onlyIf false
-                }
-            }
-            true
-        }
-        workingDir = linuxBridgeDir.asFile
-        commandLine(
-            "cargo", "build", "--release",
-            "--no-default-features",
-            "--features", feature,
-            "--target-dir", "target-wk$suffix",
-        )
-        inputs.file(linuxBridgeDir.file("Cargo.toml"))
-        inputs.file(linuxBridgeDir.file("Cargo.lock"))
-        inputs.file(linuxBridgeDir.file("build.rs"))
-        inputs.dir(linuxBridgeDir.dir("src"))
-        outputs.file(outputSo)
-    }
-
-    val buildLinuxWebKitGtkBridge41 by registerLinuxBridgeBuild("41", "webkit41", "webkit2gtk-4.1", linuxBridgeSo41)
-    val buildLinuxWebKitGtkBridge40 by registerLinuxBridgeBuild("40", "webkit40", "webkit2gtk-4.0", linuxBridgeSo40)
-
     processResources {
         if (isWindowsHost) dependsOn(buildWinWebView2Bridge)
-        if (isLinuxHost) {
-            dependsOn(buildLinuxWebKitGtkBridge41)
-            dependsOn(buildLinuxWebKitGtkBridge40)
-        }
         from(winBridgeDll.asFile) {
             into("native/windows")
             rename { "WinWebView2Bridge.dll" }
-        }
-        from(linuxBridgeSo41.asFile) {
-            into("native/linux/wk41")
-            rename { "libLinuxWebKitGtkBridge.so" }
-        }
-        from(linuxBridgeSo40.asFile) {
-            into("native/linux/wk40")
-            rename { "libLinuxWebKitGtkBridge.so" }
         }
     }
 
@@ -242,10 +167,7 @@ kover {
                 classes(
                     "io.github.barsia.speqa.webview.internal.mac.WKWebViewBridge*",
                     "io.github.barsia.speqa.webview.internal.windows.WinWebView2Bridge*",
-                    "io.github.barsia.speqa.webview.internal.linux.LinuxWebKitGtkBridge*",
                     "io.github.barsia.speqa.webview.internal.windows.WindowsHwndUtil*",
-                    "io.github.barsia.speqa.webview.internal.linux.LinuxX11WindowUtil*",
-                    "io.github.barsia.speqa.webview.internal.linux.LinuxWaylandWindowUtil*",
                     "io.github.barsia.speqa.webview.internal.MacMainThreadDispatcher*",
                     "io.github.barsia.speqa.webview.internal.NativeLibraryLoader*",
                 )

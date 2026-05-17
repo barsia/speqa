@@ -71,14 +71,14 @@ const GDK_BUTTON3_MASK: u32 = 1 << 10;
 
 ---
 
-### Task 1: Native GDK event plumbing in lib.rs  ✅ DONE
+### Task 1: Native GDK event plumbing in lib.rs
 
 **Files:**
 - Modify: `native/LinuxWebKitGtkBridge/src/lib.rs`
 
 This task adds the FFI surface to construct, fill, and dispatch GdkEvents — the foundation every subsequent task builds on. No JNI export yet, no Kotlin changes — just the Rust helpers and tests via cargo. We split this out so subsequent tasks can focus on one event type at a time.
 
-- [x] **Step 1: Add the GdkEvent struct layouts and constants**
+- [ ] **Step 1: Add the GdkEvent struct layouts and constants**
 
 Locate the existing `extern "C" { … }` block in `lib.rs` (around line 161). After the existing GTK / WebKit declarations, add (the constants go near the top of the file with other consts):
 
@@ -199,7 +199,7 @@ pub struct GdkEventKey {
 }
 ```
 
-- [x] **Step 2: Add internal dispatch helpers**
+- [ ] **Step 2: Add internal dispatch helpers**
 
 In a fresh `fn` section near the existing `apply_*` helpers (around line 1085), add private helpers that the upcoming JNI exports will reuse. These are not unsafe at the type level but operate on raw pointers, so individual unsafe blocks are explicit:
 
@@ -358,7 +358,7 @@ fn dispatch_key_event(
 }
 ```
 
-- [x] **Step 3: Verify cargo build**
+- [ ] **Step 3: Verify cargo build**
 
 ```bash
 cd /home/siarhei/speqa/speqa/native/LinuxWebKitGtkBridge && cargo build --release --no-default-features --features webkit40 --target-dir target-wk40 2>&1 | tail -10
@@ -366,11 +366,15 @@ cd /home/siarhei/speqa/speqa/native/LinuxWebKitGtkBridge && cargo build --releas
 
 Expected: `Finished` with no errors. If GDK functions are missing from system headers, the linker error will say `undefined reference to gdk_event_new` etc. — that means `libgtk-3-dev` headers might be incomplete; the symbols are in libgdk-3 which is already linked transitively via gtk+-x11-3.0.
 
-- [x] **Step 4: Commit**
+- [ ] **Step 4: Commit**
+
+```bash
+cd /home/siarhei/speqa/speqa && git add native/LinuxWebKitGtkBridge/src/lib.rs && git commit -m "native(linux): add GdkEvent layouts + dispatch helpers for snapshot input"
+```
 
 ---
 
-### Task 2: Mouse button + motion forwarding  ✅ DONE
+### Task 2: Mouse button + motion forwarding
 
 **Files:**
 - Modify: `native/LinuxWebKitGtkBridge/src/lib.rs`
@@ -378,7 +382,7 @@ Expected: `Finished` with no errors. If GDK functions are missing from system he
 - Modify: `src/main/kotlin/io/github/barsia/speqa/webview/internal/linux/LinuxWebKitWebViewFacade.kt`
 - Modify: `src/main/kotlin/io/github/barsia/speqa/webview/internal/linux/LinuxWaylandSnapshotWebViewHostPeer.kt`
 
-- [x] **Step 1: Add JNI exports in Rust for mouse button + motion**
+- [ ] **Step 1: Add JNI exports in Rust for mouse button + motion**
 
 Below the existing `Java_io_github_barsia_speqa_webview_internal_linux_LinuxWebKitGtkBridge_clearFocusNative` (around line 654), add:
 
@@ -427,7 +431,7 @@ pub extern "system" fn Java_io_github_barsia_speqa_webview_internal_linux_LinuxW
 
 The `request_snapshot_later` (existing helper, line ~1295) coalesces multiple requests under a 16ms timer — spamming it during a fast drag is safe.
 
-- [x] **Step 2: Add Kotlin JNI bindings + wrappers in `LinuxWebKitGtkBridge.kt`**
+- [ ] **Step 2: Add Kotlin JNI bindings + wrappers in `LinuxWebKitGtkBridge.kt`**
 
 After the existing `external fun clearFocusNative` (around line 64), add:
 
@@ -461,7 +465,7 @@ After the existing `fun clearFocus(...)` wrapper (around line 88), add:
     dispatchMouseMotionNative(handle, x, y, state)
 ```
 
-- [x] **Step 3: Add facade-level forwarding in `LinuxWebKitWebViewFacade.kt`**
+- [ ] **Step 3: Add facade-level forwarding in `LinuxWebKitWebViewFacade.kt`**
 
 After the existing `internal fun clearFocus()` (around line 228), add:
 
@@ -495,7 +499,7 @@ Note the name collision: parameter `state: Int` shadows the field `state: Atomic
   }
 ```
 
-- [x] **Step 4: Wire AWT listeners in `LinuxWaylandSnapshotWebViewHostPeer.kt`**
+- [ ] **Step 4: Wire AWT listeners in `LinuxWaylandSnapshotWebViewHostPeer.kt`**
 
 Read the current `attach()` and `detach()` (around lines 17–41). Then replace them and add listener fields:
 
@@ -639,7 +643,7 @@ import java.awt.event.MouseEvent
 import javax.swing.event.MouseInputAdapter
 ```
 
-- [x] **Step 2: Compile**
+- [ ] **Step 2: Compile**
 
 ```bash
 source "$HOME/.cargo/env" && cd /home/siarhei/speqa/speqa && ./gradlew compileKotlin --console=plain --no-daemon 2>&1 | tail -8
@@ -647,11 +651,15 @@ source "$HOME/.cargo/env" && cd /home/siarhei/speqa/speqa && ./gradlew compileKo
 
 Expected: BUILD SUCCESSFUL. The Gradle native build task will pick up the Rust change automatically and re-cargo.
 
-- [x] **Step 3: Commit**
+- [ ] **Step 3: Commit**
+
+```bash
+cd /home/siarhei/speqa/speqa && git add native/LinuxWebKitGtkBridge/src/lib.rs src/main/kotlin/io/github/barsia/speqa/webview/internal/linux/LinuxWebKitGtkBridge.kt src/main/kotlin/io/github/barsia/speqa/webview/internal/linux/LinuxWebKitWebViewFacade.kt src/main/kotlin/io/github/barsia/speqa/webview/internal/linux/LinuxWaylandSnapshotWebViewHostPeer.kt && git commit -m "linux(snapshot): forward mouse button + motion into the offscreen WebView"
+```
 
 ---
 
-### Task 3: Mouse wheel forwarding  ✅ DONE
+### Task 3: Mouse wheel forwarding
 
 **Files:**
 - Modify: `native/LinuxWebKitGtkBridge/src/lib.rs`
@@ -659,7 +667,7 @@ Expected: BUILD SUCCESSFUL. The Gradle native build task will pick up the Rust c
 - Modify: `src/main/kotlin/io/github/barsia/speqa/webview/internal/linux/LinuxWebKitWebViewFacade.kt`
 - Modify: `src/main/kotlin/io/github/barsia/speqa/webview/internal/linux/LinuxWaylandSnapshotWebViewHostPeer.kt`
 
-- [x] **Step 1: Rust JNI export for wheel**
+- [ ] **Step 1: Rust JNI export for wheel**
 
 Below the motion JNI export from Task 2, add:
 
@@ -686,7 +694,7 @@ pub extern "system" fn Java_io_github_barsia_speqa_webview_internal_linux_LinuxW
 }
 ```
 
-- [x] **Step 2: Kotlin JNI mirror**
+- [ ] **Step 2: Kotlin JNI mirror**
 
 In `LinuxWebKitGtkBridge.kt`, after `dispatchMouseMotionNative`:
 
@@ -709,7 +717,7 @@ And wrapper:
     dispatchMouseScrollNative(handle, x, y, deltaX, deltaY, state)
 ```
 
-- [x] **Step 3: Facade-level wrapper**
+- [ ] **Step 3: Facade-level wrapper**
 
 In `LinuxWebKitWebViewFacade.kt`, after `dispatchMouseMotion`:
 
@@ -721,7 +729,7 @@ In `LinuxWebKitWebViewFacade.kt`, after `dispatchMouseMotion`:
   }
 ```
 
-- [x] **Step 4: Wire MouseWheelListener in host peer**
+- [ ] **Step 4: Wire MouseWheelListener in host peer**
 
 In `LinuxWaylandSnapshotWebViewHostPeer.installInputListeners` (added in Task 2), inside the same anonymous `MouseInputAdapter` (which extends MouseListener+MouseMotionListener), we need ALSO a MouseWheelListener. Since `MouseInputAdapter` does NOT implement `MouseWheelListener` in Swing, register a separate wheel listener:
 
@@ -744,7 +752,7 @@ In `LinuxWaylandSnapshotWebViewHostPeer.installInputListeners` (added in Task 2)
 
 Save this listener to a new private field (`private var wheelListener: java.awt.event.MouseWheelListener? = null`) so it can be removed on `detach()`. Update `attach()` to call `host.addMouseWheelListener(wheelListener)` and `detach()` to `host.removeMouseWheelListener(wheelListener)`.
 
-- [x] **Step 5: Compile + commit**
+- [ ] **Step 5: Compile + commit**
 
 ```bash
 source "$HOME/.cargo/env" && cd /home/siarhei/speqa/speqa && ./gradlew compileKotlin --console=plain --no-daemon 2>&1 | tail -8
@@ -758,7 +766,7 @@ cd /home/siarhei/speqa/speqa && git add native/LinuxWebKitGtkBridge/src/lib.rs s
 
 ---
 
-### Task 4: Keyboard forwarding + key-map (TDD)  🔄 IN PROGRESS
+### Task 4: Keyboard forwarding + key-map (TDD)
 
 **Files:**
 - Create: `src/main/kotlin/io/github/barsia/speqa/webview/internal/linux/AwtToGtkKeyMap.kt`

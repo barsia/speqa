@@ -208,22 +208,14 @@ internal class LinuxWebKitWebViewFacade(
     val bounds = PendingBounds(x, y, width, height, scale)
     pendingBounds = bounds
     val handle = nativeHandle
-    val st = state.get()
-    com.intellij.openapi.diagnostic.Logger.getInstance("SpeqaDebug").warn(
-      "facade setBounds: x=$x y=$y w=$width h=$height scale=$scale handle=$handle state=$st backend=$backend"
-    )
-    if (handle == 0L || st == State.Closed) return
+    if (handle == 0L || state.get() == State.Closed) return
     runOnEdt { applyBounds(handle, bounds) }
   }
 
   internal fun setHidden(hidden: Boolean) {
     this.hidden = hidden
     val handle = nativeHandle
-    val st = state.get()
-    com.intellij.openapi.diagnostic.Logger.getInstance("SpeqaDebug").warn(
-      "facade setHidden: hidden=$hidden handle=$handle state=$st"
-    )
-    if (handle == 0L || st == State.Closed) return
+    if (handle == 0L || state.get() == State.Closed) return
     runOnEdt { LinuxWebKitGtkBridge.setVisible(handle, !hidden) }
   }
 

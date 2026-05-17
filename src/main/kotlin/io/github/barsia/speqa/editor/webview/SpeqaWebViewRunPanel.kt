@@ -576,7 +576,16 @@ internal class SpeqaWebViewRunPanel(
 
   private fun previewBackground(): Color = EditorColorsManager.getInstance().globalScheme.defaultBackground
 
-  private fun loadPreviewHtml(): String = SpeqaWebViewPreviewSupport.buildInlinedPreviewHtml(currentTheme())
+  private fun loadPreviewHtml(): String {
+    val meta = resolveTestCaseHeaderMeta(project, file)
+    val initialSnapshotJson = SpeqaWebViewRunPayload.build(
+      run = current,
+      theme = currentTheme(),
+      createdLabel = meta.createdLabel,
+      restorePreviewTextFocus = false,
+    ).toString()
+    return SpeqaWebViewPreviewSupport.buildInlinedPreviewHtml(currentTheme(), initialSnapshotJson)
+  }
 
   private fun showUnsupportedPanel(t: Throwable) {
     // Restore opacity for the fallback UI: the non-opaque root exists solely to let native

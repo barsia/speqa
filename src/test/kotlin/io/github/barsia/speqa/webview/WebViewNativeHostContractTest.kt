@@ -68,6 +68,7 @@ class WebViewNativeHostContractTest {
     assertTrue(facade.contains("import com.intellij.ui.jcef.JBCefJSQuery"))
     assertTrue(facade.contains("window.__KWRY__"))
     assertTrue(facade.contains("__eval__:"))
+    assertTrue(facade.contains("onCursorChange"))
     assertTrue(peer.contains("container.add(component, BorderLayout.CENTER)"))
     assertTrue(peer.contains("container.remove(component)"))
     assertTrue(factory.contains("JBCefApp.isSupported()"))

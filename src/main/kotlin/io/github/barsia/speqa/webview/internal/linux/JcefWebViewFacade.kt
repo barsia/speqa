@@ -32,9 +32,7 @@ internal class JcefWebViewFacade(
   @Suppress("RAW_SCOPE_CREATION")
   private val scope = CoroutineScope(parentScope.coroutineContext + SupervisorJob(parentScope.coroutineContext[Job]))
 
-  private val browser: JBCefBrowser = JBCefBrowser.createBuilder()
-    .setOffScreenRendering(false)
-    .build()
+  private val browser: JBCefBrowser = JBCefBrowser.createBuilder().build()
 
   private val jsQuery: JBCefJSQuery = JBCefJSQuery.create(browser as JBCefBrowserBase)
 
@@ -97,6 +95,19 @@ internal class JcefWebViewFacade(
       }
     }
     browser.jbCefClient.addLoadHandler(loadHandler, browser.cefBrowser)
+
+    val displayHandler = object : org.cef.handler.CefDisplayHandlerAdapter() {
+      override fun onCursorChange(cefBrowser: org.cef.browser.CefBrowser, cursorType: Int): Boolean {
+        val cursor = mapCefCursorToAwt(cursorType)
+        javax.swing.SwingUtilities.invokeLater {
+          if (state.get() == State.Active) {
+            browser.component.cursor = cursor
+          }
+        }
+        return true
+      }
+    }
+    browser.jbCefClient.addDisplayHandler(displayHandler, browser.cefBrowser)
   }
 
   override fun loadUrl(url: String) {
@@ -166,6 +177,35 @@ internal class JcefWebViewFacade(
 
   private fun cancelPendingEvaluations() {
     pendingEvals.keys.forEach { evalId -> pendingEvals.remove(evalId)?.invoke(null) }
+  }
+
+  private fun mapCefCursorToAwt(cursorType: Int): java.awt.Cursor {
+    // cef_cursor_type_t values: see include/internal/cef_types.h in the CEF source.
+    // We map only the cursors that actually appear in the SpeQA preview; anything
+    // else falls through to the default arrow.
+    val awtType = when (cursorType) {
+      0 -> java.awt.Cursor.DEFAULT_CURSOR     // CT_POINTER
+      1 -> java.awt.Cursor.CROSSHAIR_CURSOR   // CT_CROSS
+      2 -> java.awt.Cursor.HAND_CURSOR        // CT_HAND
+      3 -> java.awt.Cursor.TEXT_CURSOR        // CT_IBEAM
+      4 -> java.awt.Cursor.WAIT_CURSOR        // CT_WAIT
+      6 -> java.awt.Cursor.E_RESIZE_CURSOR    // CT_EASTRESIZE
+      7 -> java.awt.Cursor.N_RESIZE_CURSOR    // CT_NORTHRESIZE
+      8 -> java.awt.Cursor.NE_RESIZE_CURSOR   // CT_NORTHEASTRESIZE
+      9 -> java.awt.Cursor.NW_RESIZE_CURSOR   // CT_NORTHWESTRESIZE
+      10 -> java.awt.Cursor.S_RESIZE_CURSOR   // CT_SOUTHRESIZE
+      11 -> java.awt.Cursor.SE_RESIZE_CURSOR  // CT_SOUTHEASTRESIZE
+      12 -> java.awt.Cursor.SW_RESIZE_CURSOR  // CT_SOUTHWESTRESIZE
+      13 -> java.awt.Cursor.W_RESIZE_CURSOR   // CT_WESTRESIZE
+      14 -> java.awt.Cursor.N_RESIZE_CURSOR   // CT_NORTHSOUTHRESIZE (closest match)
+      15 -> java.awt.Cursor.E_RESIZE_CURSOR   // CT_EASTWESTRESIZE  (closest match)
+      18 -> java.awt.Cursor.E_RESIZE_CURSOR   // CT_COLUMNRESIZE
+      19 -> java.awt.Cursor.N_RESIZE_CURSOR   // CT_ROWRESIZE
+      34 -> java.awt.Cursor.MOVE_CURSOR       // CT_GRAB / CT_MIDDLEPANNING (approx)
+      35 -> java.awt.Cursor.MOVE_CURSOR       // CT_GRABBING (approx)
+      else -> java.awt.Cursor.DEFAULT_CURSOR
+    }
+    return java.awt.Cursor.getPredefinedCursor(awtType)
   }
 
   private fun escapeJsString(value: String): String {

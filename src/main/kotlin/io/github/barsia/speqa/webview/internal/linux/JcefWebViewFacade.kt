@@ -70,6 +70,8 @@ internal class JcefWebViewFacade(
       logComponentTree(rootComponent, depth = 0)
       WebViewLogger.LOG.warn("SpeqaDebug: --- end tree ---")
       attachMouseListenersRecursively(rootComponent)
+      attachCursorWatchersRecursively(rootComponent)
+      schedulePeriodicCursorPoll(rootComponent)
     }
     rootComponent.addHierarchyListener { e ->
       if ((e.changeFlags and java.awt.event.HierarchyEvent.SHOWING_CHANGED.toLong()) != 0L && rootComponent.isShowing) {
@@ -264,7 +266,9 @@ internal class JcefWebViewFacade(
         }
       }
       override fun mouseClicked(e: java.awt.event.MouseEvent) {
-        WebViewLogger.LOG.warn("SpeqaDebug: MOUSE_CLICKED on $tag at (${e.x},${e.y}) button=${e.button}")
+        if (seen.putIfAbsent("clicked", true) == null) {
+          WebViewLogger.LOG.warn("SpeqaDebug: MOUSE_CLICKED on $tag (first only) at (${e.x},${e.y})")
+        }
       }
       override fun mousePressed(e: java.awt.event.MouseEvent) {
         if (seen.putIfAbsent("pressed", true) == null) {
@@ -291,6 +295,38 @@ internal class JcefWebViewFacade(
         attachMouseListenersRecursively(child)
       }
     }
+  }
+
+  private fun attachCursorWatchersRecursively(component: java.awt.Component) {
+    val tag = component.javaClass.simpleName
+    component.addPropertyChangeListener("cursor") { e ->
+      val oldType = (e.oldValue as? java.awt.Cursor)?.type
+      val newType = (e.newValue as? java.awt.Cursor)?.type
+      WebViewLogger.LOG.warn("SpeqaDebug: cursor PCL on $tag: $oldType -> $newType")
+    }
+    if (component is java.awt.Container) {
+      for (child in component.components) {
+        attachCursorWatchersRecursively(child)
+      }
+    }
+  }
+
+  private fun schedulePeriodicCursorPoll(rootComponent: java.awt.Component) {
+    val lastCursorTypes = java.util.concurrent.ConcurrentHashMap<String, Int>()
+    val timer = javax.swing.Timer(250) {
+      fun walk(c: java.awt.Component) {
+        val tag = c.javaClass.simpleName
+        val type = c.cursor?.type ?: -1
+        val previous = lastCursorTypes.put(tag, type)
+        if (previous != null && previous != type) {
+          WebViewLogger.LOG.warn("SpeqaDebug: cursor POLL on $tag changed: $previous -> $type")
+        }
+        if (c is java.awt.Container) c.components.forEach { walk(it) }
+      }
+      walk(rootComponent)
+    }
+    timer.isRepeats = true
+    timer.start()
   }
 
   private fun tryReadOsrFlag(): String {

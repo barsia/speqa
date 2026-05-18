@@ -62,13 +62,15 @@ class WebViewNativeHostContractTest {
   fun `linux host uses JCEF browser embedded as a Swing child of the host panel`() {
     val peer = source("src/main/kotlin/io/github/barsia/speqa/webview/internal/linux/LinuxJcefWebViewHostPeer.kt")
     val facade = source("src/main/kotlin/io/github/barsia/speqa/webview/internal/linux/JcefWebViewFacade.kt")
+    val osrFactory = source("src/main/kotlin/io/github/barsia/speqa/webview/internal/linux/JcefCursorOsrHandlerFactory.kt")
     val factory = source("src/main/kotlin/io/github/barsia/speqa/webview/WebViewFacadeFactory.kt")
 
     assertTrue(facade.contains("import com.intellij.ui.jcef.JBCefBrowser"))
     assertTrue(facade.contains("import com.intellij.ui.jcef.JBCefJSQuery"))
     assertTrue(facade.contains("window.__KWRY__"))
     assertTrue(facade.contains("__eval__:"))
-    assertTrue(facade.contains("onCursorChange"))
+    assertTrue(facade.contains("setOSRHandlerFactory(JcefCursorOsrHandlerFactory())"))
+    assertTrue(osrFactory.contains("onCursorChange"))
     assertTrue(peer.contains("container.add(component, BorderLayout.CENTER)"))
     assertTrue(peer.contains("container.remove(component)"))
     assertTrue(factory.contains("JBCefApp.isSupported()"))

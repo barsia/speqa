@@ -32,7 +32,9 @@ internal class JcefWebViewFacade(
   @Suppress("RAW_SCOPE_CREATION")
   private val scope = CoroutineScope(parentScope.coroutineContext + SupervisorJob(parentScope.coroutineContext[Job]))
 
-  private val browser: JBCefBrowser = JBCefBrowser.createBuilder().build()
+  private val browser: JBCefBrowser = JBCefBrowser.createBuilder()
+    .setOSRHandlerFactory(JcefCursorOsrHandlerFactory())
+    .build()
 
   private val jsQuery: JBCefJSQuery = JBCefJSQuery.create(browser as JBCefBrowserBase)
 
@@ -47,37 +49,6 @@ internal class JcefWebViewFacade(
     Disposer.register(this, jsQuery)
     state.set(State.Active)
     WebViewLogger.logLifecycle("linux-jcef-create", "JCEF browser ready")
-
-    // --- Diagnostic: render mode and JBCefApp flags ---
-    WebViewLogger.LOG.warn(
-      "SpeqaDebug: JBCefApp.isSupported=${com.intellij.ui.jcef.JBCefApp.isSupported()} " +
-        "isOffScreenRenderingModeEnabled=${tryReadOsrFlag()}"
-    )
-
-    // --- Diagnostic: JCEF Swing component class ---
-    val rootComponent = browser.component
-    WebViewLogger.LOG.warn(
-      "SpeqaDebug: JCEF root component class=${rootComponent.javaClass.name} " +
-        "isLightweight=${rootComponent.isLightweight} " +
-        "isDisplayable=${rootComponent.isDisplayable} " +
-        "size=${rootComponent.width}x${rootComponent.height}"
-    )
-
-    val treeLogged = java.util.concurrent.atomic.AtomicBoolean(false)
-    val logTree = Runnable {
-      if (!treeLogged.compareAndSet(false, true)) return@Runnable
-      WebViewLogger.LOG.warn("SpeqaDebug: --- JCEF component tree (after show) ---")
-      logComponentTree(rootComponent, depth = 0)
-      WebViewLogger.LOG.warn("SpeqaDebug: --- end tree ---")
-      attachMouseListenersRecursively(rootComponent)
-      attachCursorWatchersRecursively(rootComponent)
-      schedulePeriodicCursorPoll(rootComponent)
-    }
-    rootComponent.addHierarchyListener { e ->
-      if ((e.changeFlags and java.awt.event.HierarchyEvent.SHOWING_CHANGED.toLong()) != 0L && rootComponent.isShowing) {
-        logTree.run()
-      }
-    }
   }
 
   val component: JComponent get() = browser.component
@@ -126,20 +97,6 @@ internal class JcefWebViewFacade(
       }
     }
     browser.jbCefClient.addLoadHandler(loadHandler, browser.cefBrowser)
-
-    val displayHandler = object : org.cef.handler.CefDisplayHandlerAdapter() {
-      override fun onCursorChange(cefBrowser: org.cef.browser.CefBrowser, cursorType: Int): Boolean {
-        WebViewLogger.LOG.warn("SpeqaDebug: onCursorChange fired cursorType=$cursorType")
-        val cursor = mapCefCursorToAwt(cursorType)
-        javax.swing.SwingUtilities.invokeLater {
-          if (state.get() == State.Active) {
-            browser.component.cursor = cursor
-          }
-        }
-        return true
-      }
-    }
-    browser.jbCefClient.addDisplayHandler(displayHandler, browser.cefBrowser)
   }
 
   override fun loadUrl(url: String) {
@@ -209,136 +166,6 @@ internal class JcefWebViewFacade(
 
   private fun cancelPendingEvaluations() {
     pendingEvals.keys.forEach { evalId -> pendingEvals.remove(evalId)?.invoke(null) }
-  }
-
-  private fun mapCefCursorToAwt(cursorType: Int): java.awt.Cursor {
-    // cef_cursor_type_t values: see include/internal/cef_types.h in the CEF source.
-    // We map only the cursors that actually appear in the SpeQA preview; anything
-    // else falls through to the default arrow.
-    val awtType = when (cursorType) {
-      0 -> java.awt.Cursor.DEFAULT_CURSOR     // CT_POINTER
-      1 -> java.awt.Cursor.CROSSHAIR_CURSOR   // CT_CROSS
-      2 -> java.awt.Cursor.HAND_CURSOR        // CT_HAND
-      3 -> java.awt.Cursor.TEXT_CURSOR        // CT_IBEAM
-      4 -> java.awt.Cursor.WAIT_CURSOR        // CT_WAIT
-      6 -> java.awt.Cursor.E_RESIZE_CURSOR    // CT_EASTRESIZE
-      7 -> java.awt.Cursor.N_RESIZE_CURSOR    // CT_NORTHRESIZE
-      8 -> java.awt.Cursor.NE_RESIZE_CURSOR   // CT_NORTHEASTRESIZE
-      9 -> java.awt.Cursor.NW_RESIZE_CURSOR   // CT_NORTHWESTRESIZE
-      10 -> java.awt.Cursor.S_RESIZE_CURSOR   // CT_SOUTHRESIZE
-      11 -> java.awt.Cursor.SE_RESIZE_CURSOR  // CT_SOUTHEASTRESIZE
-      12 -> java.awt.Cursor.SW_RESIZE_CURSOR  // CT_SOUTHWESTRESIZE
-      13 -> java.awt.Cursor.W_RESIZE_CURSOR   // CT_WESTRESIZE
-      14 -> java.awt.Cursor.N_RESIZE_CURSOR   // CT_NORTHSOUTHRESIZE (closest match)
-      15 -> java.awt.Cursor.E_RESIZE_CURSOR   // CT_EASTWESTRESIZE  (closest match)
-      18 -> java.awt.Cursor.E_RESIZE_CURSOR   // CT_COLUMNRESIZE
-      19 -> java.awt.Cursor.N_RESIZE_CURSOR   // CT_ROWRESIZE
-      34 -> java.awt.Cursor.MOVE_CURSOR       // CT_GRAB / CT_MIDDLEPANNING (approx)
-      35 -> java.awt.Cursor.MOVE_CURSOR       // CT_GRABBING (approx)
-      else -> java.awt.Cursor.DEFAULT_CURSOR
-    }
-    return java.awt.Cursor.getPredefinedCursor(awtType)
-  }
-
-  private fun logComponentTree(component: java.awt.Component, depth: Int) {
-    val indent = "  ".repeat(depth)
-    WebViewLogger.LOG.warn(
-      "SpeqaDebug: $indent${component.javaClass.name} " +
-        "size=${component.width}x${component.height} " +
-        "visible=${component.isVisible} " +
-        "focusable=${component.isFocusable} " +
-        "cursor=${component.cursor.type}"
-    )
-    if (component is java.awt.Container) {
-      for (child in component.components) {
-        logComponentTree(child, depth + 1)
-      }
-    }
-  }
-
-  private fun attachMouseListenersRecursively(component: java.awt.Component) {
-    val tag = component.javaClass.simpleName
-    val seen = java.util.concurrent.ConcurrentHashMap<String, Boolean>()
-    val mouseListener = object : java.awt.event.MouseAdapter() {
-      override fun mouseEntered(e: java.awt.event.MouseEvent) {
-        if (seen.putIfAbsent("entered", true) == null) {
-          WebViewLogger.LOG.warn("SpeqaDebug: MOUSE_ENTERED on $tag")
-        }
-      }
-      override fun mouseClicked(e: java.awt.event.MouseEvent) {
-        if (seen.putIfAbsent("clicked", true) == null) {
-          WebViewLogger.LOG.warn("SpeqaDebug: MOUSE_CLICKED on $tag (first only) at (${e.x},${e.y})")
-        }
-      }
-      override fun mousePressed(e: java.awt.event.MouseEvent) {
-        if (seen.putIfAbsent("pressed", true) == null) {
-          WebViewLogger.LOG.warn("SpeqaDebug: MOUSE_PRESSED on $tag at (${e.x},${e.y})")
-        }
-      }
-    }
-    val motionListener = object : java.awt.event.MouseMotionAdapter() {
-      override fun mouseMoved(e: java.awt.event.MouseEvent) {
-        if (seen.putIfAbsent("moved", true) == null) {
-          WebViewLogger.LOG.warn("SpeqaDebug: MOUSE_MOVED on $tag (first only)")
-        }
-      }
-      override fun mouseDragged(e: java.awt.event.MouseEvent) {
-        if (seen.putIfAbsent("dragged", true) == null) {
-          WebViewLogger.LOG.warn("SpeqaDebug: MOUSE_DRAGGED on $tag (first only) at (${e.x},${e.y})")
-        }
-      }
-    }
-    component.addMouseListener(mouseListener)
-    component.addMouseMotionListener(motionListener)
-    if (component is java.awt.Container) {
-      for (child in component.components) {
-        attachMouseListenersRecursively(child)
-      }
-    }
-  }
-
-  private fun attachCursorWatchersRecursively(component: java.awt.Component) {
-    val tag = component.javaClass.simpleName
-    component.addPropertyChangeListener("cursor") { e ->
-      val oldType = (e.oldValue as? java.awt.Cursor)?.type
-      val newType = (e.newValue as? java.awt.Cursor)?.type
-      WebViewLogger.LOG.warn("SpeqaDebug: cursor PCL on $tag: $oldType -> $newType")
-    }
-    if (component is java.awt.Container) {
-      for (child in component.components) {
-        attachCursorWatchersRecursively(child)
-      }
-    }
-  }
-
-  private fun schedulePeriodicCursorPoll(rootComponent: java.awt.Component) {
-    val lastCursorTypes = java.util.concurrent.ConcurrentHashMap<String, Int>()
-    val timer = javax.swing.Timer(250) {
-      fun walk(c: java.awt.Component) {
-        val tag = c.javaClass.simpleName
-        val type = c.cursor?.type ?: -1
-        val previous = lastCursorTypes.put(tag, type)
-        if (previous != null && previous != type) {
-          WebViewLogger.LOG.warn("SpeqaDebug: cursor POLL on $tag changed: $previous -> $type")
-        }
-        if (c is java.awt.Container) c.components.forEach { walk(it) }
-      }
-      walk(rootComponent)
-    }
-    timer.isRepeats = true
-    timer.start()
-  }
-
-  private fun tryReadOsrFlag(): String {
-    // JBR exposes JBCefApp.isOffScreenRenderingModeEnabled() in some versions and not others.
-    // Try via reflection so this diagnostic compiles across JBR versions.
-    return try {
-      val cls = com.intellij.ui.jcef.JBCefApp::class.java
-      val method = cls.getMethod("isOffScreenRenderingModeEnabled")
-      method.invoke(null).toString()
-    } catch (t: Throwable) {
-      "<unavailable: ${t.javaClass.simpleName}>"
-    }
   }
 
   private fun escapeJsString(value: String): String {

@@ -70,7 +70,17 @@ private class DelegatingRenderHandler(
 
   override fun onCursorChange(browser: CefBrowser, cursorType: Int): Boolean {
     val cursor = mapCefCursorToAwt(cursorType)
-    SwingUtilities.invokeLater { component.cursor = cursor }
+    com.intellij.openapi.diagnostic.Logger.getInstance("SpeqaDebug").warn(
+      "onCursorChange cefType=$cursorType awtType=${cursor.type}"
+    )
+    SwingUtilities.invokeLater {
+      val before = component.cursor.type
+      component.cursor = cursor
+      val after = component.cursor.type
+      com.intellij.openapi.diagnostic.Logger.getInstance("SpeqaDebug").warn(
+        "setCursor on ${component.javaClass.simpleName}: $before -> $after (requested ${cursor.type})"
+      )
+    }
     // Returning true tells CEF "the host handled the cursor change" — JBR's default returns
     // false (or no-op true) anyway; we don't need to call delegate for this signal.
     return true

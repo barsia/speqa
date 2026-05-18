@@ -28,7 +28,13 @@ import org.jetbrains.annotations.ApiStatus
 @ApiStatus.Internal
 internal class JcefCursorOsrHandlerFactory : JBCefOSRHandlerFactory {
   override fun createCefRenderHandler(component: JComponent): CefRenderHandler {
+    com.intellij.openapi.diagnostic.Logger.getInstance("SpeqaDebug").warn(
+      "JcefCursorOsrHandlerFactory.createCefRenderHandler called: component=${component.javaClass.name}"
+    )
     val delegate = JBCefOSRHandlerFactory.DEFAULT.createCefRenderHandler(component)
+    com.intellij.openapi.diagnostic.Logger.getInstance("SpeqaDebug").warn(
+      "  delegate=${delegate.javaClass.name} (returning DelegatingRenderHandler wrapper)"
+    )
     return DelegatingRenderHandler(delegate, component)
   }
 }

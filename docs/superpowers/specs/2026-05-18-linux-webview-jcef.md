@@ -68,6 +68,25 @@ eval IDs to their `CancellableContinuation` callbacks; `nextEvalId` is an
 (`globalThis["ev" + "al"]`) to satisfy the project security hook that flags
 the literal token.
 
+## OSR cursor propagation
+
+JCEF runs in OSR (off-screen rendering) mode on Linux. The stock
+`JBCefOsrHandler.onCursorChange` is a no-op — cursor-change signals from
+Chromium are silently discarded, so CSS `cursor: pointer` (and other cursor
+types) never visibly change the OS pointer.
+
+The fix is `JcefCursorOsrHandlerFactory` (package
+`io.github.barsia.speqa.webview.internal.linux`), registered in `plugin.xml`
+as a `com.intellij.ui.jcef.JBCefOSRHandlerFactory` extension point. It wraps
+the platform-default factory's `CefRenderHandler` with a
+`DelegatingRenderHandler` that forwards every callback to the delegate except
+`onCursorChange`, which maps the CEF cursor-type integer to a predefined AWT
+`Cursor` and applies it to the Swing component via `SwingUtilities.invokeLater`.
+
+`JcefCursorOsrHandlerFactory` and `DelegatingRenderHandler` are internal
+(file-private for the delegate class; `internal` for the factory to satisfy
+the EP registration).
+
 ## Supported runtimes
 
 Any JetBrains IDE on Linux whose bundled JBR provides JCEF

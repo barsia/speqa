@@ -55,46 +55,27 @@ internal class JcefWebViewFacade(
     )
 
     // --- Diagnostic: JCEF Swing component class ---
-    val component = browser.component
+    val rootComponent = browser.component
     WebViewLogger.LOG.warn(
-      "SpeqaDebug: JCEF component class=${component.javaClass.name} " +
-        "isLightweight=${component.isLightweight} " +
-        "isDisplayable=${component.isDisplayable} " +
-        "size=${component.width}x${component.height}"
+      "SpeqaDebug: JCEF root component class=${rootComponent.javaClass.name} " +
+        "isLightweight=${rootComponent.isLightweight} " +
+        "isDisplayable=${rootComponent.isDisplayable} " +
+        "size=${rootComponent.width}x${rootComponent.height}"
     )
 
-    // --- Diagnostic: AWT mouse event delivery ---
-    val seenEvents = java.util.concurrent.ConcurrentHashMap<String, Boolean>()
-    val mouseListener = object : java.awt.event.MouseAdapter() {
-      override fun mouseEntered(e: java.awt.event.MouseEvent) {
-        if (seenEvents.putIfAbsent("entered", true) == null) {
-          WebViewLogger.LOG.warn("SpeqaDebug: AWT MOUSE_ENTERED on JCEF component at (${e.x},${e.y})")
-        }
-      }
-      override fun mouseClicked(e: java.awt.event.MouseEvent) {
-        WebViewLogger.LOG.warn("SpeqaDebug: AWT MOUSE_CLICKED on JCEF component at (${e.x},${e.y}) button=${e.button}")
-      }
-      override fun mousePressed(e: java.awt.event.MouseEvent) {
-        if (seenEvents.putIfAbsent("pressed", true) == null) {
-          WebViewLogger.LOG.warn("SpeqaDebug: AWT MOUSE_PRESSED on JCEF component at (${e.x},${e.y})")
-        }
+    val treeLogged = java.util.concurrent.atomic.AtomicBoolean(false)
+    val logTree = Runnable {
+      if (!treeLogged.compareAndSet(false, true)) return@Runnable
+      WebViewLogger.LOG.warn("SpeqaDebug: --- JCEF component tree (after show) ---")
+      logComponentTree(rootComponent, depth = 0)
+      WebViewLogger.LOG.warn("SpeqaDebug: --- end tree ---")
+      attachMouseListenersRecursively(rootComponent)
+    }
+    rootComponent.addHierarchyListener { e ->
+      if ((e.changeFlags and java.awt.event.HierarchyEvent.SHOWING_CHANGED.toLong()) != 0L && rootComponent.isShowing) {
+        logTree.run()
       }
     }
-    browser.component.addMouseListener(mouseListener)
-
-    val motionListener = object : java.awt.event.MouseMotionAdapter() {
-      override fun mouseMoved(e: java.awt.event.MouseEvent) {
-        if (seenEvents.putIfAbsent("moved", true) == null) {
-          WebViewLogger.LOG.warn("SpeqaDebug: AWT MOUSE_MOVED on JCEF component (first event only)")
-        }
-      }
-      override fun mouseDragged(e: java.awt.event.MouseEvent) {
-        if (seenEvents.putIfAbsent("dragged", true) == null) {
-          WebViewLogger.LOG.warn("SpeqaDebug: AWT MOUSE_DRAGGED on JCEF component (first event only) at (${e.x},${e.y})")
-        }
-      }
-    }
-    browser.component.addMouseMotionListener(motionListener)
   }
 
   val component: JComponent get() = browser.component
@@ -255,6 +236,61 @@ internal class JcefWebViewFacade(
       else -> java.awt.Cursor.DEFAULT_CURSOR
     }
     return java.awt.Cursor.getPredefinedCursor(awtType)
+  }
+
+  private fun logComponentTree(component: java.awt.Component, depth: Int) {
+    val indent = "  ".repeat(depth)
+    WebViewLogger.LOG.warn(
+      "SpeqaDebug: $indent${component.javaClass.name} " +
+        "size=${component.width}x${component.height} " +
+        "visible=${component.isVisible} " +
+        "focusable=${component.isFocusable} " +
+        "cursor=${component.cursor.type}"
+    )
+    if (component is java.awt.Container) {
+      for (child in component.components) {
+        logComponentTree(child, depth + 1)
+      }
+    }
+  }
+
+  private fun attachMouseListenersRecursively(component: java.awt.Component) {
+    val tag = component.javaClass.simpleName
+    val seen = java.util.concurrent.ConcurrentHashMap<String, Boolean>()
+    val mouseListener = object : java.awt.event.MouseAdapter() {
+      override fun mouseEntered(e: java.awt.event.MouseEvent) {
+        if (seen.putIfAbsent("entered", true) == null) {
+          WebViewLogger.LOG.warn("SpeqaDebug: MOUSE_ENTERED on $tag")
+        }
+      }
+      override fun mouseClicked(e: java.awt.event.MouseEvent) {
+        WebViewLogger.LOG.warn("SpeqaDebug: MOUSE_CLICKED on $tag at (${e.x},${e.y}) button=${e.button}")
+      }
+      override fun mousePressed(e: java.awt.event.MouseEvent) {
+        if (seen.putIfAbsent("pressed", true) == null) {
+          WebViewLogger.LOG.warn("SpeqaDebug: MOUSE_PRESSED on $tag at (${e.x},${e.y})")
+        }
+      }
+    }
+    val motionListener = object : java.awt.event.MouseMotionAdapter() {
+      override fun mouseMoved(e: java.awt.event.MouseEvent) {
+        if (seen.putIfAbsent("moved", true) == null) {
+          WebViewLogger.LOG.warn("SpeqaDebug: MOUSE_MOVED on $tag (first only)")
+        }
+      }
+      override fun mouseDragged(e: java.awt.event.MouseEvent) {
+        if (seen.putIfAbsent("dragged", true) == null) {
+          WebViewLogger.LOG.warn("SpeqaDebug: MOUSE_DRAGGED on $tag (first only) at (${e.x},${e.y})")
+        }
+      }
+    }
+    component.addMouseListener(mouseListener)
+    component.addMouseMotionListener(motionListener)
+    if (component is java.awt.Container) {
+      for (child in component.components) {
+        attachMouseListenersRecursively(child)
+      }
+    }
   }
 
   private fun tryReadOsrFlag(): String {

@@ -37,6 +37,7 @@ class SpeqaTagRegistry(private val project: Project) {
     private var initialized = false
     private val initializationScheduled = AtomicBoolean(false)
     private val subscribedToVfs = AtomicBoolean(false)
+    private val initCallbacks: MutableList<() -> Unit> = mutableListOf()
 
     val allTags: List<String> get() {
         ensureInitialized()
@@ -54,6 +55,21 @@ class SpeqaTagRegistry(private val project: Project) {
             subscribeToVfsEvents()
         }
         scheduleScan()
+    }
+
+    /**
+     * Run [callback] once the registry has finished its first scan. Fires
+     * immediately on the calling thread if already initialised. Otherwise
+     * triggers the scan and queues the callback to run on the EDT when the
+     * scan completes (matches the [scheduleScan] finish handler).
+     */
+    fun whenInitialized(callback: () -> Unit) {
+        if (initialized) {
+            callback()
+            return
+        }
+        synchronized(initCallbacks) { initCallbacks.add(callback) }
+        ensureInitialized()
     }
 
     private fun scan() {
@@ -129,6 +145,12 @@ class SpeqaTagRegistry(private val project: Project) {
             .finishOnUiThread(com.intellij.openapi.application.ModalityState.any()) {
                 initialized = true
                 initializationScheduled.set(false)
+                val pending = synchronized(initCallbacks) {
+                    val copy = initCallbacks.toList()
+                    initCallbacks.clear()
+                    copy
+                }
+                pending.forEach { it() }
             }
             .submit(AppExecutorUtil.getAppExecutorService())
     }

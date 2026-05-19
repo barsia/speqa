@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.1.3
+
+- Rewritten on native Swing: faster startup, lower memory
+- Test run view at parity with a test case
+- Per-step verdict pills with colored fill and a left progress strip
+- Tag and environment search popup
+- Step comment auto-expands when set; dot indicator on the toggle
+- Auto-continue blockquotes on Enter in Expected
+- WYSIWYG inline editor with floating selection toolbar and formatting shortcuts
+- Truncation tooltip on long dates
+- Sticky header with slide-in animation
+
 ## 0.1.2
 
 - Test cases and test runs now share a two-column step editor

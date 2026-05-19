@@ -60,6 +60,7 @@ class SpeqaAssetsStep(parent: NewProjectWizardStep) : AbstractNewProjectWizardSt
 }
 
 internal fun openInitialTestCase(project: Project, file: VirtualFile) {
+    @Suppress("DEPRECATION")
     com.intellij.openapi.startup.StartupManager.getInstance(project).runWhenProjectIsInitialized {
         ApplicationManager.getApplication().invokeLater({
             if (project.isDisposed || !file.isValid) return@invokeLater

@@ -46,7 +46,16 @@ class SpeqaAnnotator : Annotator {
             if (registry.idSet(IdType.TEST_CASE).isDuplicate(id)) {
                 val idRange = findFrontmatterValueRange(text, "id")
                 if (idRange != null) {
-                    holder.warn(SpeqaBundle.message("annotator.duplicateTestCaseId", id), idRange, len)
+                    val safeRange = TextRange(idRange.startOffset, idRange.endOffset.coerceAtMost(len))
+                    if (!safeRange.isEmpty && safeRange.startOffset < len) {
+                        holder.newAnnotation(
+                            HighlightSeverity.WARNING,
+                            SpeqaBundle.message("annotator.duplicateTestCaseId", id),
+                        )
+                            .range(safeRange)
+                            .withFix(AssignNextFreeIdFix(IdType.TEST_CASE))
+                            .create()
+                    }
                 }
             }
         }

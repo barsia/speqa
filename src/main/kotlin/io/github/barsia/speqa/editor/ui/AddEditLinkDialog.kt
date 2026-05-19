@@ -28,6 +28,24 @@ internal class AddEditLinkDialog(
         title = dialogTitle
         setOKButtonText(okButtonText)
         init()
+        // IntelliJ's DialogWrapper auto-selects the entire text of the
+        // preferred-focused text field on first focus. Override that with
+        // a one-shot focus listener that moves the caret to the end so
+        // typing extends the value instead of replacing it — same UX as
+        // the inline editors elsewhere in the plugin.
+        installCaretEndOnFirstFocus(titleField)
+        installCaretEndOnFirstFocus(urlField)
+    }
+
+    private fun installCaretEndOnFirstFocus(field: JBTextField) {
+        field.addFocusListener(object : java.awt.event.FocusAdapter() {
+            override fun focusGained(e: java.awt.event.FocusEvent) {
+                field.removeFocusListener(this)
+                javax.swing.SwingUtilities.invokeLater {
+                    field.caretPosition = field.text.length
+                }
+            }
+        })
     }
 
     override fun createSouthPanel(): JComponent {
@@ -47,6 +65,8 @@ internal class AddEditLinkDialog(
             }
         }
     }
+
+    override fun getPreferredFocusedComponent(): JComponent = titleField
 
     override fun createCenterPanel(): JComponent {
         val panel = JPanel(GridBagLayout())

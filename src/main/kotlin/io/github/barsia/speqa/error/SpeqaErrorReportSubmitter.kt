@@ -1,14 +1,13 @@
 package io.github.barsia.speqa.error
 
-import com.intellij.ide.plugins.PluginManagerCore
 import com.intellij.openapi.application.ApplicationInfo
 import com.intellij.openapi.diagnostic.ErrorReportSubmitter
 import com.intellij.openapi.diagnostic.IdeaLoggingEvent
 import com.intellij.openapi.diagnostic.SubmittedReportInfo
-import com.intellij.openapi.extensions.PluginId
 import com.intellij.util.Consumer
 import com.intellij.util.concurrency.AppExecutorUtil
 import io.github.barsia.speqa.SpeqaBundle
+import io.github.barsia.speqa.SpeqaPluginInfo
 import java.awt.Component
 
 class SpeqaErrorReportSubmitter : ErrorReportSubmitter() {
@@ -29,8 +28,7 @@ class SpeqaErrorReportSubmitter : ErrorReportSubmitter() {
         val throwable = event.throwable ?: return false
 
         val sanitized = SpeqaStacktraceSanitizer.sanitize(throwable)
-        val pluginVersion = PluginManagerCore.getPlugin(PluginId.getId("io.github.barsia.speqa"))
-            ?.version ?: "unknown"
+        val pluginVersion = SpeqaPluginInfo.version
         val appInfo = ApplicationInfo.getInstance()
         val ideVersion = appInfo.build.asString()
         val osInfo = "${System.getProperty("os.name")} ${System.getProperty("os.version")}"

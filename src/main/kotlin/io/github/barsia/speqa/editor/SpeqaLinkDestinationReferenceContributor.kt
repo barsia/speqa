@@ -20,7 +20,8 @@ private class SpeqaPathReferenceProvider : PsiReferenceProvider() {
     override fun getReferencesByElement(element: PsiElement, context: ProcessingContext): Array<PsiReference> {
         val label = element as? MarkdownLinkLabel ?: return PsiReference.EMPTY_ARRAY
         val pathText = extractPathText(label) ?: return PsiReference.EMPTY_ARRAY
-        return FileReferenceSet(pathText, label, 1, null, true).allReferences as Array<PsiReference>
+        val refs = FileReferenceSet(pathText, label, 1, null, true).allReferences
+        return Array(refs.size) { refs[it] }
     }
 
     private fun extractPathText(element: MarkdownLinkLabel): String? {

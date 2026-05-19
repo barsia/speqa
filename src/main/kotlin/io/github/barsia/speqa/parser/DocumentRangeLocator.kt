@@ -53,7 +53,11 @@ object DocumentRangeLocator {
     private val ATTACHMENTS_MARKER = Regex("""^[Aa]ttachments:\s*$""")
     private val LINKS_MARKER = Regex("""^[Ll]inks:\s*$""")
     private val PRECONDITIONS_MARKER = Regex("""^[Pp]reconditions:\s*$""")
-    private val STEP_PATTERN = Regex("""^(\d+)\.\s(.*)$""")
+    // Trailing content after the dot is optional so an empty new step
+    // ("5.\n" after the serializer's `.trim()`) is still recognised as a
+    // step. Otherwise consecutive Add-step clicks all read layout.steps.size
+    // from the pre-add document and write the same number repeatedly.
+    private val STEP_PATTERN = Regex("""^(\d+)\.(?:\s(.*))?$""")
     private val EXPECTED_PATTERN = Regex("""^>\s?(.*)$""")
     private val ATTACHMENT_LINE = Regex("""^\[.+]\(.+\)$|^!\[.*]\(.+\)$|^\[.+]$""")
     private val TICKET_LINE = Regex("""^\s*Ticket:\s*.+$""", RegexOption.IGNORE_CASE)

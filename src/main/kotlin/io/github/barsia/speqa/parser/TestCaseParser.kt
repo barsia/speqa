@@ -102,12 +102,28 @@ object TestCaseParser {
     }
 
     private fun bodyBeforeScenarioMarker(body: String): String {
+        // Collect every line up to the Scenario marker that belongs to a
+        // description or preconditions block. Lines inside a Links: or
+        // Attachments: section are skipped (those are parsed separately
+        // by parseLinks / parseGeneralAttachments). A Preconditions:
+        // marker resumes collection, so Description / Links / Preconditions
+        // can appear in any order without dropping content.
         val collected = mutableListOf<String>()
+        var inSkipSection = false
         for (line in body.lines()) {
             val trimmed = line.trim()
-            if (SCENARIO_MARKER.matches(trimmed) || ATTACHMENTS_MARKER.matches(trimmed) || LINKS_MARKER.matches(trimmed)) {
-                break
+            if (SCENARIO_MARKER.matches(trimmed)) break
+            val isPreconditionsMarker = PreconditionsMarkerStyle.fromMarker(trimmed) != null
+            if (isPreconditionsMarker) {
+                inSkipSection = false
+                collected += line
+                continue
             }
+            if (LINKS_MARKER.matches(trimmed) || ATTACHMENTS_MARKER.matches(trimmed)) {
+                inSkipSection = true
+                continue
+            }
+            if (inSkipSection) continue
             collected += line
         }
         return collected.joinToString("\n")

@@ -1,11 +1,9 @@
 package io.github.barsia.speqa.actions
 
-import com.intellij.ide.plugins.PluginManagerCore
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.CommonDataKeys
-import com.intellij.openapi.extensions.PluginId
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.ui.DialogWrapper
@@ -15,6 +13,7 @@ import com.intellij.ui.components.JBLabel
 import com.intellij.util.IconUtil
 import com.intellij.util.ui.JBUI
 import io.github.barsia.speqa.SpeqaBundle
+import io.github.barsia.speqa.SpeqaPluginInfo
 import io.github.barsia.speqa.filetype.SpeqaIcons
 import io.github.barsia.speqa.model.SpeqaDefaults
 import java.awt.BorderLayout
@@ -31,7 +30,7 @@ class AboutSpeqaAction : AnAction(), DumbAware {
 
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project
-        val version = PluginManagerCore.getPlugin(PluginId.getId("io.github.barsia.speqa"))?.version ?: "unknown"
+        val version = SpeqaPluginInfo.version
         val appInfo = com.intellij.openapi.application.ApplicationInfo.getInstance()
         val environment = java.net.URLEncoder.encode("SpeQA $version | ${appInfo.fullApplicationName}", "UTF-8")
         val bugUrl = "https://github.com/barsia/speqa/issues/new?template=bug_report.yml&environment=$environment"

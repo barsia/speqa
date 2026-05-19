@@ -11,12 +11,14 @@ The user uses **voice input** (speech-to-text). Keep in mind:
 
 ## Required workflow
 
-1. Start by editing the PRD/specification.
-2. The PRD/specification must always describe the current product and implementation state.
-3. The PRD/specification must not become a changelog, migration log, or history of edits.
-4. After updating the PRD/spec, change the code so the implementation matches it.
-5. **Spec-first per session.** The spec must be edited at least once before the first `.kt` edit in a session. A PreToolUse hook enforces this: it blocks `.kt` edits until the spec has been touched. The marker persists for the rest of the session — subsequent `.kt` edits don't require additional spec edits. Make the spec edit meaningful: describe what is changing and why, not a throwaway micro-addition.
-6. Don't add "Generated with Claude Code" or "Co-Authored-By: Claude" to commit messages or PRs
+1. Investigate first when the task is a bug or unexpected behavior. Read the relevant code, reproduce or reason from evidence, and identify the root cause before proposing or applying a fix.
+2. Before the first production `.kt` edit for a product or behavior change, update the relevant contract document so it describes the intended current behavior. This update must be meaningful, not a throwaway marker.
+3. Use [`docs/specs/2026-04-06-speqa-design.md`](docs/specs/2026-04-06-speqa-design.md) for product, UX, editor behavior, file-format, or user-visible implementation contracts.
+4. Use [`docs/plans/2026-04-06-speqa-implementation.md`](docs/plans/2026-04-06-speqa-implementation.md) only when the implementation plan changes. Do not use it as a completion log.
+5. For small internal-only fixes that do not change product behavior, UX, file format, public contracts, plugin wiring, or user-visible implementation guarantees, a spec edit is not required. Prefer a focused regression test or a concise code comment near the invariant when that captures the contract better than the PRD.
+6. The PRD/specification must describe the current product and implementation state. It must not become a changelog, migration log, or history of edits.
+7. After updating any needed contract, change the code so the implementation matches it.
+8. Don't add "Generated with Claude Code" or "Co-Authored-By: Claude" to commit messages or PRs
 
 ## Documents to keep current
 

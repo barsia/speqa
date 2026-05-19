@@ -110,9 +110,11 @@ class SpeqaProjectGenerator : WebProjectTemplate<SpeqaProjectSettings>() {
 
     private fun registerVcsMapping(project: Project, baseDir: VirtualFile) {
         val vcsManager = com.intellij.openapi.vcs.ProjectLevelVcsManager.getInstance(project)
+        @Suppress("DEPRECATION")
         val existing = vcsManager.directoryMappings
         if (existing.any { it.directory == baseDir.path && it.vcs == "Git" }) return
         val mapping = com.intellij.openapi.vcs.VcsDirectoryMapping(baseDir.path, "Git")
+        @Suppress("DEPRECATION")
         vcsManager.directoryMappings = existing + mapping
     }
 
@@ -166,6 +168,7 @@ private class SpeqaProjectGeneratorPeer : GeneratorPeerImpl<SpeqaProjectSettings
         return settings
     }
 
+    @Suppress("OVERRIDE_DEPRECATION")
     override fun getComponent(): JComponent {
         val panel = JPanel(GridBagLayout()).apply {
             border = BorderFactory.createEmptyBorder(6, 0, 6, 0)

@@ -1,45 +1,43 @@
 package io.github.barsia.speqa.run
 
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
+import com.intellij.ide.DataManager
 import com.intellij.openapi.Disposable
+import com.intellij.openapi.actionSystem.CommonDataKeys
+import com.intellij.openapi.actionSystem.PlatformCoreDataKeys
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.application.runWriteAction
 import com.intellij.openapi.command.CommandProcessor
 import com.intellij.openapi.editor.Document
+import com.intellij.openapi.editor.colors.EditorColorsListener
+import com.intellij.openapi.editor.colors.EditorColorsManager
 import com.intellij.openapi.editor.event.DocumentEvent
 import com.intellij.openapi.editor.event.DocumentListener
 import com.intellij.openapi.fileEditor.FileEditor
 import com.intellij.openapi.fileEditor.FileEditorState
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.UserDataHolderBase
-
 import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.ui.components.JBScrollPane
+import com.intellij.util.ui.JBUI
 import io.github.barsia.speqa.SpeqaBundle
 import io.github.barsia.speqa.editor.IdStateHolder
-import io.github.barsia.speqa.editor.resolveTestCaseHeaderMeta
-import io.github.barsia.speqa.editor.ui.editorBackgroundAwt
-import io.github.barsia.speqa.model.Attachment
-import io.github.barsia.speqa.model.DescriptionBlock
-import io.github.barsia.speqa.model.Link
-import io.github.barsia.speqa.model.PreconditionsBlock
-import io.github.barsia.speqa.model.RunResult
-import io.github.barsia.speqa.model.StepVerdict
-import io.github.barsia.speqa.model.TestCaseBodyBlock
+import io.github.barsia.speqa.editor.PreviewRefreshController
+import io.github.barsia.speqa.editor.PreviewRefreshTiming
+import io.github.barsia.speqa.editor.ui.FloatingHeaderBar
+import io.github.barsia.speqa.editor.ui.FloatingHeaderHost
+import io.github.barsia.speqa.editor.ui.primitives.MarkdownEditablePane
 import io.github.barsia.speqa.model.TestRun
+import io.github.barsia.speqa.parser.DocumentPatcher
+import io.github.barsia.speqa.parser.PatchOperation
 import io.github.barsia.speqa.parser.TestRunParser
 import io.github.barsia.speqa.parser.TestRunSerializer
 import io.github.barsia.speqa.registry.IdType
-import org.jetbrains.jewel.bridge.JewelComposePanel
-import org.jetbrains.jewel.bridge.theme.SwingBridgeTheme
 import java.awt.BorderLayout
-import java.awt.event.HierarchyEvent
 import java.beans.PropertyChangeListener
-import java.time.LocalDateTime
 import javax.swing.JComponent
 import javax.swing.JPanel
+import javax.swing.Timer
 
 class TestRunEditor(
     private val project: Project,
@@ -51,322 +49,205 @@ class TestRunEditor(
 
     internal val scrollSync = io.github.barsia.speqa.editor.ScrollSyncController(project, textEditor)
 
-    private var title by mutableStateOf(initialRun.title)
-    private var tags by mutableStateOf(initialRun.tags)
-    private var runId by mutableStateOf(initialRun.id)
-    private var stepResults by mutableStateOf(initialRun.stepResults)
-    private var environment by mutableStateOf(initialRun.environment)
-    private var links by mutableStateOf(initialRun.links)
-    private var attachments by mutableStateOf(initialRun.attachments)
-    private var bodyBlocks by mutableStateOf(initialRun.bodyBlocks)
-    private var runner by mutableStateOf(initialRun.runner.ifBlank { TestRunSupport.defaultRunner() })
-    private var startedAt by mutableStateOf(initialRun.startedAt)
-    private var finishedAt by mutableStateOf(initialRun.finishedAt)
-    private var manualResult by mutableStateOf(initialRun.manualResult)
-    private var overriddenResult by mutableStateOf(initialRun.result)
-    private var comment by mutableStateOf(initialRun.comment)
-    private val idState = IdStateHolder(project, IdType.TEST_RUN) { runId }
-    private var suppressDocumentRefresh = false
-    private var themeRevision by mutableStateOf(0L)
-    private val composeMountController = io.github.barsia.speqa.editor.LazyComposeMountController()
+    private var current: TestRun = initialRun.copy(
+        runner = initialRun.runner.ifBlank { TestRunSupport.defaultRunner() },
+    )
+    private val idState = IdStateHolder(project, IdType.TEST_RUN) { current.id }
+    private var suppressDocumentRefresh = 0
+    private val refreshController = PreviewRefreshController()
 
-    private val createdLabel: String = run {
-        val meta = resolveTestCaseHeaderMeta(project, file)
-        meta.createdLabel
+    private val floatingHeaderBar = FloatingHeaderBar()
+
+    private val panel = io.github.barsia.speqa.editor.ui.TestCasePanel(
+        project = project,
+        file = file,
+        mode = io.github.barsia.speqa.editor.ui.PanelMode.RUN,
+        onChange = { /* case-side callback never fires in RUN mode */ },
+        onPatch = null,
+        onRunChange = { updated ->
+            current = updated
+            // saveToDocument suppresses the document listener, so the panel
+            // would otherwise miss the new header timestamps / overall result
+            // until the next external refresh. Push them directly.
+            refreshHeaderFromCurrent()
+            saveToDocument()
+        },
+        onRunPatch = { updated, op ->
+            current = updated
+            patchFromPreview(updated, op)
+        },
+        onHeaderStateChanged = { idPrefix, id, title ->
+            floatingHeaderBar.setTitle(idPrefix, id, title)
+            // Progress is now derived inside the panel and shown in the progressLabel;
+            // we no longer push progress text through the floating header bar.
+            floatingHeaderBar.setProgress(null)
+        },
+    )
+
+    private val scrollPane = JBScrollPane(panel).apply {
+        border = JBUI.Borders.empty()
+        background = editorCanvasBackground()
+        isOpaque = true
+        viewport.isOpaque = true
+        viewport.background = background
+        horizontalScrollBarPolicy = JBScrollPane.HORIZONTAL_SCROLLBAR_NEVER
+    }
+
+    private val floatingHeaderHost = FloatingHeaderHost(
+        scrollPane = scrollPane,
+        bar = floatingHeaderBar,
+        anchorYProvider = { panel.titleRowBottomY() },
+    )
+
+    private val component: JPanel = JPanel(BorderLayout()).apply {
+        background = scrollPane.background
+        isOpaque = true
+        add(floatingHeaderHost, BorderLayout.CENTER)
     }
 
     private val documentListener = object : DocumentListener {
         override fun documentChanged(event: DocumentEvent) {
-            if (!suppressDocumentRefresh) {
-                refreshTimer.restart()
+            if (suppressDocumentRefresh == 0) {
+                when (refreshController.requestRefresh(MarkdownEditablePane.undoInProgress.get())) {
+                    PreviewRefreshTiming.IMMEDIATE -> {
+                        refreshTimer.stop()
+                        ApplicationManager.getApplication().invokeLater { refreshFromDocument() }
+                    }
+                    PreviewRefreshTiming.DEBOUNCED -> refreshTimer.restart()
+                    PreviewRefreshTiming.NONE -> Unit
+                }
             }
         }
     }
 
-    private val refreshTimer = javax.swing.Timer(300) {
-        val parsed = TestRunParser.parse(document.text)
-        title = parsed.title
-        tags = parsed.tags
-        runId = parsed.id
-        stepResults = parsed.stepResults
-        environment = parsed.environment
-        links = parsed.links
-        attachments = parsed.attachments
-        bodyBlocks = parsed.bodyBlocks
-        runner = parsed.runner
-        startedAt = parsed.startedAt
-        finishedAt = parsed.finishedAt
-        manualResult = parsed.manualResult
-        overriddenResult = parsed.result
-        comment = parsed.comment
-        idState.refresh()
-    }.apply {
+    private val refreshTimer = Timer(300) { refreshFromDocument() }.apply {
         isRepeats = false
     }
 
-    private var ideBackground = editorBackgroundAwt()
-    private val placeholderPanel = JPanel().apply {
-        background = ideBackground
-        isOpaque = true
-    }
-    private var composePanel: JComponent? = null
-
-    private val component = JPanel(BorderLayout()).apply {
-        background = ideBackground
-        isOpaque = true
-        add(placeholderPanel, BorderLayout.CENTER)
-    }
-
-    private fun buildComposePanel(): JComponent {
-        return JewelComposePanel(
-            true,
-            config = {
-                background = ideBackground
-                isOpaque = true
-            },
-        ) {
-            SwingBridgeTheme {
-                @Suppress("UNUSED_VARIABLE")
-                val currentTheme = themeRevision
-                val tagRegistry = io.github.barsia.speqa.registry.SpeqaTagRegistry.getInstance(project)
-                TestRunPanel(
-                    project = project,
-                    file = file,
-                    scrollSyncController = scrollSync,
-                    title = title,
-                    onTitleCommit = {
-                        title = it
-                        saveToDocument()
-                    },
-                    tags = tags,
-                    allKnownTags = tagRegistry.allTags,
-                    onTagsChange = {
-                        tags = it
-                        saveToDocument()
-                    },
-                    runId = runId,
-                    nextFreeRunId = idState.nextFreeId,
-                    isRunIdDuplicate = idState.isDuplicate,
-                    isRunIdEditing = idState.isEditing,
-                    onRunIdEditingChange = { idState.isEditing = it },
-                    onRunIdAssign = { newId ->
-                        runId = newId
-                        saveToDocument()
-                        idState.refresh()
-                    },
-                    createdLabel = createdLabel,
-                    startedAt = startedAt,
-                    finishedAt = finishedAt,
-                    result = if (manualResult) overriddenResult else TestRunSupport.deriveRunResult(stepResults),
-                    manualResult = manualResult,
-                    onResultOverride = { newResult ->
-                        manualResult = true
-                        overriddenResult = newResult
-                        saveToDocument()
-                    },
-                    stepResults = stepResults,
-                    environment = environment,
-                    environmentOptions = tagRegistry.allEnvironments,
-                    links = links,
-                    attachments = attachments,
-                    runner = runner,
-                    onEnvironmentChange = {
-                        environment = it
-                        saveToDocument()
-                    },
-                    onLinksChange = {
-                        links = it
-                        saveToDocument()
-                    },
-                    onAttachmentsChange = {
-                        attachments = it
-                        saveToDocument()
-                    },
-                    onRunnerChange = {
-                        runner = it
-                        saveToDocument()
-                    },
-                    onStepActionChange = { index, action ->
-                        stepResults = stepResults.toMutableList().also { results ->
-                            results[index] = results[index].copy(action = action)
-                        }
-                        saveToDocument()
-                    },
-                    onStepExpectedChange = { index, expected ->
-                        stepResults = stepResults.toMutableList().also { results ->
-                            results[index] = results[index].copy(expected = expected)
-                        }
-                        saveToDocument()
-                    },
-                    onStepVerdictChange = { index, verdict ->
-                        stepResults = stepResults.toMutableList().also { results ->
-                            results[index] = results[index].copy(verdict = verdict)
-                        }
-                        maybeSetStartedAt()
-                        updateFinishedAt()
-                        saveToDocument()
-                    },
-                    onStepCommentChange = { index, stepComment ->
-                        stepResults = stepResults.toMutableList().also { results ->
-                            results[index] = results[index].copy(comment = stepComment)
-                        }
-                        maybeSetStartedAt()
-                        saveToDocument()
-                    },
-                    onStepTicketChange = { index, tickets ->
-                        stepResults = stepResults.toMutableList().also { results ->
-                            results[index] = results[index].copy(tickets = tickets)
-                        }
-                        saveToDocument()
-                    },
-                    onStepLinkChange = { index, links ->
-                        stepResults = stepResults.toMutableList().also { results ->
-                            results[index] = results[index].copy(links = links)
-                        }
-                        saveToDocument()
-                    },
-                    onStepAttachmentsChange = { index, attachments ->
-                        stepResults = stepResults.toMutableList().also { results ->
-                            results[index] = results[index].copy(attachments = attachments)
-                        }
-                        saveToDocument()
-                    },
-                    priority = initialRun.priority,
-                    bodyBlocks = bodyBlocks,
-                    onBodyBlocksChange = {
-                        bodyBlocks = it
-                        saveToDocument()
-                    },
-                    onOpenAttachment = { attachment ->
-                        io.github.barsia.speqa.editor.AttachmentSupport.resolveFile(project, file, attachment)?.let { vf ->
-                            com.intellij.openapi.fileEditor.FileEditorManager.getInstance(project).openFile(vf, true)
-                        }
-                    },
-                    comment = comment,
-                    onCommentChange = {
-                        comment = it
-                        maybeSetStartedAt()
-                        saveToDocument()
-                    },
-                )
+    private fun refreshFromDocument() {
+        // Editor-driven refresh: preserve both panes' scroll offsets so the
+        // fraction-based scroll-sync does not bounce the editor or preview
+        // when rebuilding the panel changes its total content height. The
+        // panel restore is deferred to invokeLater so the new layout (and
+        // updated verticalScrollBar.maximum) is in effect before we set the
+        // bar value — otherwise the viewport would still snap.
+        try {
+            val preservedPanelOffset = scrollSync.preservedVerticalOffset()
+            val preservedEditorOffset = if (!textEditor.isDisposed) {
+                textEditor.scrollingModel.verticalScrollOffset
+            } else -1
+            scrollSync.suppressEditorToPanelSync()
+            val forceFocusedTextSync = refreshController.consumeForceFocusedTextSync()
+            val parsed = TestRunParser.parse(document.text)
+            current = parsed
+            idState.refresh()
+            panel.updateFromRun(parsed, forceFocusedTextSync = forceFocusedTextSync)
+            ApplicationManager.getApplication().invokeLater {
+                scrollSync.restoreVerticalOffset(preservedPanelOffset)
+                if (preservedEditorOffset >= 0 && !textEditor.isDisposed) {
+                    textEditor.scrollingModel.disableAnimation()
+                    textEditor.scrollingModel.scrollVertically(preservedEditorOffset)
+                    textEditor.scrollingModel.enableAnimation()
+                }
             }
-        }.apply {
-            background = ideBackground
-            isOpaque = true
+        } finally {
+            refreshController.markRefreshCompleted()
         }
-    }
-
-    private fun scheduleComposeMountIfNeeded() {
-        if (!composeMountController.shouldRequestMount(component.isDisplayable)) return
-        ApplicationManager.getApplication().invokeLater(
-            {
-                @Suppress("DEPRECATION")
-                if (com.intellij.openapi.util.Disposer.isDisposed(this)) return@invokeLater
-                mountComposePanelIfNeeded()
-            },
-            ModalityState.any(),
-        )
-    }
-
-    private fun mountComposePanelIfNeeded() {
-        if (!composeMountController.shouldMount()) return
-        val panel = buildComposePanel()
-        composePanel = panel
-        suppressPlatformEnterShortcuts(panel)
-        component.remove(placeholderPanel)
-        component.add(panel, BorderLayout.CENTER)
-        component.revalidate()
-        component.repaint()
-    }
-
-    private fun suppressPlatformEnterShortcuts(component: JComponent) {
-        val insertNewline = object : com.intellij.openapi.actionSystem.AnAction() {
-            override fun actionPerformed(e: com.intellij.openapi.actionSystem.AnActionEvent) {
-                io.github.barsia.speqa.editor.ui.FocusedMultilineInsertion.invokeNewline()
-            }
-        }
-        val shortcuts = com.intellij.openapi.actionSystem.CustomShortcutSet(
-            com.intellij.openapi.actionSystem.KeyboardShortcut(javax.swing.KeyStroke.getKeyStroke("control ENTER"), null),
-            com.intellij.openapi.actionSystem.KeyboardShortcut(javax.swing.KeyStroke.getKeyStroke("control shift ENTER"), null),
-        )
-        insertNewline.registerCustomShortcutSet(shortcuts, component)
     }
 
     init {
-        document.addDocumentListener(documentListener, this)
-        idState.start()
-        component.addHierarchyListener { event ->
-            if ((event.changeFlags and HierarchyEvent.DISPLAYABILITY_CHANGED.toLong()) != 0L) {
-                scheduleComposeMountIfNeeded()
+        @Suppress("DEPRECATION")
+        DataManager.registerDataProvider(component) { dataId ->
+            when {
+                CommonDataKeys.PROJECT.`is`(dataId) -> project
+                CommonDataKeys.VIRTUAL_FILE.`is`(dataId) -> file
+                PlatformCoreDataKeys.FILE_EDITOR.`is`(dataId) -> this
+                // Do NOT expose HOST_EDITOR / EDITOR keys. Doing so makes the
+                // IDE route typed characters and editor actions into the
+                // underlying text editor on the left, leaving every Swing
+                // text field in the preview unable to receive input.
+                // `FILE_EDITOR` alone is enough for `UndoAction` /
+                // `RedoAction` to identify the document.
+                else -> null
             }
         }
-        if (component.isDisplayable) {
-            scheduleComposeMountIfNeeded()
-        }
-        project.messageBus.connect(this).subscribe(
+        document.addDocumentListener(documentListener, this)
+        idState.start()
+        panel.updateFromRun(current)
+        scrollSync.attachScrollPane(scrollPane)
+
+        val connection = ApplicationManager.getApplication().messageBus.connect(this)
+        connection.subscribe(
             com.intellij.ide.ui.LafManagerListener.TOPIC,
-            com.intellij.ide.ui.LafManagerListener {
-                themeRevision++
-                ideBackground = editorBackgroundAwt()
-                composePanel?.let { panel ->
-                    panel.background = ideBackground
-                    panel.isOpaque = true
-                }
-                placeholderPanel.background = ideBackground
-                placeholderPanel.isOpaque = true
-                component.background = ideBackground
-                component.isOpaque = true
-                component.repaint()
-            },
+            com.intellij.ide.ui.LafManagerListener { applyEditorTheme() },
+        )
+        connection.subscribe(
+            EditorColorsManager.TOPIC,
+            EditorColorsListener { applyEditorTheme() },
         )
     }
 
-    private fun maybeSetStartedAt() {
-        if (startedAt == null) {
-            startedAt = LocalDateTime.now()
-        }
+    private fun applyEditorTheme() {
+        val bg = editorCanvasBackground()
+        scrollPane.background = bg
+        scrollPane.viewport.background = bg
+        scrollPane.viewport.view?.background = bg
+        component.background = bg
+        panel.refreshTheme()
+        floatingHeaderBar.refreshTheme()
+        scrollPane.repaint()
+        component.repaint()
     }
 
-    private fun updateFinishedAt() {
-        val allHaveVerdict = stepResults.isNotEmpty() && stepResults.all { it.verdict != StepVerdict.NONE }
-        finishedAt = if (allHaveVerdict) finishedAt ?: LocalDateTime.now() else null
+    private fun editorCanvasBackground() =
+        EditorColorsManager.getInstance().let { manager ->
+            (manager.activeVisibleScheme ?: manager.globalScheme).defaultBackground
+        }
+
+    private fun patchFromPreview(updated: TestRun, operation: PatchOperation) {
+        suppressDocumentRefresh++
+        val preservedEditorOffset = if (!textEditor.isDisposed) {
+            textEditor.scrollingModel.verticalScrollOffset
+        } else -1
+        val preservedPanelOffset = scrollSync.preservedVerticalOffset()
+        scrollSync.suppressEditorToPanelSync()
+        ApplicationManager.getApplication().invokeLater({
+            try {
+                CommandProcessor.getInstance().executeCommand(project, {
+                    runWriteAction {
+                        try {
+                            val edits = DocumentPatcher.patch(document.text, operation)
+                            DocumentPatcher.applyEditsAsOneReplace(document, edits)
+                        } catch (_: Exception) {
+                            TestRunSupport.updateDocument(document, TestRunSerializer.serialize(updated))
+                        }
+                    }
+                }, "Speqa: Update test run", null)
+                if (preservedEditorOffset >= 0 && !textEditor.isDisposed) {
+                    textEditor.scrollingModel.disableAnimation()
+                    textEditor.scrollingModel.scrollVertically(preservedEditorOffset)
+                    textEditor.scrollingModel.enableAnimation()
+                }
+                scrollSync.restoreVerticalOffset(preservedPanelOffset)
+            } finally {
+                suppressDocumentRefresh--
+            }
+        }, ModalityState.defaultModalityState())
+    }
+
+    private fun refreshHeaderFromCurrent() {
+        panel.updateFromRun(current)
     }
 
     private fun saveToDocument() {
-        val snapshotRunId = runId
-        val snapshotTitle = title
-        val snapshotTags = tags
-        val snapshotManualResult = manualResult
-        val snapshotOverriddenResult = overriddenResult
-        val snapshotEnvironment = environment
-        val snapshotLinks = links
-        val snapshotAttachments = attachments
-        val snapshotBodyBlocks = bodyBlocks
-        val snapshotRunner = runner
-        val snapshotStepResults = stepResults
-        val snapshotStartedAt = startedAt
-        val snapshotFinishedAt = finishedAt
-        val snapshotComment = comment
-        val autoResult = TestRunSupport.deriveRunResult(snapshotStepResults)
-        val run = TestRun(
-            id = snapshotRunId,
-            title = snapshotTitle,
-            tags = snapshotTags,
-            startedAt = snapshotStartedAt,
-            finishedAt = snapshotFinishedAt,
-            result = if (snapshotManualResult) snapshotOverriddenResult else autoResult,
-            manualResult = snapshotManualResult,
-            environment = snapshotEnvironment,
-            runner = snapshotRunner,
-            priority = initialRun.priority,
-            bodyBlocks = snapshotBodyBlocks,
-            links = snapshotLinks,
-            attachments = snapshotAttachments,
-            stepResults = snapshotStepResults,
-            comment = snapshotComment,
-        )
-        val content = TestRunSerializer.serialize(run)
-        suppressDocumentRefresh = true
+        val content = TestRunSerializer.serialize(current)
+        if (content == document.text) return
+        suppressDocumentRefresh++
+        val preservedEditorOffset = if (!textEditor.isDisposed) {
+            textEditor.scrollingModel.verticalScrollOffset
+        } else -1
+        val preservedPanelOffset = scrollSync.preservedVerticalOffset()
+        scrollSync.suppressEditorToPanelSync()
         ApplicationManager.getApplication().invokeLater({
             try {
                 CommandProcessor.getInstance().executeCommand(project, {
@@ -374,15 +255,21 @@ class TestRunEditor(
                         TestRunSupport.updateDocument(document, content)
                     }
                 }, "Speqa: Update test run", null)
+                if (preservedEditorOffset >= 0 && !textEditor.isDisposed) {
+                    textEditor.scrollingModel.disableAnimation()
+                    textEditor.scrollingModel.scrollVertically(preservedEditorOffset)
+                    textEditor.scrollingModel.enableAnimation()
+                }
+                scrollSync.restoreVerticalOffset(preservedPanelOffset)
             } finally {
-                suppressDocumentRefresh = false
+                suppressDocumentRefresh--
             }
         }, ModalityState.defaultModalityState())
     }
 
     override fun getComponent(): JComponent = component
 
-    override fun getPreferredFocusedComponent(): JComponent? = composePanel
+    override fun getPreferredFocusedComponent(): JComponent? = panel
 
     override fun getName(): String = SpeqaBundle.message("editor.testRun.name")
 
@@ -400,6 +287,8 @@ class TestRunEditor(
         refreshTimer.stop()
         idState.stop()
         scrollSync.dispose()
+        @Suppress("DEPRECATION")
+        DataManager.removeDataProvider(component)
     }
 
     override fun getFile(): VirtualFile = file

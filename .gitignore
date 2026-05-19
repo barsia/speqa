@@ -56,3 +56,7 @@ docs/blog/
 *.p12
 *.jks
 local.properties
+
+# Editor / agent scratch directories
+.junie/
+.playwright-mcp/

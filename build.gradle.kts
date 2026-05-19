@@ -2,11 +2,10 @@ plugins {
     id("java")
     id("org.jetbrains.kotlin.jvm") version "2.3.0"
     id("org.jetbrains.intellij.platform") version "2.12.0"
-    id("org.jetbrains.kotlin.plugin.compose") version "2.3.0"
 }
 
 group = "io.github.barsia"
-version = "0.1.2"
+version = "0.1.3"
 
 val localProps = rootProject.file("local.properties")
     .takeIf { it.exists() }
@@ -34,8 +33,6 @@ dependencies {
 
         // Add plugin dependencies for compilation here:
 
-        composeUI()
-
         bundledPlugin("com.intellij.modules.json")
         bundledPlugin("org.jetbrains.plugins.yaml")
         bundledPlugin("org.intellij.plugins.markdown")
@@ -53,15 +50,17 @@ intellijPlatform {
         }
 
         changeNotes = """
-            <h3>0.1.2</h3>
+            <h3>0.1.3</h3>
             <ul>
-                <li>Test cases and test runs now share a two-column step editor</li>
-                <li>Test runs are fully editable</li>
-                <li>Create Test Run optionally imports tags, environment, tickets, links, and attachments from the test case</li>
-                <li>Attachment preview on hover</li>
-                <li>Sticky headers for test cases and test runs</li>
-                <li>New Project wizard: checkboxes to init Git and install the Claude Code skill</li>
-                <li><code>test-case-writer</code> skill rewritten with create/update flow and ISTQB-aligned priorities</li>
+                <li>Rewritten on native Swing: faster startup, lower memory</li>
+                <li>Test run view at parity with a test case</li>
+                <li>Per-step verdict pills with colored fill and a left progress strip</li>
+                <li>Tag and environment search popup</li>
+                <li>Step comment auto-expands when set; dot indicator on the toggle</li>
+                <li>Auto-continue blockquotes on Enter in Expected</li>
+                <li>WYSIWYG inline editor with floating selection toolbar and formatting shortcuts</li>
+                <li>Truncation tooltip on long dates</li>
+                <li>Sticky header with slide-in animation</li>
             </ul>
         """.trimIndent()
     }

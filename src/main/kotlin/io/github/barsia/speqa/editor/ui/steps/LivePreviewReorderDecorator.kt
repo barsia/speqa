@@ -144,11 +144,15 @@ class LivePreviewReorderDecorator(
         draggedIndex = -1
         phase = LivePreviewPhase.IDLE
         return cards.map { card ->
-            val wrapper = LivePreviewWrapper(card)
-            wrappers[card] = wrapper
-            offsets[wrapper] = FloatArray(2) // [current, target]
-            wrapper
+            append(card)
         }
+    }
+
+    fun append(card: JComponent): JComponent {
+        val wrapper = LivePreviewWrapper(card)
+        wrappers[card] = wrapper
+        offsets[wrapper] = FloatArray(2) // [current, target]
+        return wrapper
     }
 
     fun isActive(): Boolean = phase != LivePreviewPhase.IDLE

@@ -22,6 +22,7 @@ import io.github.barsia.speqa.editor.ui.FloatingHeaderBar
 import io.github.barsia.speqa.editor.ui.FloatingHeaderHost
 import io.github.barsia.speqa.editor.ui.TestCasePanel
 import io.github.barsia.speqa.editor.ui.primitives.MarkdownEditablePane
+import io.github.barsia.speqa.model.TestStep
 import io.github.barsia.speqa.parser.DocumentPatcher
 import io.github.barsia.speqa.parser.PatchOperation
 import io.github.barsia.speqa.registry.IdType
@@ -41,6 +42,7 @@ class SpeqaPreviewEditor(
     private var parsed: ParsedTestCase = parseTestCaseSafely(document.text)
     private val idState = IdStateHolder(project, IdType.TEST_CASE) { parsed.testCase.id }
     private var suppressDocumentRefresh = 0
+    private var lastEditorMutationOffset: Int? = null
     private val refreshController = PreviewRefreshController()
     internal val scrollSync = ScrollSyncController(project, textEditor)
 
@@ -85,9 +87,17 @@ class SpeqaPreviewEditor(
     }
 
     private val documentListener = object : DocumentListener {
+        override fun beforeDocumentChange(event: DocumentEvent) {
+            if (suppressDocumentRefresh == 0) {
+                lastEditorMutationOffset = event.offset
+                scrollSync.suppressEditorToPanelForDocumentMutation()
+            }
+        }
+
         override fun documentChanged(event: DocumentEvent) {
             if (suppressDocumentRefresh == 0) {
-                when (refreshController.requestRefresh(MarkdownEditablePane.undoInProgress.get())) {
+                val timing = refreshController.requestRefresh(MarkdownEditablePane.undoInProgress.get())
+                when (timing) {
                     PreviewRefreshTiming.IMMEDIATE -> {
                         refreshTimer.stop()
                         ApplicationManager.getApplication().invokeLater { refreshFromDocument() }
@@ -109,21 +119,32 @@ class SpeqaPreviewEditor(
         // then mirror that delta back to the editor — causing both panes to
         // visibly jump on every external text edit. Capture the offsets,
         // suppress the sync in both directions while the panel re-lays out,
-        // and restore the panel's vertical offset after the layout pass
+        // and restore the panel's vertical position after the layout pass
         // (Swing's revalidate is asynchronous, so setting bar.value before
         // the new maximum is in effect would still snap the viewport).
         try {
-            val preservedPanelOffset = scrollSync.preservedVerticalOffset()
+            val preservedPanelPosition = scrollSync.preservedVerticalPosition()
             val preservedEditorOffset = if (!textEditor.isDisposed) {
                 textEditor.scrollingModel.verticalScrollOffset
             } else -1
-            scrollSync.suppressEditorToPanelSync()
             val forceFocusedTextSync = refreshController.consumeForceFocusedTextSync()
-            parsed = parseTestCaseSafely(document.text)
+            val documentText = document.text
+            val nextParsed = parseTestCaseSafely(documentText)
+            if (shouldDeferStepShrink(
+                    currentSteps = parsed.testCase.steps,
+                    nextSteps = nextParsed.testCase.steps,
+                    documentText = documentText,
+                    lastMutationOffset = lastEditorMutationOffset,
+                )
+            ) {
+                return
+            }
+            scrollSync.suppressBothDirections()
+            parsed = nextParsed
             idState.refresh()
             testCasePanel.updateFrom(parsed.testCase, forceFocusedTextSync = forceFocusedTextSync)
             ApplicationManager.getApplication().invokeLater {
-                scrollSync.restoreVerticalOffset(preservedPanelOffset)
+                scrollSync.restoreVerticalPosition(preservedPanelPosition)
                 if (preservedEditorOffset >= 0 && !textEditor.isDisposed) {
                     textEditor.scrollingModel.disableAnimation()
                     textEditor.scrollingModel.scrollVertically(preservedEditorOffset)
@@ -211,8 +232,8 @@ class SpeqaPreviewEditor(
         val preservedEditorOffset = if (!textEditor.isDisposed) {
             textEditor.scrollingModel.verticalScrollOffset
         } else -1
-        val preservedPanelOffset = scrollSync.preservedVerticalOffset()
-        scrollSync.suppressEditorToPanelSync()
+        val preservedPanelPosition = scrollSync.preservedVerticalPosition()
+        scrollSync.suppressBothDirections()
         ApplicationManager.getApplication().invokeLater {
             try {
                 com.intellij.openapi.command.CommandProcessor.getInstance().executeCommand(project, {
@@ -225,7 +246,7 @@ class SpeqaPreviewEditor(
                     textEditor.scrollingModel.scrollVertically(preservedEditorOffset)
                     textEditor.scrollingModel.enableAnimation()
                 }
-                scrollSync.restoreVerticalOffset(preservedPanelOffset)
+                scrollSync.restoreVerticalPosition(preservedPanelPosition)
             } finally {
                 suppressDocumentRefresh--
             }
@@ -242,8 +263,8 @@ class SpeqaPreviewEditor(
         val preservedEditorOffset = if (!textEditor.isDisposed) {
             textEditor.scrollingModel.verticalScrollOffset
         } else -1
-        val preservedPanelOffset = scrollSync.preservedVerticalOffset()
-        scrollSync.suppressEditorToPanelSync()
+        val preservedPanelPosition = scrollSync.preservedVerticalPosition()
+        scrollSync.suppressBothDirections()
         ApplicationManager.getApplication().invokeLater {
             try {
                 com.intellij.openapi.command.CommandProcessor.getInstance().executeCommand(project, {
@@ -261,7 +282,7 @@ class SpeqaPreviewEditor(
                     textEditor.scrollingModel.scrollVertically(preservedEditorOffset)
                     textEditor.scrollingModel.enableAnimation()
                 }
-                scrollSync.restoreVerticalOffset(preservedPanelOffset)
+                scrollSync.restoreVerticalPosition(preservedPanelPosition)
             } finally {
                 suppressDocumentRefresh--
             }
@@ -324,5 +345,97 @@ class SpeqaPreviewEditor(
         scrollSync.dispose()
         @Suppress("DEPRECATION")
         DataManager.removeDataProvider(component)
+    }
+
+    companion object {
+        internal fun shouldDeferStepShrink(
+            currentSteps: List<TestStep>,
+            nextSteps: List<TestStep>,
+            documentText: String,
+            lastMutationOffset: Int? = null,
+        ): Boolean =
+            nextSteps.size < currentSteps.size &&
+                (
+                    hasTrailingIncompleteTopLevelStepMarker(documentText) ||
+                        isTransientEmptyTailStepShrink(
+                            currentSteps = currentSteps,
+                            nextSteps = nextSteps,
+                            lastMutationOffset = lastMutationOffset,
+                            documentText = documentText,
+                        )
+                    )
+
+        internal fun isTransientEmptyTailStepShrink(
+            currentSteps: List<TestStep>,
+            nextSteps: List<TestStep>,
+            lastMutationOffset: Int?,
+            documentText: String,
+        ): Boolean =
+            nextSteps.size < currentSteps.size &&
+                isMutationNearDocumentEnd(documentText, lastMutationOffset) &&
+                currentSteps.drop(nextSteps.size).all { it.isEmptyTailStep() } &&
+                retainedStepsMatchExceptTransientTailLine(
+                    currentSteps = currentSteps,
+                    nextSteps = nextSteps,
+                    documentText = documentText,
+                )
+
+        private fun retainedStepsMatchExceptTransientTailLine(
+            currentSteps: List<TestStep>,
+            nextSteps: List<TestStep>,
+            documentText: String,
+        ): Boolean {
+            if (nextSteps.isEmpty()) return true
+            val lastRetainedIndex = nextSteps.lastIndex
+            if (currentSteps.take(lastRetainedIndex) != nextSteps.take(lastRetainedIndex)) {
+                return false
+            }
+            val current = currentSteps[lastRetainedIndex]
+            val next = nextSteps[lastRetainedIndex]
+            return current == next || next.isCurrentStepWithTransientTailLine(current, documentText)
+        }
+
+        private fun TestStep.isCurrentStepWithTransientTailLine(current: TestStep, documentText: String): Boolean {
+            if (expected != current.expected ||
+                expectedGroupSize != current.expectedGroupSize ||
+                attachments != current.attachments ||
+                tickets != current.tickets ||
+                links != current.links
+            ) {
+                return false
+            }
+            val tailLine = documentText
+                .lineSequence()
+                .lastOrNull { it.isNotBlank() }
+                ?.trimEnd()
+                ?: return false
+            val expectedAction = if (current.action.isBlank()) {
+                tailLine
+            } else {
+                current.action + "\n" + tailLine
+            }
+            return action == expectedAction
+        }
+
+        private fun TestStep.isEmptyTailStep(): Boolean =
+            action.isBlank() &&
+                expected.isNullOrBlank() &&
+                attachments.isEmpty() &&
+                tickets.isEmpty() &&
+                links.isEmpty()
+
+        internal fun isMutationNearDocumentEnd(documentText: String, mutationOffset: Int?): Boolean {
+            val offset = mutationOffset ?: return false
+            val tailStart = (documentText.length - 64).coerceAtLeast(0)
+            return offset >= tailStart
+        }
+
+        internal fun hasTrailingIncompleteTopLevelStepMarker(documentText: String): Boolean {
+            val lastNonBlankLine = documentText
+                .lineSequence()
+                .lastOrNull { it.isNotBlank() }
+                ?: return false
+            return Regex("""^\d+(?:[./ю]\s*)?$""").matches(lastNonBlankLine)
+        }
     }
 }

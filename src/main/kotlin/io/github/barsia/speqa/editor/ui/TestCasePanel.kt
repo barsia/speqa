@@ -635,7 +635,11 @@ class TestCasePanel(
         }
 
         if (previous.steps != case.steps) {
-            if (stepsStructurallyChanged(previous.steps, case.steps)) {
+            val append = isSingleStepAppend(previous.steps, case.steps)
+            val structural = stepsStructurallyChanged(previous.steps, case.steps)
+            if (append) {
+                stepsSection.updateStepsInPlace(case.steps, forceFocusedTextSync = forceFocusedTextSync)
+            } else if (structural) {
                 stepsSection.setSteps(case.steps)
                 if (shouldFlash) CommitFlash.flash(stepsSection)
             } else {
@@ -782,6 +786,11 @@ class TestCasePanel(
             if ((old[i].expected == null) != (new[i].expected == null)) return true
         }
         return false
+    }
+
+    companion object {
+        internal fun isSingleStepAppend(old: List<TestStep>, new: List<TestStep>): Boolean =
+            new.size == old.size + 1 && old.indices.all { index -> old[index] == new[index] }
     }
 
     private fun commitDescription(text: String) {

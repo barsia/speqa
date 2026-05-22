@@ -106,6 +106,12 @@ class TestRunEditor(
     }
 
     private val documentListener = object : DocumentListener {
+        override fun beforeDocumentChange(event: DocumentEvent) {
+            if (suppressDocumentRefresh == 0) {
+                scrollSync.suppressEditorToPanelForDocumentMutation()
+            }
+        }
+
         override fun documentChanged(event: DocumentEvent) {
             if (suppressDocumentRefresh == 0) {
                 when (refreshController.requestRefresh(MarkdownEditablePane.undoInProgress.get())) {
@@ -132,18 +138,18 @@ class TestRunEditor(
         // updated verticalScrollBar.maximum) is in effect before we set the
         // bar value — otherwise the viewport would still snap.
         try {
-            val preservedPanelOffset = scrollSync.preservedVerticalOffset()
+            val preservedPanelPosition = scrollSync.preservedVerticalPosition()
             val preservedEditorOffset = if (!textEditor.isDisposed) {
                 textEditor.scrollingModel.verticalScrollOffset
             } else -1
-            scrollSync.suppressEditorToPanelSync()
+            scrollSync.suppressBothDirections()
             val forceFocusedTextSync = refreshController.consumeForceFocusedTextSync()
             val parsed = TestRunParser.parse(document.text)
             current = parsed
             idState.refresh()
             panel.updateFromRun(parsed, forceFocusedTextSync = forceFocusedTextSync)
             ApplicationManager.getApplication().invokeLater {
-                scrollSync.restoreVerticalOffset(preservedPanelOffset)
+                scrollSync.restoreVerticalPosition(preservedPanelPosition)
                 if (preservedEditorOffset >= 0 && !textEditor.isDisposed) {
                     textEditor.scrollingModel.disableAnimation()
                     textEditor.scrollingModel.scrollVertically(preservedEditorOffset)
@@ -209,8 +215,8 @@ class TestRunEditor(
         val preservedEditorOffset = if (!textEditor.isDisposed) {
             textEditor.scrollingModel.verticalScrollOffset
         } else -1
-        val preservedPanelOffset = scrollSync.preservedVerticalOffset()
-        scrollSync.suppressEditorToPanelSync()
+        val preservedPanelPosition = scrollSync.preservedVerticalPosition()
+        scrollSync.suppressBothDirections()
         ApplicationManager.getApplication().invokeLater({
             try {
                 CommandProcessor.getInstance().executeCommand(project, {
@@ -228,7 +234,7 @@ class TestRunEditor(
                     textEditor.scrollingModel.scrollVertically(preservedEditorOffset)
                     textEditor.scrollingModel.enableAnimation()
                 }
-                scrollSync.restoreVerticalOffset(preservedPanelOffset)
+                scrollSync.restoreVerticalPosition(preservedPanelPosition)
             } finally {
                 suppressDocumentRefresh--
             }
@@ -246,8 +252,8 @@ class TestRunEditor(
         val preservedEditorOffset = if (!textEditor.isDisposed) {
             textEditor.scrollingModel.verticalScrollOffset
         } else -1
-        val preservedPanelOffset = scrollSync.preservedVerticalOffset()
-        scrollSync.suppressEditorToPanelSync()
+        val preservedPanelPosition = scrollSync.preservedVerticalPosition()
+        scrollSync.suppressBothDirections()
         ApplicationManager.getApplication().invokeLater({
             try {
                 CommandProcessor.getInstance().executeCommand(project, {
@@ -260,7 +266,7 @@ class TestRunEditor(
                     textEditor.scrollingModel.scrollVertically(preservedEditorOffset)
                     textEditor.scrollingModel.enableAnimation()
                 }
-                scrollSync.restoreVerticalOffset(preservedPanelOffset)
+                scrollSync.restoreVerticalPosition(preservedPanelPosition)
             } finally {
                 suppressDocumentRefresh--
             }

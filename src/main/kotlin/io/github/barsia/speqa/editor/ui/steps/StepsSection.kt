@@ -123,6 +123,17 @@ class StepsSection(
     }
 
     fun updateStepsInPlace(newSteps: List<TestStep>, forceFocusedTextSync: Boolean = false) {
+        if (canAppendCaseStepInPlace(newSteps)) {
+            val previousSteps = steps
+            steps = newSteps.toList()
+            previousSteps.indices.forEach { i ->
+                if (previousSteps[i] != newSteps[i]) {
+                    cards[i].setStep(newSteps[i], forceFocusedTextSync = forceFocusedTextSync)
+                }
+            }
+            appendCaseStep(newSteps.last())
+            return
+        }
         if (newSteps.size != cards.size) {
             setSteps(newSteps)
             return
@@ -130,6 +141,14 @@ class StepsSection(
         steps = newSteps.toList()
         cards.forEachIndexed { i, card -> card.setStep(newSteps[i], forceFocusedTextSync = forceFocusedTextSync) }
     }
+
+    private fun canAppendCaseStepInPlace(newSteps: List<TestStep>): Boolean =
+        !runMode &&
+            !livePreview.isActive() &&
+            steps.isNotEmpty() &&
+            cards.size == steps.size &&
+            newSteps.size == steps.size + 1 &&
+            steps.indices.all { i -> steps[i] == newSteps[i] }
 
     /**
      * Install the run-step list. [runSteps] are the synthetic `TestStep`
@@ -272,32 +291,7 @@ class StepsSection(
             empty.alignmentX = Component.LEFT_ALIGNMENT
             add(empty)
         } else {
-            val freshCards = steps.mapIndexed { index, step ->
-                val sizeBefore = steps.size
-                val card = StepCard(
-                    initialStep = step,
-                    initialIndex = index,
-                    project = project,
-                    tcFile = tcFile,
-                    mode = StepMode.CASE,
-                    onChange = { updated -> updateStep(index, updated) },
-                    onDelete = {
-                        val next = steps.toMutableList().also { it.removeAt(index) }
-                        steps = next
-                        onStepsChange(next)
-                        onStepPatch?.invoke(PatchOperation.DeleteStep(index))
-                        deleteRestorer.onDeleted(index, sizeBefore)
-                        rebuild()
-                    },
-                    onMoveUp = { performReorder(index, index - 1) },
-                    onMoveDown = { performReorder(index, index + 1) },
-                    onDuplicate = { duplicateStep(index) },
-                    canMoveUp = { index > 0 },
-                    canMoveDown = { index < steps.size - 1 },
-                )
-                card.alignmentX = Component.LEFT_ALIGNMENT
-                card
-            }
+            val freshCards = steps.mapIndexed(::createCaseCard)
             cards.addAll(freshCards)
             val wrapped = livePreview.install(freshCards)
             cardWrappers.addAll(wrapped)
@@ -327,6 +321,67 @@ class StepsSection(
         }
         revalidate()
         repaint()
+    }
+
+    private fun appendCaseStep(step: TestStep) {
+        val index = cards.size
+        val card = createCaseCard(index, step)
+        val wrapper = livePreview.append(card).apply {
+            alignmentX = Component.LEFT_ALIGNMENT
+        }
+        cards.add(card)
+        cardWrappers.add(wrapper)
+
+        remove(addRow)
+        add(wrapper)
+        add(javax.swing.Box.createVerticalStrut(JBUI.scale(6)))
+        add(addRow)
+        attachReorderHandle(card)
+        revalidate()
+        repaint()
+    }
+
+    private fun createCaseCard(index: Int, step: TestStep): StepCard {
+        val card = StepCard(
+            initialStep = step,
+            initialIndex = index,
+            project = project,
+            tcFile = tcFile,
+            mode = StepMode.CASE,
+            onChange = { updated -> updateStep(index, updated) },
+            onDelete = {
+                val next = steps.toMutableList().also { it.removeAt(index) }
+                val sizeBefore = steps.size
+                steps = next
+                onStepsChange(next)
+                onStepPatch?.invoke(PatchOperation.DeleteStep(index))
+                deleteRestorer.onDeleted(index, sizeBefore)
+                rebuild()
+            },
+            onMoveUp = { performReorder(index, index - 1) },
+            onMoveDown = { performReorder(index, index + 1) },
+            onDuplicate = { duplicateStep(index) },
+            canMoveUp = { index > 0 },
+            canMoveDown = { index < steps.size - 1 },
+        )
+        card.alignmentX = Component.LEFT_ALIGNMENT
+        return card
+    }
+
+    private fun attachReorderHandle(card: StepCard) {
+        reorder.attachHandle(
+            card = card,
+            dragHandle = card.dragHandle,
+            index = { cards.indexOf(card) },
+            slotProvider = {
+                stepSlotsFromComponents(
+                    components = components,
+                    originalIndexOf = { component ->
+                        cardWrappers.indexOf(component).takeIf { it >= 0 }
+                    },
+                )
+            },
+        )
     }
 
     private fun updateStep(index: Int, updated: TestStep) {
@@ -521,7 +576,7 @@ class StepsSection(
         rebuild()
         // Scroll to the new card on the NEXT-next EDT tick (double-deferred).
         // SpeqaPreviewEditor.patchFromPreview also defers its document-write
-        // + scrollSync.restoreVerticalOffset via invokeLater; if we focus the
+        // + scrollSync.restoreVerticalPosition via invokeLater; if we focus the
         // new card before that, focus-traversal races with the scroll restore
         // and the viewport jumps to the top of the panel. Deferring past
         // both ticks keeps the new step in view without grabbing focus.

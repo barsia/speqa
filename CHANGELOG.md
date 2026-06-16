@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.5
+
+- No IDE restart needed after install or update
+- Already-open test cases and test runs switch to the SpeQA editor automatically
+
 ## 0.1.4
 
 - Preview no longer jumps or flashes while you type

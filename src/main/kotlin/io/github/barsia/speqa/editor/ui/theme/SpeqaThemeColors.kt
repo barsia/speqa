@@ -5,7 +5,7 @@ import java.awt.Color
 
 /**
  * Centralised Speqa theme tokens. UI code MUST pull colors from here (or from
- * Jewel / IntelliJ `UIManager` / `EditorColorsManager` directly) — never embed
+ * IntelliJ `UIManager` / `EditorColorsManager` directly) — never embed
  * raw `Color(...)` literals at call sites. The literal RGB defaults are
  * concentrated in this single file.
  *

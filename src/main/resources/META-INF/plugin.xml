@@ -59,6 +59,11 @@
         <ProviderFactory implementation="io.github.barsia.speqa.filetype.SpeqaFrontmatterSchemaProviderFactory"/>
     </extensions>
 
+    <applicationListeners>
+        <listener class="io.github.barsia.speqa.SpeqaDynamicEditorReopener"
+                  topic="com.intellij.ide.plugins.DynamicPluginListener"/>
+    </applicationListeners>
+
     <actions>
         <action id="Speqa.CreateTestCase"
                 class="io.github.barsia.speqa.actions.CreateTestCaseAction"

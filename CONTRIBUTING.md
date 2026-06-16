@@ -31,13 +31,14 @@ Pull requests without a linked issue will not be reviewed or merged.
 
 ## Code guidelines
 
-- **Kotlin** with Compose Multiplatform for UI
+- **Kotlin** with native Swing for UI (built on the IntelliJ platform UI toolkit)
 - **All user-visible strings** in `src/main/resources/messages/SpeqaBundle.properties`
   (never hardcode text in Kotlin)
-- **No hardcoded colors** — use `SpeqaThemeColors` tokens derived from the IDE theme
-- **Pointer cursor** on all interactive elements: `clickableWithPointer()`, `SpeqaIconButton`,
-  `handOnHover()`
-- **Jewel components** preferred for controls (dropdowns, text fields, buttons)
+- **No hardcoded colors** - use `SpeqaThemeColors` tokens derived from the IDE theme
+- **Pointer cursor** on all interactive elements: apply `handCursor()` to clickable
+  components and use the `speqaIconButton` helper for icon-only action buttons
+- **Native IntelliJ platform controls** (e.g. `ComboBox`, `JBTextField`) for dropdowns,
+  text fields, and buttons
 - Follow existing patterns in the codebase
 
 ## Pull request process
@@ -57,8 +58,8 @@ AI-assisted development is welcome. However, we have specific expectations:
 - PRs must follow project conventions. Explore the codebase first to understand patterns. Examples include:
   - UI text: all strings in `SpeqaBundle.properties`, never hardcoded
   - Colors: `SpeqaThemeColors` tokens from UIManager, never hex values
-  - Compose: `rememberUpdatedState` for callbacks in long-lived effects,
-    `clickableWithPointer` instead of `clickable`
+  - Cursor: apply `handCursor()` to clickable components; use `speqaIconButton`
+    for icon-only action buttons
   - Testing: verify both light and dark themes for UI changes
 - Code must be readable and understandable by humans
 - Commit messages and PR descriptions should be meaningful, not generic AI output

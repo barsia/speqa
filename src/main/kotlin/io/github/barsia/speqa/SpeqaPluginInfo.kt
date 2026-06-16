@@ -1,14 +1,16 @@
 package io.github.barsia.speqa
 
-import com.intellij.ide.plugins.PluginManager
-import com.intellij.openapi.extensions.PluginId
+import java.util.Properties
 
 object SpeqaPluginInfo {
-    private val pluginId: PluginId = PluginId.getId("io.github.barsia.speqa")
-
-    val version: String
-        get() = PluginManager.getInstance()
-            .findEnabledPlugin(pluginId)
-            ?.version
+    /**
+     * Plugin version, baked into `speqa-plugin.properties` at build time from the
+     * Gradle `version`. Read from a resource so we don't depend on internal
+     * IntelliJ Platform plugin-lookup APIs (which change between releases).
+     */
+    val version: String by lazy {
+        SpeqaPluginInfo::class.java.getResourceAsStream("/speqa-plugin.properties")
+            ?.use { stream -> Properties().apply { load(stream) }.getProperty("version") }
             ?: "unknown"
+    }
 }

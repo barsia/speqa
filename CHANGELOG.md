@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.4
+
+- Preview no longer jumps or flashes while you type
+- The preview keeps its scroll position across edits
+- Typing a new step number no longer scrolls the preview away
+
 ## 0.1.3
 
 - Rewritten on native Swing: faster startup, lower memory

@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "io.github.barsia"
-version = "0.1.3"
+version = "0.1.4"
 
 val localProps = rootProject.file("local.properties")
     .takeIf { it.exists() }
@@ -50,17 +50,11 @@ intellijPlatform {
         }
 
         changeNotes = """
-            <h3>0.1.3</h3>
+            <h3>0.1.4</h3>
             <ul>
-                <li>Rewritten on native Swing: faster startup, lower memory</li>
-                <li>Test run view at parity with a test case</li>
-                <li>Per-step verdict pills with colored fill and a left progress strip</li>
-                <li>Tag and environment search popup</li>
-                <li>Step comment auto-expands when set; dot indicator on the toggle</li>
-                <li>Auto-continue blockquotes on Enter in Expected</li>
-                <li>WYSIWYG inline editor with floating selection toolbar and formatting shortcuts</li>
-                <li>Truncation tooltip on long dates</li>
-                <li>Sticky header with slide-in animation</li>
+                <li>Preview no longer jumps or flashes while you type</li>
+                <li>The preview keeps its scroll position across edits</li>
+                <li>Typing a new step number no longer scrolls the preview away</li>
             </ul>
         """.trimIndent()
     }
@@ -88,6 +82,15 @@ tasks {
         targetCompatibility = "21"
     }
 
+    // Bake the plugin version into a resource so runtime code reads it without
+    // depending on internal IntelliJ Platform plugin-lookup APIs.
+    processResources {
+        val pluginVersion = project.version.toString()
+        inputs.property("pluginVersion", pluginVersion)
+        filesMatching("speqa-plugin.properties") {
+            expand(mapOf("version" to pluginVersion))
+        }
+    }
 }
 
 kotlin {

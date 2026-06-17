@@ -16,7 +16,7 @@ import io.github.barsia.speqa.parser.TestCaseParser
 import io.github.barsia.speqa.parser.TestCaseSerializer
 import io.github.barsia.speqa.parser.TestRunSerializer
 import io.github.barsia.speqa.registry.IdType
-import io.github.barsia.speqa.registry.SpeqaIdRegistry
+import io.github.barsia.speqa.registry.SpeqaIds
 import io.github.barsia.speqa.run.TestRunSupport
 import io.github.barsia.speqa.settings.SpeqaSettings
 import java.nio.file.Files
@@ -102,6 +102,16 @@ internal fun resolveTestCaseHeaderMeta(project: Project, file: VirtualFile): Tes
     )
 }
 
+internal fun resolveTestCaseCreatedEpochMillis(project: Project, file: VirtualFile): Long? {
+    val basePath = project.basePath
+    val instant = if (basePath != null) {
+        createdAtResolver.resolve(basePath, file.path, file.timeStamp)
+    } else {
+        null
+    } ?: resolveFileCreatedInstant(file)
+    return instant?.toEpochMilli()
+}
+
 internal fun startTestRun(project: Project, testCaseFile: VirtualFile) {
     @Suppress("DEPRECATION")
     val testCaseContent = com.intellij.openapi.application.runReadAction<String?> {
@@ -171,9 +181,9 @@ internal fun startTestRun(project: Project, testCaseFile: VirtualFile) {
         importOptions = request.importOptions,
     )
 
-    val trRegistry = SpeqaIdRegistry.getInstance(project)
-    trRegistry.ensureInitialized()
-    val trId = trRegistry.idSet(IdType.TEST_RUN).nextFreeId()
+    val trId = com.intellij.util.SlowOperations.allowSlowOperations<Int, RuntimeException> {
+        SpeqaIds.nextFreeId(project, IdType.TEST_RUN)
+    }
     val initialRunWithId = initialRun.copy(id = trId)
 
     val runFile = runWriteAction {
@@ -182,7 +192,6 @@ internal fun startTestRun(project: Project, testCaseFile: VirtualFile) {
         VfsUtil.saveText(file, TestRunSerializer.serialize(initialRunWithId))
         file
     } ?: return
-    trRegistry.idSet(IdType.TEST_RUN).register(trId)
     FileEditorManager.getInstance(project).openFile(runFile, true)
 }
 

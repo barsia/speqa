@@ -2,8 +2,9 @@
 
 ## 0.1.5
 
-- No IDE restart needed after install or update
-- Already-open test cases and test runs switch to the SpeQA editor automatically
+- Duplicate test case IDs are highlighted as you type
+- Resolve duplicate IDs one by one, or across the whole project at once
+- Preview text no longer shows line-wrap arrows
 
 ## 0.1.4
 

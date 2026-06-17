@@ -11,7 +11,7 @@ import com.intellij.psi.PsiFile
 import io.github.barsia.speqa.SpeqaBundle
 import io.github.barsia.speqa.filetype.SpeqaIcons
 import io.github.barsia.speqa.registry.IdType
-import io.github.barsia.speqa.registry.SpeqaIdRegistry
+import io.github.barsia.speqa.registry.SpeqaIds
 
 class CreateTestCaseAction : CreateFileFromTemplateAction(
     "SpeQA Test Case",
@@ -31,9 +31,9 @@ class CreateTestCaseAction : CreateFileFromTemplateAction(
     override fun createFile(name: String, templateName: String, dir: PsiDirectory): PsiFile {
         val targetDir = dir
         val project = dir.project
-        val registry = SpeqaIdRegistry.getInstance(project)
-        registry.ensureInitialized()
-        val nextId = registry.idSet(IdType.TEST_CASE).nextFreeId()
+        val nextId = com.intellij.util.SlowOperations.allowSlowOperations<Int, RuntimeException> {
+            SpeqaIds.nextFreeId(project, IdType.TEST_CASE)
+        }
 
         val template = FileTemplateManager.getInstance(project)
             .getInternalTemplate("SpeQA Test Case.tc.md")
@@ -42,7 +42,6 @@ class CreateTestCaseAction : CreateFileFromTemplateAction(
         }
         val fileName = normalizeFileName(name)
         val psiFile = FileTemplateUtil.createFromTemplate(template, fileName, props, targetDir) as PsiFile
-        registry.idSet(IdType.TEST_CASE).register(nextId)
         return psiFile
     }
 

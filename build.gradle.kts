@@ -52,8 +52,9 @@ intellijPlatform {
         changeNotes = """
             <h3>0.1.5</h3>
             <ul>
-                <li>No IDE restart needed after install or update</li>
-                <li>Already-open test cases and test runs switch to the SpeQA editor automatically</li>
+                <li>Duplicate test case IDs are highlighted as you type</li>
+                <li>Resolve duplicate IDs one by one, or across the whole project at once</li>
+                <li>Preview text no longer shows line-wrap arrows</li>
             </ul>
         """.trimIndent()
     }
@@ -89,6 +90,18 @@ tasks {
         filesMatching("speqa-plugin.properties") {
             expand(mapOf("version" to pluginVersion))
         }
+    }
+
+    // The sandbox IDE defaults to -Xmx2048m, which is not enough to index a large
+    // project opened in the sandbox (heap exhaustion during indexing). Double it.
+    runIde {
+        maxHeapSize = "4g"
+    }
+
+    // buildSearchableOptions launches a headless IDE that also defaults to -Xmx2048m;
+    // on a memory-pressured machine that OOMs. Give it the same 4g as runIde.
+    buildSearchableOptions {
+        maxHeapSize = "4g"
     }
 }
 

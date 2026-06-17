@@ -1,16 +1,20 @@
 package io.github.barsia.speqa.editor
 
+import com.intellij.openapi.application.ModalityState
+import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.project.Project
+import com.intellij.util.concurrency.AppExecutorUtil
 import io.github.barsia.speqa.registry.IdType
-import io.github.barsia.speqa.registry.SpeqaIdRegistry
+import io.github.barsia.speqa.registry.SpeqaIds
+import java.util.concurrent.Callable
 import java.util.concurrent.CopyOnWriteArrayList
 import javax.swing.Timer
 
 /**
- * Pure Swing/Kotlin state holder backing the preview's inline-editable ID row.
- * Exposes `nextFreeId`, `isDuplicate`, and `isEditing`. Callers register a
- * [Listener]; the holder fires it whenever any of those fields change, so UI
- * layers can re-render incrementally.
+ * Swing/Kotlin state holder backing the preview's inline-editable ID row. Exposes
+ * `nextFreeId`, `isDuplicate`, and `isEditing`. The index-backed values are computed
+ * on a background thread (FileBasedIndex queries are slow operations forbidden on the
+ * EDT) and applied back on the EDT; listeners fire when a value actually changes.
  */
 class IdStateHolder(
     private val project: Project,
@@ -22,11 +26,11 @@ class IdStateHolder(
     }
 
     @Volatile
-    var nextFreeId: Int = computeNextFreeId()
+    var nextFreeId: Int = 1
         private set
 
     @Volatile
-    var isDuplicate: Boolean = computeIsDuplicate()
+    var isDuplicate: Boolean = false
         private set
 
     @Volatile
@@ -52,28 +56,25 @@ class IdStateHolder(
         listeners.remove(listener)
     }
 
-    private fun computeNextFreeId(): Int {
-        val registry = SpeqaIdRegistry.getInstance(project)
-        registry.ensureInitialized()
-        return registry.idSet(idType).nextFreeId()
-    }
-
-    private fun computeIsDuplicate(): Boolean {
-        val registry = SpeqaIdRegistry.getInstance(project)
-        registry.ensureInitialized()
-        return currentId()?.let { registry.idSet(idType).isDuplicate(it) } ?: false
-    }
-
     fun refresh() {
-        val newNextFree = computeNextFreeId()
-        val newDuplicate = computeIsDuplicate()
-        val changed = newNextFree != nextFreeId || newDuplicate != isDuplicate
-        nextFreeId = newNextFree
-        isDuplicate = newDuplicate
-        if (changed) fire()
+        ReadAction.nonBlocking(
+            Callable {
+                val next = SpeqaIds.nextFreeId(project, idType)
+                val dup = currentId()?.let { SpeqaIds.isDuplicate(project, idType, it) } ?: false
+                next to dup
+            },
+        )
+            .finishOnUiThread(ModalityState.any()) { (next, dup) ->
+                val changed = next != nextFreeId || dup != isDuplicate
+                nextFreeId = next
+                isDuplicate = dup
+                if (changed) fire()
+            }
+            .submit(AppExecutorUtil.getAppExecutorService())
     }
 
     fun start() {
+        refresh()
         refreshTimer.start()
     }
 

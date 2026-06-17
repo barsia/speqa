@@ -12,7 +12,7 @@ import io.github.barsia.speqa.model.SpeqaDefaults
 import io.github.barsia.speqa.model.Status
 import io.github.barsia.speqa.parser.TestCaseParser
 import io.github.barsia.speqa.registry.IdType
-import io.github.barsia.speqa.registry.SpeqaIdRegistry
+import io.github.barsia.speqa.registry.SpeqaIds
 
 class SpeqaAnnotator : Annotator {
 
@@ -41,9 +41,7 @@ class SpeqaAnnotator : Annotator {
 
         // Warning: duplicate ID
         testCase.id?.let { id ->
-            val registry = SpeqaIdRegistry.getInstance(file.project)
-            registry.ensureInitialized()
-            if (registry.idSet(IdType.TEST_CASE).isDuplicate(id)) {
+            if (SpeqaIds.isDuplicate(file.project, IdType.TEST_CASE, id)) {
                 val idRange = findFrontmatterValueRange(text, "id")
                 if (idRange != null) {
                     val safeRange = TextRange(idRange.startOffset, idRange.endOffset.coerceAtMost(len))

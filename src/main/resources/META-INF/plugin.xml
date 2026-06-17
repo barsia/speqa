@@ -1,4 +1,4 @@
-<idea-plugin>
+<idea-plugin require-restart="true">
     <id>io.github.barsia.speqa</id>
     <name>SpeQA - Test Management System</name>
     <vendor url="https://barsia.github.io">Siarhei Baradulia</vendor>
@@ -35,7 +35,10 @@
 
         <internalFileTemplate name="SpeQA Test Case.tc.md"/>
 
-        <postStartupActivity implementation="io.github.barsia.speqa.registry.SpeqaIdRegistryStartup"/>
+        <fileBasedIndex implementation="io.github.barsia.speqa.registry.SpeqaIdIndex"/>
+        <postStartupActivity implementation="io.github.barsia.speqa.editor.AttachmentRefactoringStartup"/>
+        <postStartupActivity implementation="io.github.barsia.speqa.editor.DuplicateIdBannerRefresher"/>
+        <editorNotificationProvider implementation="io.github.barsia.speqa.editor.DuplicateIdNotificationProvider"/>
 
         <newProjectWizard.generator implementation="io.github.barsia.speqa.wizard.SpeqaNewProjectWizard"/>
         <directoryProjectGenerator implementation="io.github.barsia.speqa.wizard.SpeqaProjectGenerator"/>
@@ -88,6 +91,8 @@
             <add-to-group group-id="ToolsMenu" anchor="last"/>
             <action id="Speqa.InstallSkill"
                     class="io.github.barsia.speqa.actions.InstallSkillAction"/>
+            <action id="Speqa.ResolveDuplicateIds"
+                    class="io.github.barsia.speqa.actions.ResolveDuplicateIdsAction"/>
         </group>
     </actions>
 </idea-plugin>

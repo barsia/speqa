@@ -7,7 +7,7 @@ import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiFile
 import io.github.barsia.speqa.SpeqaBundle
 import io.github.barsia.speqa.registry.IdType
-import io.github.barsia.speqa.registry.SpeqaIdRegistry
+import io.github.barsia.speqa.registry.SpeqaIds
 
 class AssignNextFreeIdFix(private val idType: IdType) : IntentionAction {
 
@@ -26,9 +26,7 @@ class AssignNextFreeIdFix(private val idType: IdType) : IntentionAction {
         if (file == null) return
         val document = PsiDocumentManager.getInstance(project).getDocument(file) ?: return
         val match = ID_LINE_REGEX.find(document.text) ?: return
-        val registry = SpeqaIdRegistry.getInstance(project)
-        registry.ensureInitialized()
-        val nextId = registry.idSet(idType).nextFreeId()
+        val nextId = SpeqaIds.nextFreeId(project, idType)
         document.replaceString(match.range.first, match.range.last + 1, "id: $nextId")
         PsiDocumentManager.getInstance(project).commitDocument(document)
     }

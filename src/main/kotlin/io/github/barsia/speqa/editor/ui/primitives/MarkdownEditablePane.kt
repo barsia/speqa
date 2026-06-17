@@ -99,6 +99,10 @@ class MarkdownEditablePane(
         override fun createEditor(): EditorEx {
             val editor = super.createEditor()
             editor.settings.isUseSoftWraps = true
+            // Keep wrapping but hide the soft-wrap indicator arrows the editor draws
+            // at each wrap point; they are visual noise in these small preview fields.
+            // Scoped to this embedded editor only - the main text editor is unaffected.
+            editor.settings.isPaintSoftWraps = false
             editor.settings.isLineNumbersShown = false
             editor.settings.isLineMarkerAreaShown = false
             editor.settings.isFoldingOutlineShown = false

@@ -1,6 +1,8 @@
 package io.github.barsia.speqa.editor.ui.primitives
 
+import com.intellij.openapi.editor.markup.EffectType
 import com.intellij.openapi.editor.markup.TextAttributes
+import com.intellij.openapi.editor.markup.TextAttributesEffectsBuilder
 import java.awt.Color
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -89,18 +91,53 @@ class MarkdownEditablePaneCaretTest {
     }
 
     @Test
-    fun `inline code attributes keep markdown colors without boxed text effect`() {
+    fun `inline code attributes keep markdown colors and neutralize the autolink underline`() {
         val source = TextAttributes().apply {
             backgroundColor = Color(12, 34, 56)
             foregroundColor = Color(210, 220, 230)
         }
 
-        val attributes = MarkdownEditablePane.inlineCodeTokenAttributes(source)
+        val attributes = MarkdownEditablePane.inlineCodeTokenAttributes(source, fallbackBackground = Color.BLACK)
 
         assertEquals(source.backgroundColor, attributes.backgroundColor)
         assertEquals(source.foregroundColor, attributes.foregroundColor)
-        assertEquals(source.effectType, attributes.effectType)
-        assertEquals(source.effectColor, attributes.effectColor)
+        // The underline effect is overdrawn in the code-span background so it renders
+        // invisibly, replacing the hyperlink underline the highlighting lexer applies to a
+        // URL inside backticks. It must not be a BOXED effect (that would frame the token).
+        assertEquals(EffectType.LINE_UNDERSCORE, attributes.effectType)
+        assertEquals(source.backgroundColor, attributes.effectColor)
+    }
+
+    @Test
+    fun `inline code underline falls back to editor background when code span has no background`() {
+        val source = TextAttributes().apply { foregroundColor = Color(210, 220, 230) }
+
+        val attributes = MarkdownEditablePane.inlineCodeTokenAttributes(source, fallbackBackground = Color(9, 9, 9))
+
+        assertEquals(Color(9, 9, 9), attributes.effectColor)
+    }
+
+    @Test
+    fun `inline code attributes overwrite the autolink underline when merged`() {
+        val source = TextAttributes().apply {
+            backgroundColor = Color(12, 34, 56)
+            foregroundColor = Color(210, 220, 230)
+        }
+        val ours = MarkdownEditablePane.inlineCodeTokenAttributes(source, fallbackBackground = Color.BLACK)
+        // Base layer = the GFM autolink styling the highlighting lexer applies inside
+        // backticks: hyperlink blue foreground + underline (MARKDOWN_AUTO_LINK ->
+        // CodeInsightColors.HYPERLINK_ATTRIBUTES).
+        val autolink = TextAttributes().apply {
+            foregroundColor = Color(70, 130, 200)
+            effectType = EffectType.LINE_UNDERSCORE
+            effectColor = Color(70, 130, 200)
+        }
+
+        val merged = TextAttributes()
+        TextAttributesEffectsBuilder.create(autolink).coverWith(ours).applyTo(merged)
+
+        // Underline is now drawn in the code-span background, i.e. invisible: no blue link line.
+        assertEquals(source.backgroundColor, merged.effectColor)
     }
 
     @Test

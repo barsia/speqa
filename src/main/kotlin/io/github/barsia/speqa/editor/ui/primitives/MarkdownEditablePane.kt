@@ -503,7 +503,7 @@ class MarkdownEditablePane(
         foldingModel.runBatchFoldingOperation {
             clearWysiwygFolds(foldingModel)
 
-            inlineCodeAttributes()?.let { attrs ->
+            inlineCodeAttributes(editor)?.let { attrs ->
                 addDelimitedWysiwyg(
                     editor,
                     Regex("`([^`\\n]+)`"),
@@ -714,11 +714,12 @@ class MarkdownEditablePane(
         }
     }
 
-    private fun inlineCodeAttributes(): TextAttributes? {
+    private fun inlineCodeAttributes(editor: EditorEx): TextAttributes? {
         val src = markdownAttributes("MARKDOWN_CODE_SPAN") ?: return null
         if (src.backgroundColor == null && src.foregroundColor == null) return null
         return inlineCodeTokenAttributes(
             source = src,
+            fallbackBackground = editor.colorsScheme.defaultBackground,
         )
     }
 
@@ -983,10 +984,20 @@ class MarkdownEditablePane(
 
         internal fun inlineCodeTokenAttributes(
             source: TextAttributes,
+            fallbackBackground: Color,
         ): TextAttributes =
             TextAttributes().apply {
                 backgroundColor = source.backgroundColor
                 foregroundColor = source.foregroundColor
+                // Inline code is literal text, but the bundled Markdown highlighting lexer
+                // tags a URL inside single backticks as a GFM autolink and paints it with
+                // the hyperlink foreground + underline (MARKDOWN_AUTO_LINK falls back to
+                // CodeInsightColors.HYPERLINK_ATTRIBUTES). Reasserting the code-span
+                // foreground above replaces the hyperlink color; overdrawing the underline
+                // slot in the token's own background color hides the underline so no link
+                // styling appears inside inline code. Scoped to this embedded editor only.
+                effectType = EffectType.LINE_UNDERSCORE
+                effectColor = source.backgroundColor ?: fallbackBackground
             }
 
         internal fun inlineCodeFragmentBoxes(

@@ -1083,8 +1083,13 @@ object DocumentPatcher {
     // Run step verdict is serialized as a trailing `   - <label>` line inside
     // the step body. `StepVerdict.NONE` suppresses the line entirely.
 
+    // Trailing match is `[ \t]*$` (not `\s*$`) so it never swallows the line's
+    // own newline: a step's wholeRange ends right after the verdict line's `\n`,
+    // and `\s*$` would greedily consume it. The rewrite replacement carries no
+    // trailing newline, so consuming it collapses the separation from the next
+    // step and eventually merges `- failed` into the following `N.` header.
     private val RUN_STEP_VERDICT_LINE = Regex(
-        """(?m)^[ \t]*-\s+(passed|failed|skipped|blocked)\s*$""",
+        """(?m)^[ \t]*-[ \t]+(passed|failed|skipped|blocked)[ \t]*$""",
         RegexOption.IGNORE_CASE,
     )
 

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.6
+
+- Changing a step's result during a test run keeps the rest of the steps intact
+- Inline code stays literal: backticked URLs render as code, not links
+
 ## 0.1.5
 
 - Duplicate test case IDs are highlighted as you type

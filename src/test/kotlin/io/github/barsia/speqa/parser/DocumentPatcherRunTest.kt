@@ -137,6 +137,57 @@ class DocumentPatcherRunTest {
     }
 
     @Test
+    fun `SetRunStepVerdict rewrite preserves separation from the following step`() {
+        val doc = """
+            |---
+            |title: "Smoke"
+            |runner: "alice"
+            |---
+            |
+            |Scenario:
+            |
+            |1. Open login
+            |   > Form is visible
+            |   - passed
+            |
+            |2. Submit credentials
+            |   > Redirected to home
+        """.trimMargin()
+        val edits = DocumentPatcher.patch(doc, PatchOperation.SetRunStepVerdict(0, StepVerdict.FAILED))
+        val result = applyEdits(doc, edits)
+        assertTrue("verdict was rewritten, got: $result", result.contains("- failed"))
+        // The blank line between the verdict and the next step must survive the rewrite.
+        assertTrue("step separation collapsed, got: $result", result.contains("- failed\n\n2. Submit credentials"))
+    }
+
+    @Test
+    fun `SetRunStepVerdict repeated rewrites never merge verdict into the next step`() {
+        var doc = """
+            |---
+            |title: "Smoke"
+            |runner: "alice"
+            |---
+            |
+            |Scenario:
+            |
+            |1. Open login
+            |   > Form is visible
+            |   - passed
+            |
+            |2. Submit credentials
+            |   > Redirected to home
+        """.trimMargin()
+        // Toggle the verdict several times, re-patching the produced document each time —
+        // this mirrors a user clicking different result buttons on the same step.
+        for (verdict in listOf(StepVerdict.FAILED, StepVerdict.SKIPPED, StepVerdict.PASSED)) {
+            val edits = DocumentPatcher.patch(doc, PatchOperation.SetRunStepVerdict(0, verdict))
+            doc = applyEdits(doc, edits)
+        }
+        assertFalse("verdict merged into the next step, got: $doc", doc.contains(Regex("""-\s*(passed|failed|skipped)2\.""")))
+        assertTrue("next step header lost, got: $doc", doc.contains("\n2. Submit credentials"))
+    }
+
+    @Test
     fun `SetRunStepComment inserts a Comment block when absent`() {
         val doc = runDoc()
         val edits = DocumentPatcher.patch(doc, PatchOperation.SetRunStepComment(0, "Looks good"))

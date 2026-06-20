@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "io.github.barsia"
-version = "0.1.5"
+version = "0.1.6"
 
 val localProps = rootProject.file("local.properties")
     .takeIf { it.exists() }
@@ -50,11 +50,10 @@ intellijPlatform {
         }
 
         changeNotes = """
-            <h3>0.1.5</h3>
+            <h3>0.1.6</h3>
             <ul>
-                <li>Duplicate test case IDs are highlighted as you type</li>
-                <li>Resolve duplicate IDs one by one, or across the whole project at once</li>
-                <li>Preview text no longer shows line-wrap arrows</li>
+                <li>Changing a step's result during a test run keeps the rest of the steps intact</li>
+                <li>Inline code stays literal: backticked URLs render as code, not links</li>
             </ul>
         """.trimIndent()
     }

@@ -1,10 +1,10 @@
-name: Deploy Docs to GitHub Pages
+name: Deploy Site + Docs to GitHub Pages
 
 on:
   push:
     branches: [main]
     paths:
-      - 'site/docs/**'
+      - 'site/**'
   workflow_dispatch:
 
 permissions:
@@ -17,7 +17,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build-docs:
+  build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repo
@@ -37,9 +37,9 @@ jobs:
       - name: Prepare combined artifact
         run: |
           mkdir -p _site
-          # Copy landing page (site/ root, excluding the docs source dir)
+          # Landing page: site/ root excluding the docs source
           rsync -a --exclude='docs/' site/ _site/
-          # Place built docs under /docs sub-path (codocation.yml basePath: /speqa/docs)
+          # Docs built output under /docs (basePath: /speqa/docs in codocation.yml)
           mkdir -p _site/docs
           rsync -a site/docs/dist/ _site/docs/
 
@@ -52,7 +52,7 @@ jobs:
           path: '_site'
 
   deploy:
-    needs: build-docs
+    needs: build
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

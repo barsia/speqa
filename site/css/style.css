@@ -116,6 +116,12 @@ img, svg {
     gap: 16px;
 }
 
+.nav-actions {
+    display: flex;
+    align-items: center;
+    gap: 32px;
+}
+
 .nav-brand {
     display: flex;
     align-items: center;

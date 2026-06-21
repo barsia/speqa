@@ -4,7 +4,7 @@
 
     // ---- Theme Toggle (Light/Dark) ----
     var themeBtn = document.getElementById('themeToggle');
-    var savedTheme = localStorage.getItem('speqa-theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    var savedTheme = localStorage.getItem('codocation:theme') || 'light';
     document.documentElement.setAttribute('data-theme', savedTheme);
 
     if (themeBtn) {
@@ -12,7 +12,7 @@
             var current = document.documentElement.getAttribute('data-theme');
             var next = current === 'dark' ? 'light' : 'dark';
             document.documentElement.setAttribute('data-theme', next);
-            localStorage.setItem('speqa-theme', next);
+            localStorage.setItem('codocation:theme', next);
         });
     }
 

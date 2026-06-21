@@ -63,7 +63,7 @@ img, svg {
 }
 
 .container {
-    max-width: 1200px;
+    max-width: 1400px;
     margin: 0 auto;
     padding: 0 36px;
 }
@@ -106,7 +106,7 @@ img, svg {
 }
 
 .nav-inner {
-    max-width: 1200px;
+    max-width: 1400px;
     margin: 0 auto;
     padding: 0 36px;
     height: 64px;
@@ -765,7 +765,7 @@ img, svg {
     display: grid !important;
     grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)) !important;
     gap: 24px !important;
-    max-width: 1200px !important;
+    max-width: 1400px !important;
     margin: 40px auto 0 !important;
     padding-bottom: 36px !important;
 }
@@ -900,7 +900,7 @@ img, svg {
 }
 
 .footer-grid-layout {
-    max-width: 1200px;
+    max-width: 1400px;
     margin: 0 auto;
     display: flex !important;
     justify-content: space-between !important;

@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<keymaps xmlns="https://codocation.com/schema/keymaps">
+
+    <!-- Mappings for transforming text-based key names into symbols -->
+    <mappings>
+        <mapping key="ctrl" value="Ctrl"/>
+        <mapping key="control" value="Ctrl"/>
+        <mapping key="alt" value="Alt"/>
+        <mapping key="option" value="⌥"/>
+        <mapping key="shift" value="Shift"/>
+        <mapping key="command" value="⌘"/>
+        <mapping key="cmd" value="⌘"/>
+        <mapping key="meta" value="⌘"/>
+    </mappings>
+
+    <!-- Supported platforms and their system types mapping -->
+    <layouts>
+        <layout id="windows" name="Windows" platform="PC"/>
+        <layout id="macos" name="macOS" platform="MAC"/>
+        <layout id="linux" name="Linux" platform="PC"/>
+    </layouts>
+
+    <!-- List of actions and their shortcuts per platform -->
+    <actions>
+        <action id="save">
+            <description>Save the current document</description>
+            <shortcuts>
+                <shortcut platform="PC">Ctrl+S</shortcut>
+                <shortcut layout="macos">command S</shortcut>
+            </shortcuts>
+        </action>
+        <action id="copy">
+            <description>Copy selection</description>
+            <shortcuts>
+                <shortcut platform="PC">Ctrl+C</shortcut>
+                <shortcut layout="macos">command C</shortcut>
+            </shortcuts>
+        </action>
+        <action id="find">
+            <description>Find text in document</description>
+            <shortcuts>
+                <shortcut layout="windows,linux">Ctrl+F</shortcut>
+                <shortcut layout="macos">command F</shortcut>
+            </shortcuts>
+        </action>
+    </actions>
+</keymaps>

@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<labels xmlns="https://codocation.com/schema/labels">
+    <label id="stable" name="Stable" color="green"/>
+</labels>

@@ -1,0 +1,63 @@
+name: Deploy Docs to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'site/docs/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Download Codocation CLI
+        run: |
+          curl -fsSL \
+            https://github.com/codocation/codocation/releases/latest/download/codocation-cli \
+            -o /usr/local/bin/codocation-cli
+          chmod +x /usr/local/bin/codocation-cli
+
+      - name: Build documentation site
+        working-directory: site/docs
+        run: codocation-cli build
+
+      - name: Prepare combined artifact
+        run: |
+          mkdir -p _site
+          # Copy landing page (site/ root, excluding the docs source dir)
+          rsync -a --exclude='docs/' site/ _site/
+          # Place built docs under /docs sub-path (codocation.yml basePath: /speqa/docs)
+          mkdir -p _site/docs
+          rsync -a site/docs/dist/ _site/docs/
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: '_site'
+
+  deploy:
+    needs: build-docs
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

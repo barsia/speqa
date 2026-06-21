@@ -1,0 +1,8 @@
+header:
+  []
+toc:
+  - page: pages/index.md
+    home: true
+  - page: pages/quick-start.md
+footer:
+  []

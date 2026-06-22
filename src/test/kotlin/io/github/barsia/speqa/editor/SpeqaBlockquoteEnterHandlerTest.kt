@@ -153,6 +153,51 @@ class SpeqaBlockquoteEnterHandlerTest : BasePlatformTestCase() {
         )
     }
 
+    fun `test Enter continues numbered list inside blockquote`() {
+        myFixture.configureByText(
+            "case.tc.md",
+            """
+                |5. 1. Grant AI access
+                |   2. Log in
+                |   3. Use AI in IDE
+                |   > 1. AI is available and responds
+                |   > 2. Credits are spent<caret>
+            """.trimMargin(),
+        )
+
+        myFixture.type('\n')
+
+        myFixture.checkResult(
+            """
+                |5. 1. Grant AI access
+                |   2. Log in
+                |   3. Use AI in IDE
+                |   > 1. AI is available and responds
+                |   > 2. Credits are spent
+                |   > 3. <caret>
+            """.trimMargin(),
+        )
+    }
+
+    fun `test Enter on empty numbered item in blockquote removes number keeps marker`() {
+        myFixture.configureByText(
+            "case.tc.md",
+            """
+                |5. Use AI in IDE
+                |   > 3. <caret>
+            """.trimMargin(),
+        )
+
+        myFixture.type('\n')
+
+        myFixture.checkResult(
+            """
+                |5. Use AI in IDE
+                |   > <caret>
+            """.trimMargin(),
+        )
+    }
+
     fun `test plain md file is left to the platform`() {
         // In plain `.md` we must not touch input. We assert via the negative:
         // the empty blockquote line should NOT be erased by our handler.

@@ -22,6 +22,7 @@ class TestRunEditorProvider : FileEditorProvider, DumbAware {
             ?: return PsiAwareTextEditorProvider().createEditor(project, file)
 
         val textEditor = PsiAwareTextEditorProvider().createEditor(project, file) as TextEditor
+        textEditor.editor.settings.isUseSoftWraps = true
         return TestRunSplitEditor(
             textEditor = textEditor,
             previewEditor = TestRunEditor(project, file, document, initialRun, textEditor.editor),

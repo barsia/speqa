@@ -22,6 +22,7 @@ class SpeqaEditorProvider : FileEditorProvider, DumbAware {
             ?: return PsiAwareTextEditorProvider().createEditor(project, file)
 
         val textEditor = PsiAwareTextEditorProvider().createEditor(project, file) as TextEditor
+        textEditor.editor.settings.isUseSoftWraps = true
         return SpeqaSplitEditor(textEditor, SpeqaPreviewEditor(project, file, document, textEditor.editor))
     }
 

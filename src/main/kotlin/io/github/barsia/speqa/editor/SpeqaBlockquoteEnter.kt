@@ -63,6 +63,18 @@ object SpeqaBlockquoteEnter {
         val indent = " ".repeat(stepDigits + 2)
         val content = line.substring(prefixMatch.range.last + 1)
         val listMatch = BLOCKQUOTE_NUMBERED_ITEM.matchEntire(content)
+
+        // Empty numbered item `> N. <caret>` → remove the number, keep `> `.
+        // One more Enter on the resulting empty `> ` will exit the blockquote.
+        if (listMatch != null && listMatch.groupValues[2].isBlank()) {
+            return Decision(
+                replaceStart = lineStart,
+                replaceEnd = lineEnd,
+                replacement = "$indent> ",
+                caretOffset = lineStart + indent.length + 2,
+            )
+        }
+
         val replacement = if (listMatch != null) {
             "\n$indent> ${listMatch.groupValues[1].toInt() + 1}. "
         } else {
@@ -181,7 +193,7 @@ object SpeqaBlockquoteEnter {
 
     private val BLOCKQUOTE_PREFIX = Regex("""^\s*>\s?""")
     private val EMPTY_BLOCKQUOTE_LINE = Regex("""^\s*>\s*$""")
-    private val BLOCKQUOTE_NUMBERED_ITEM = Regex("""^(\d+)\.\s.*$""")
+    private val BLOCKQUOTE_NUMBERED_ITEM = Regex("""^(\d+)\.\s(.*)$""")
     private val STEP_LINE = Regex("""^(\d+)\.\s.*$""")
     private val INLINE_SUBSTEP_LINE = Regex("""^(\d+)\. (\d+)\. (.*)$""")
     private val INDENTED_SUBSTEP_LINE = Regex("""^( +)(\d+)\.\s?(.*)$""")

@@ -211,4 +211,32 @@ class SpeqaBlockquoteEnterTest {
 
         assertEquals("\n   > ", d.replacement)
     }
+
+    @Test
+    fun `Enter on empty numbered item inside blockquote removes the number and keeps the marker`() {
+        // `   > 3. <caret>` → removes `3. `, leaves `   > <caret>`
+        // A second Enter on the resulting empty `   > ` then exits the blockquote.
+        val text = "5. Action\n   > 3. "
+        val caret = text.length
+        val lineStart = text.lastIndexOf('\n') + 1
+
+        val d = SpeqaBlockquoteEnter.decide(text, caret) ?: error("expected non-null")
+
+        assertEquals(lineStart, d.replaceStart)
+        assertEquals(text.length, d.replaceEnd)
+        assertEquals("   > ", d.replacement)
+        assertEquals(lineStart + "   > ".length, d.caretOffset)
+    }
+
+    @Test
+    fun `Enter on empty numbered item inside blockquote for two-digit parent uses 4-space indent`() {
+        val text = "10. Action\n    > 1. "
+        val caret = text.length
+        val lineStart = text.lastIndexOf('\n') + 1
+
+        val d = SpeqaBlockquoteEnter.decide(text, caret) ?: error("expected non-null")
+
+        assertEquals("    > ", d.replacement)
+        assertEquals(lineStart + "    > ".length, d.caretOffset)
+    }
 }

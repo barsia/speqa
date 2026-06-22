@@ -56,7 +56,13 @@
         <notificationGroup id="SpeQA" displayType="BALLOON"/>
 
         <enterHandlerDelegate implementation="io.github.barsia.speqa.editor.SpeqaBlockquoteEnterHandler" order="first"/>
+        <backspaceHandlerDelegate implementation="io.github.barsia.speqa.editor.SpeqaBlockquoteBackspaceHandler" order="first"/>
     </extensions>
+
+    <applicationListeners>
+        <listener class="io.github.barsia.speqa.editor.SpeqaBackspaceActionSetup"
+                  topic="com.intellij.ide.AppLifecycleListener"/>
+    </applicationListeners>
 
     <extensions defaultExtensionNs="JavaScript.JsonSchema">
         <ProviderFactory implementation="io.github.barsia.speqa.filetype.SpeqaFrontmatterSchemaProviderFactory"/>

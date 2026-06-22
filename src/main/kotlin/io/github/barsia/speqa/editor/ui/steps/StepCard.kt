@@ -302,6 +302,7 @@ class StepCard(
         // (one line) and leaves the remaining cell space empty / transparent.
         val actionContainer = JPanel(BorderLayout())
         actionContainer.isOpaque = false
+        actionContainer.border = JBUI.Borders.emptyRight(JBUI.scale(8))
         actionContainer.add(actionArea, BorderLayout.NORTH)
 
         expectedContainer = JPanel(BorderLayout())

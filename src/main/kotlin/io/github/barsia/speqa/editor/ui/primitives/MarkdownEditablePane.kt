@@ -159,6 +159,17 @@ class MarkdownEditablePane(
                 ApplicationManager.getApplication().runWriteAction {
                     val editor = field.editor as? EditorEx
                     val savedCaret = editor?.caretModel?.offset ?: 0
+                    if (editor != null && !editor.isDisposed) {
+                        // Stale fold regions and inlays crash VisualLineFragmentsIterator /
+                        // EditorSizeManager during setText's synchronous document change events.
+                        clearWysiwygNonFoldingArtifacts()
+                        editor.foldingModel.runBatchFoldingOperation {
+                            for (region in editor.foldingModel.allFoldRegions.toList()) {
+                                editor.foldingModel.removeFoldRegion(region)
+                            }
+                            ourFolds.clear()
+                        }
+                    }
                     field.text = value
                     val target = caretOffsetAfterTextSync(previousText, value, savedCaret)
                     editor?.let {
@@ -797,13 +808,7 @@ class MarkdownEditablePane(
                 .coerceAtLeast(editor.lineHeight - JBUI.scale(2))
             val visible = editor.scrollingModel.visibleArea
             val x = visible.x + JBUI.scale(1)
-            val maxWidth = (visible.width - JBUI.scale(3)).coerceAtLeast(JBUI.scale(24))
-            val width = codeBlockContainerWidth(
-                renderedLineRightEdges = codeBlockRenderedLineRightEdges(editor, start, end),
-                blockLeft = x,
-                trailingPadding = JBUI.scale(CODE_BLOCK_CONTENT_PADDING),
-                maxWidth = maxWidth,
-            )
+            val width = (visible.width - JBUI.scale(2)).coerceAtLeast(JBUI.scale(24))
             val arc = JBUI.scale(4)
 
             val g2 = g.create() as Graphics2D
@@ -818,18 +823,6 @@ class MarkdownEditablePane(
             }
         }
 
-        private fun codeBlockRenderedLineRightEdges(editor: Editor, start: Int, end: Int): List<Int> {
-            val text = editor.document.charsSequence
-            val edges = mutableListOf<Int>()
-            for (offset in start until end) {
-                if (text[offset] == '\n') continue
-                val charEnd = (offset + 1).coerceAtMost(editor.document.textLength)
-                if (charEnd > offset) {
-                    edges += editor.offsetToXY(charEnd).x
-                }
-            }
-            return edges
-        }
     }
 
     private class InlineCodeBorderRenderer(

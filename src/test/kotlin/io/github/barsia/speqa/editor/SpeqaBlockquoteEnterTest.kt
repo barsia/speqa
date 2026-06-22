@@ -181,4 +181,34 @@ class SpeqaBlockquoteEnterTest {
 
         assertNull(SpeqaBlockquoteEnter.decide(text, caret))
     }
+
+    @Test
+    fun `continues numbered list inside blockquote by incrementing the item number`() {
+        val text = "5. Action\n   > 2. Credits are spent"
+        val caret = text.length
+
+        val d = SpeqaBlockquoteEnter.decide(text, caret) ?: error("expected non-null")
+
+        assertEquals("\n   > 3. ", d.replacement)
+    }
+
+    @Test
+    fun `continues numbered list inside blockquote for multi-digit parent step`() {
+        val text = "10. Action\n    > 1. AI is available"
+        val caret = text.length
+
+        val d = SpeqaBlockquoteEnter.decide(text, caret) ?: error("expected non-null")
+
+        assertEquals("\n    > 2. ", d.replacement)
+    }
+
+    @Test
+    fun `plain blockquote without numbered content keeps plain continuation`() {
+        val text = "1. Action\n   > Result text"
+        val caret = text.length
+
+        val d = SpeqaBlockquoteEnter.decide(text, caret) ?: error("expected non-null")
+
+        assertEquals("\n   > ", d.replacement)
+    }
 }

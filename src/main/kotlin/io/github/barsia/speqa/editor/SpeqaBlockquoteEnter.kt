@@ -61,7 +61,13 @@ object SpeqaBlockquoteEnter {
         }
 
         val indent = " ".repeat(stepDigits + 2)
-        val replacement = "\n$indent> "
+        val content = line.substring(prefixMatch.range.last + 1)
+        val listMatch = BLOCKQUOTE_NUMBERED_ITEM.matchEntire(content)
+        val replacement = if (listMatch != null) {
+            "\n$indent> ${listMatch.groupValues[1].toInt() + 1}. "
+        } else {
+            "\n$indent> "
+        }
         return Decision(
             replaceStart = caretOffset,
             replaceEnd = caretOffset,
@@ -175,6 +181,7 @@ object SpeqaBlockquoteEnter {
 
     private val BLOCKQUOTE_PREFIX = Regex("""^\s*>\s?""")
     private val EMPTY_BLOCKQUOTE_LINE = Regex("""^\s*>\s*$""")
+    private val BLOCKQUOTE_NUMBERED_ITEM = Regex("""^(\d+)\.\s.*$""")
     private val STEP_LINE = Regex("""^(\d+)\.\s.*$""")
     private val INLINE_SUBSTEP_LINE = Regex("""^(\d+)\. (\d+)\. (.*)$""")
     private val INDENTED_SUBSTEP_LINE = Regex("""^( +)(\d+)\.\s?(.*)$""")

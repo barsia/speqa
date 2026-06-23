@@ -12,7 +12,7 @@ import com.intellij.openapi.editor.actionSystem.EditorActionManager
  * in a single Backspace keystroke for `.tc.md` / `.tr.md` files.
  */
 class SpeqaBackspaceActionSetup : AppLifecycleListener {
-    override fun appStarted() {
+    override fun appFrameCreated(commandLineArgs: List<String>) {
         val manager = EditorActionManager.getInstance()
         val original = manager.getActionHandler(IdeActions.ACTION_EDITOR_BACKSPACE)
         if (original !is SpeqaBackspaceActionHandler) {

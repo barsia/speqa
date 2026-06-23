@@ -217,17 +217,21 @@ object DocumentPatcher {
         val fm = layout.frontmatter ?: return emptyList()
         val existing = fm.fields.find { it.key == op.key }
 
+        // Treat an empty list the same as null: remove the field rather than
+        // writing `key: []`, which would persist a spurious key in the file.
+        val effectiveValues = op.values?.takeIf { it.isNotEmpty() }
+
         return if (existing != null) {
-            if (op.values != null) {
-                val formatted = formatListField(op.key, op.values)
+            if (effectiveValues != null) {
+                val formatted = formatListField(op.key, effectiveValues)
                 listOf(DocumentEdit(existing.wholeRange.start, existing.wholeRange.length, formatted))
             } else {
                 listOf(DocumentEdit(existing.wholeRange.start, existing.wholeRange.length, ""))
             }
         } else {
-            if (op.values != null) {
+            if (effectiveValues != null) {
                 val insertOffset = findInsertionOffset(fm, op.key)
-                val formatted = formatListField(op.key, op.values)
+                val formatted = formatListField(op.key, effectiveValues)
                 listOf(DocumentEdit(insertOffset, 0, formatted))
             } else {
                 emptyList()

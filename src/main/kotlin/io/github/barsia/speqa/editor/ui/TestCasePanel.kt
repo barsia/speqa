@@ -95,7 +95,13 @@ class TestCasePanel(
     override fun getScrollableTracksViewportHeight(): Boolean = false
 
     private var currentCase: TestCase = TestCase()
+    // Tracks what the UI actually displays, updated only inside updateFrom/updateFromRun.
+    // Kept separate from currentCase so emit() can advance currentCase optimistically
+    // while updateFrom() still sees the correct previous-vs-next diff for UI components
+    // that don't update themselves immediately (tag cloud, link list, attachments, etc.).
+    private var displayedCase: TestCase = TestCase()
     private var currentRun: TestRun = TestRun()
+    private var displayedRun: TestRun = TestRun()
     private var suppressProgrammaticSync: Boolean = false
 
     private fun emit(updated: TestCase, op: PatchOperation? = null) {
@@ -570,7 +576,8 @@ class TestCasePanel(
     }
 
     fun updateFrom(case: TestCase, flash: Boolean = false, forceFocusedTextSync: Boolean = false) {
-        val previous = currentCase
+        val previous = displayedCase
+        displayedCase = case
         currentCase = case
         val shouldFlash = flash && !firstUpdate
         firstUpdate = false
@@ -649,7 +656,8 @@ class TestCasePanel(
     }
 
     fun updateFromRun(run: TestRun, flash: Boolean = false, forceFocusedTextSync: Boolean = false) {
-        val previous = currentRun
+        val previous = displayedRun
+        displayedRun = run
         currentRun = run
         val shouldFlash = flash && !firstUpdate
         firstUpdate = false

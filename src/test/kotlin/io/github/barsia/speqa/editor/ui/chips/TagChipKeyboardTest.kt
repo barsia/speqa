@@ -72,11 +72,13 @@ class TagChipKeyboardTest {
 
   @Test
   fun `delete action is centered on visual chip corner`() {
-    val geometry = tagChipCornerDeleteGeometry(width = 80, height = 32, deleteButtonSize = 18)
+    val geometry = tagChipCornerDeleteGeometry(width = 80, height = 32, deleteButtonSize = 14)
 
-    assertEquals(Rectangle(0, 9, 71, 23), geometry.fillBounds)
-    assertEquals(Rectangle(60, 0, 18, 18), geometry.deleteButtonBounds)
-    assertEquals(geometry.fillBounds.x + geometry.fillBounds.width - 2, geometry.deleteButtonBounds.x + geometry.deleteButtonBounds.width / 2)
-    assertEquals(geometry.fillBounds.y, geometry.deleteButtonBounds.y + geometry.deleteButtonBounds.height / 2)
+    // Fill covers full chip bounds (no vertical overlap above).
+    assertEquals(Rectangle(0, 0, 80, 32), geometry.fillBounds)
+    // Delete button: right-aligned with inset=2, vertically centered.
+    assertEquals(Rectangle(64, 9, 14, 14), geometry.deleteButtonBounds)
+    // Button center-y == chip center-y.
+    assertEquals(geometry.fillBounds.height / 2, geometry.deleteButtonBounds.y + geometry.deleteButtonBounds.height / 2)
   }
 }

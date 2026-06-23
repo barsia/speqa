@@ -71,17 +71,12 @@ fun tagChipCornerDeleteGeometry(
     height: Int,
     deleteButtonSize: Int,
 ): TagChipCornerDeleteGeometry {
-    val overlap = deleteButtonSize / 2
     val inset = JBUI.scale(TAG_CHIP_DELETE_INSET)
-    val fillBounds = Rectangle(
-        0,
-        overlap,
-        (width - overlap).coerceAtLeast(0),
-        (height - overlap).coerceAtLeast(0),
-    )
+    // Delete button sits fully inside the chip (no vertical overlap above it).
+    val fillBounds = Rectangle(0, 0, width, height)
     val deleteButtonBounds = Rectangle(
         (width - deleteButtonSize - inset).coerceAtLeast(0),
-        0,
+        ((height - deleteButtonSize) / 2).coerceAtLeast(0),
         deleteButtonSize,
         deleteButtonSize,
     )
@@ -113,10 +108,10 @@ class TagChip(
     private var deleteButton: JComponent? = null
 
     private val deleteButtonSize: Int
-        get() = if (deleteButton == null) 0 else JBUI.scale(18)
+        get() = if (deleteButton == null) 0 else JBUI.scale(14)
 
     private val deleteButtonOverlap: Int
-        get() = deleteButtonSize / 2
+        get() = 0
 
     private val editGap: Int
         get() = if (editButton == null) 0 else maxOf(deleteButtonOverlap, JBUI.scale(2))
@@ -267,13 +262,11 @@ class TagChip(
         val label = getComponent(0).preferredSize
         val edit = editButton?.preferredSize ?: Dimension(0, 0)
         val gap = editGap
-        val overlap = deleteButtonOverlap
-        val fillWidth = insets.left + label.width + gap + edit.width + overlap + insets.right
+        // Reserve deleteButtonSize on the right for the button (no vertical overlap).
+        val deleteReserve = deleteButtonSize
+        val fillWidth = insets.left + label.width + gap + edit.width + deleteReserve + insets.right
         val fillHeight = insets.top + maxOf(label.height, edit.height) + insets.bottom
-        return Dimension(
-            fillWidth + overlap,
-            fillHeight + overlap,
-        )
+        return Dimension(fillWidth, fillHeight)
     }
 
     override fun getMinimumSize(): Dimension = preferredSize
@@ -361,7 +354,7 @@ class TagChip(
             })
         }
 
-        override fun getPreferredSize(): Dimension = JBUI.size(18, 18)
+        override fun getPreferredSize(): Dimension = JBUI.size(14, 14)
 
         override fun paintComponent(g: Graphics) {
             val g2 = g.create() as Graphics2D

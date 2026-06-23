@@ -79,7 +79,7 @@ internal class LinkRow(
 
             removeSlot = RemovableRowActionSlot(
                 tooltip = SpeqaBundle.message("tooltip.removeLink"),
-                onAction = { confirmAndDelete() },
+                onAction = { onDelete() },
             ).also { actions.add(it) }
             add(actions, BorderLayout.EAST)
         }
@@ -164,19 +164,6 @@ internal class LinkRow(
             if (edited != null) {
                 onEdited(edited)
             }
-        }
-    }
-
-    private fun confirmAndDelete() {
-        val result = Messages.showOkCancelDialog(
-            SpeqaBundle.message("dialog.removeLink.message"),
-            SpeqaBundle.message("dialog.removeLink.title"),
-            Messages.getOkButton(),
-            Messages.getCancelButton(),
-            Messages.getWarningIcon(),
-        )
-        if (result == Messages.OK) {
-            onDelete()
         }
     }
 

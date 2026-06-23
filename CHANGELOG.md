@@ -3,8 +3,13 @@
 ## 0.1.7
 
 - Soft wrap is now enabled by default in the Markdown editor for test cases and test runs
-- Step text that doesn't fit on one line stays aligned as it wraps
-- Fixed keyboard handling when editing expected results in Markdown editor
+- Fixed keyboard handling when editing expected results in the Markdown editor
+- Removing a tag, link, attachment, or environment value from the preview now takes effect immediately
+- Deleting the last tag or environment value now removes the field from the file cleanly
+- Fixed selecting text inside a code block
+- Fixed backspace on empty lines inside code blocks
+- Hover over a code block to reveal a copy button
+- Removing a link no longer asks for confirmation
 
 ## 0.1.6
 

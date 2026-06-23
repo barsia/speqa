@@ -11,6 +11,7 @@ import io.github.barsia.speqa.editor.ui.MetadataMatchesDialog
 import io.github.barsia.speqa.editor.ui.primitives.DeleteFocusRestorer
 import io.github.barsia.speqa.editor.ui.primitives.WrapLayout
 import io.github.barsia.speqa.editor.ui.primitives.speqaIconButton
+import java.awt.Dimension
 import java.awt.FlowLayout
 import javax.swing.JComponent
 import javax.swing.JPanel
@@ -32,7 +33,7 @@ class TagCloud(
     private val metadataKind: MetadataKind = MetadataKind.TAG,
     private val metadataProject: Project? = null,
     private val hideAddButton: Boolean = false,
-) : JPanel(WrapLayout(FlowLayout.LEFT, JBUI.scale(4), JBUI.scale(4), gapAround = false)) {
+) : JPanel(WrapLayout(FlowLayout.LEFT, JBUI.scale(4), JBUI.scale(2), gapAround = false)) {
 
     private var tags: List<String> = emptyList()
     private var allKnownTagsSupplier: () -> Set<String> = { emptySet() }
@@ -48,6 +49,18 @@ class TagCloud(
     )
 
     private var lastWidthForRelayout: Int = -1
+    // Remembers the one-row chip height so we can clamp the empty-state height
+    // to the same value and prevent a visual jump when the last tag is deleted.
+    private var minPreferredHeight = 0
+
+    override fun getPreferredSize(): Dimension {
+        val d = super.getPreferredSize()
+        if (tags.isNotEmpty()) minPreferredHeight = d.height
+        return if (tags.isEmpty() && minPreferredHeight > 0)
+            Dimension(d.width, maxOf(d.height, minPreferredHeight))
+        else
+            d
+    }
 
     init {
         isOpaque = false
@@ -119,6 +132,8 @@ class TagCloud(
                     "Label.disabledForeground",
                     com.intellij.ui.JBColor.GRAY,
                 )
+                // Align text with chip text: chip border.top=2, vgap=2.
+                border = javax.swing.BorderFactory.createEmptyBorder(JBUI.scale(2), 0, 0, 0)
             }
             add(emptyLabel)
         } else {

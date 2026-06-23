@@ -53,8 +53,13 @@ intellijPlatform {
             <h3>0.1.7</h3>
             <ul>
                 <li>Soft wrap is now enabled by default in the Markdown editor for test cases and test runs</li>
-                <li>Step text that doesn't fit on one line stays aligned as it wraps</li>
-                <li>Fixed keyboard handling when editing expected results in Markdown editor</li>
+                <li>Fixed keyboard handling when editing expected results in the Markdown editor</li>
+                <li>Removing a tag, link, attachment, or environment value from the preview now takes effect immediately</li>
+                <li>Deleting the last tag or environment value now removes the field from the file cleanly</li>
+                <li>Fixed selecting text inside a code block</li>
+                <li>Fixed backspace on empty lines inside code blocks</li>
+                <li>Hover over a code block to reveal a copy button</li>
+                <li>Removing a link no longer asks for confirmation</li>
             </ul>
         """.trimIndent()
     }

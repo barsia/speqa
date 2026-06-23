@@ -10,6 +10,7 @@ import java.awt.Graphics2D
 import java.awt.Point
 import java.awt.Rectangle
 import java.awt.RenderingHints
+import java.awt.datatransfer.StringSelection
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import javax.swing.BorderFactory
@@ -19,8 +20,12 @@ import javax.swing.JComponent
 import javax.swing.JPanel
 import javax.swing.SwingConstants
 import javax.swing.SwingUtilities
+import javax.swing.Timer
 
+import com.intellij.openapi.Disposable
 import com.intellij.openapi.actionSystem.ActionUpdateThread
+import com.intellij.openapi.command.WriteCommandAction
+import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.CustomShortcutSet
@@ -28,14 +33,19 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.runWriteAction
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.editor.EditorCustomElementRenderer
-import com.intellij.openapi.editor.VisualPosition
+import com.intellij.openapi.editor.EditorFactory
 import com.intellij.openapi.editor.FoldRegion
 import com.intellij.openapi.editor.FoldingModel
 import com.intellij.openapi.editor.Inlay
+import com.intellij.openapi.editor.colors.EditorColors
 import com.intellij.openapi.editor.colors.EditorColorsManager
 import com.intellij.openapi.editor.colors.TextAttributesKey
 import com.intellij.openapi.editor.event.DocumentEvent
 import com.intellij.openapi.editor.event.DocumentListener
+import com.intellij.openapi.editor.event.EditorFactoryEvent
+import com.intellij.openapi.editor.event.EditorFactoryListener
+import com.intellij.openapi.editor.event.EditorMouseEvent
+import com.intellij.openapi.editor.event.EditorMouseMotionListener
 import com.intellij.openapi.editor.event.SelectionEvent
 import com.intellij.openapi.editor.event.SelectionListener
 import com.intellij.openapi.editor.ex.EditorEx
@@ -45,6 +55,9 @@ import com.intellij.openapi.editor.markup.HighlighterLayer
 import com.intellij.openapi.editor.markup.HighlighterTargetArea
 import com.intellij.openapi.editor.markup.RangeHighlighter
 import com.intellij.openapi.editor.markup.TextAttributes
+import com.intellij.icons.AllIcons
+import com.intellij.openapi.editor.event.VisibleAreaEvent
+import com.intellij.openapi.editor.event.VisibleAreaListener
 import com.intellij.openapi.fileTypes.FileTypeManager
 import com.intellij.openapi.ui.popup.JBPopup
 import com.intellij.openapi.ui.popup.JBPopupFactory
@@ -57,7 +70,6 @@ import com.intellij.util.ui.JBUI
 import io.github.barsia.speqa.SpeqaBundle
 import org.intellij.plugins.markdown.MarkdownIcons
 
-private const val CODE_BLOCK_CONTENT_PADDING = 6
 private const val INLINE_CODE_CONTENT_PADDING = 2
 private const val INLINE_CODE_EXTERNAL_GAP = 2
 
@@ -104,10 +116,6 @@ class MarkdownEditablePane(
             // at each wrap point; they are visual noise in these small preview fields.
             // Scoped to this embedded editor only - the main text editor is unaffected.
             editor.settings.isPaintSoftWraps = false
-            // Indent continuation lines to visually align with list-item content
-            // (e.g. `1. text` wraps with a 3-space hanging indent matching `N. `).
-            editor.settings.isUseCustomSoftWrapIndent = true
-            editor.settings.customSoftWrapIndent = 3
             editor.settings.isLineNumbersShown = false
             editor.settings.isLineMarkerAreaShown = false
             editor.settings.isFoldingOutlineShown = false
@@ -121,7 +129,9 @@ class MarkdownEditablePane(
             installUndoDelegation(editor)
             installFormattingToolbar(editor)
             installListContinuation(editor)
+            installCodeBlockEnter(editor)
             installHiddenCodeBlockEditGuard(editor)
+            installCodeBlockCopyButton(editor)
             normalizeEmbeddedEditorScroll(editor)
             return editor
         }
@@ -192,14 +202,25 @@ class MarkdownEditablePane(
 
     override fun requestFocusInWindow(): Boolean = field.requestFocusInWindow()
 
+    private fun editorDisposable(editor: EditorEx): Disposable {
+        val d = Disposer.newDisposable()
+        EditorFactory.getInstance().addEditorFactoryListener(object : EditorFactoryListener {
+            override fun editorReleased(event: EditorFactoryEvent) {
+                if (event.editor === editor) Disposer.dispose(d)
+            }
+        }, d)
+        return d
+    }
+
     private fun installFormattingToolbar(editor: EditorEx) {
+        val ed = editorDisposable(editor)
+        val debounce = Timer(200) { updateFormattingToolbar(editor) }.apply { isRepeats = false }
+        Disposer.register(ed, Disposable { debounce.stop() })
         editor.selectionModel.addSelectionListener(object : SelectionListener {
             override fun selectionChanged(e: SelectionEvent) {
-                ApplicationManager.getApplication().invokeLater {
-                    updateFormattingToolbar(editor)
-                }
+                debounce.restart()
             }
-        })
+        }, ed)
         registerFormattingShortcut(editor, MarkdownFormatAction.BOLD, "meta B", "control B")
         registerFormattingShortcut(editor, MarkdownFormatAction.ITALIC, "meta I", "control I")
         registerFormattingShortcut(editor, MarkdownFormatAction.STRIKE, "meta shift X", "control shift X")
@@ -207,6 +228,7 @@ class MarkdownEditablePane(
 
     private fun updateFormattingToolbar(editor: EditorEx) {
         if (suppressFormattingToolbarUpdate) return
+        if (editor.isDisposed) return
         if (!editor.selectionModel.hasSelection() || !editor.contentComponent.hasFocus()) {
             hideFormattingToolbar()
             return
@@ -451,6 +473,144 @@ class MarkdownEditablePane(
         action.registerCustomShortcutSet(CustomShortcutSet.fromString("ENTER"), editor.contentComponent)
     }
 
+    private fun installCodeBlockEnter(editor: EditorEx) {
+        val action = object : AnAction() {
+            override fun getActionUpdateThread() = ActionUpdateThread.EDT
+
+            override fun update(e: AnActionEvent) {
+                e.presentation.isEnabledAndVisible = isInsideIndentedCodeBlock(editor)
+            }
+
+            override fun actionPerformed(e: AnActionEvent) {
+                val caret = editor.caretModel.offset
+                WriteCommandAction.runWriteCommandAction(project) {
+                    editor.document.insertString(caret, "\n")
+                }
+                editor.caretModel.moveToOffset(caret + 1)
+            }
+        }
+        action.registerCustomShortcutSet(CustomShortcutSet.fromString("ENTER"), editor.contentComponent)
+    }
+
+    private fun installCodeBlockCopyButton(editor: EditorEx) {
+        val ed = editorDisposable(editor)
+        var currentBlock: MarkdownWysiwygRange? = null
+        var hideTimer: Timer? = null
+        var feedbackTimer: Timer? = null
+        var isFeedbackShowing = false
+
+        val doneLabel = javax.swing.JLabel(AllIcons.General.GreenCheckmark).apply {
+            isVisible = false
+            val s = JBUI.scale(22)
+            preferredSize = java.awt.Dimension(s, s)
+        }
+
+        lateinit var button: JComponent
+        button = speqaIconButton(
+            icon = AllIcons.Actions.Copy,
+            tooltip = SpeqaBundle.message("editor.codeBlock.copy.tooltip"),
+            muted = true,
+        ) {
+            currentBlock?.let { block ->
+                val content = extractCodeBlockContent(editor.document.charsSequence, block)
+                val sel = StringSelection(content)
+                java.awt.Toolkit.getDefaultToolkit().systemClipboard.setContents(sel, sel)
+
+                feedbackTimer?.stop()
+                isFeedbackShowing = true
+                button.isVisible = false
+                doneLabel.setBounds(button.bounds)
+                doneLabel.isVisible = true
+                feedbackTimer = Timer(500) {
+                    isFeedbackShowing = false
+                    doneLabel.isVisible = false
+                    if (currentBlock != null) button.isVisible = true
+                }.apply { isRepeats = false; start() }
+            }
+        }.apply { isVisible = false }
+
+        editor.contentComponent.add(button)
+        editor.contentComponent.add(doneLabel)
+        Disposer.register(ed) {
+            hideTimer?.stop()
+            feedbackTimer?.stop()
+            editor.contentComponent.remove(button)
+            editor.contentComponent.remove(doneLabel)
+        }
+
+        fun scheduleHide() {
+            if (isFeedbackShowing) return
+            hideTimer?.stop()
+            hideTimer = Timer(300) { button.isVisible = false; currentBlock = null }
+                .apply { isRepeats = false; start() }
+        }
+
+        fun cancelHide() { hideTimer?.stop(); hideTimer = null }
+
+        fun showForBlock(block: MarkdownWysiwygRange) {
+            if (editor.isDisposed) return
+            cancelHide()
+            currentBlock = block
+            val startLine = editor.offsetToVisualPosition(block.contentStart).line
+            val y = editor.visualLineToY(startLine) + JBUI.scale(4)
+            val bw = button.preferredSize.width
+            val bh = button.preferredSize.height
+            val x = editor.contentComponent.width - bw - JBUI.scale(4)
+            button.setBounds(x, y, bw, bh)
+            if (!doneLabel.isVisible) button.isVisible = true
+        }
+
+        editor.addEditorMouseMotionListener(object : EditorMouseMotionListener {
+            override fun mouseMoved(e: EditorMouseEvent) {
+                val block = codeBlockUnderPoint(editor, e.mouseEvent.point)
+                if (block != null) showForBlock(block) else scheduleHide()
+            }
+        }, ed)
+        editor.contentComponent.addMouseListener(object : MouseAdapter() {
+            override fun mouseExited(e: MouseEvent) = scheduleHide()
+        })
+        button.addMouseListener(object : MouseAdapter() {
+            override fun mouseEntered(e: MouseEvent) = cancelHide()
+            override fun mouseExited(e: MouseEvent) = scheduleHide()
+        })
+        editor.scrollingModel.addVisibleAreaListener(VisibleAreaListener {
+            currentBlock?.let { showForBlock(it) }
+        }, ed)
+    }
+
+    private fun codeBlockUnderPoint(editor: EditorEx, point: Point): MarkdownWysiwygRange? {
+        if (editor.isDisposed) return null
+        val offset = editor.logicalPositionToOffset(editor.xyToLogicalPosition(point))
+        val text = editor.document.charsSequence
+        return MarkdownWysiwygRanges.fencedCodeBlocks(text).firstOrNull { range ->
+            offset in range.openStart until range.closeFoldEnd
+        }
+    }
+
+    private fun extractCodeBlockContent(text: CharSequence, range: MarkdownWysiwygRange): String {
+        if (range.contentIndentFolds.isEmpty()) {
+            return text.substring(range.contentStart, range.contentEnd)
+        }
+        // Walk content range, skipping fold intervals (sorted, non-overlapping)
+        val sb = StringBuilder()
+        var pos = range.contentStart
+        for (fold in range.contentIndentFolds) {
+            if (pos < fold.start) sb.append(text, pos, fold.start)
+            pos = fold.end
+        }
+        if (pos < range.contentEnd) sb.append(text, pos, range.contentEnd)
+        return sb.toString()
+    }
+
+    private fun isInsideIndentedCodeBlock(editor: EditorEx): Boolean {
+        val caret = editor.caretModel.offset
+        val text = editor.document.charsSequence
+        return MarkdownWysiwygRanges.fencedCodeBlocks(text).any { block ->
+            block.contentIndentFolds.isNotEmpty() &&
+                caret >= block.contentStart && caret <= block.contentEnd
+        }
+    }
+
     private fun installHiddenCodeBlockEditGuard(editor: EditorEx) {
         hiddenCodeBlockEditGuard(editor, backspace = true)
             .registerCustomShortcutSet(CustomShortcutSet.fromString("BACK_SPACE"), editor.contentComponent)
@@ -466,8 +626,32 @@ class MarkdownEditablePane(
                 e.presentation.isEnabledAndVisible = shouldConsumeHiddenCodeBlockEdit(editor, backspace)
             }
 
-            override fun actionPerformed(e: AnActionEvent) = Unit
+            override fun actionPerformed(e: AnActionEvent) {
+                if (backspace) smartDeleteIndentEmptyLine(editor)
+                // Delete (forward) at openStart: consume with no-op — can't delete fence
+            }
         }
+
+    private fun smartDeleteIndentEmptyLine(editor: EditorEx) {
+        if (editor.isDisposed) return
+        val caret = editor.caretModel.offset
+        val text = editor.document.charsSequence
+        for (block in MarkdownWysiwygRanges.fencedCodeBlocks(text)) {
+            if (caret == block.contentStart) return // caret at fence boundary — structural no-op
+            for (fold in block.contentIndentFolds) {
+                if (caret - 1 !in fold.start until fold.end) continue
+                // Only smart-delete when the line is visually empty (fold is immediately followed by \n)
+                if (caret >= text.length || text[caret] != '\n') return
+                val nlBefore = fold.start - 1
+                if (nlBefore < 0 || text[nlBefore] != '\n') return
+                WriteCommandAction.runWriteCommandAction(project) {
+                    editor.document.deleteString(nlBefore, fold.end)
+                }
+                editor.caretModel.moveToOffset(nlBefore)
+                return
+            }
+        }
+    }
 
     private fun shouldConsumeHiddenCodeBlockEdit(editor: EditorEx, backspace: Boolean): Boolean {
         if (editor.selectionModel.hasSelection()) return false
@@ -537,7 +721,6 @@ class MarkdownEditablePane(
             addCodeBlockWysiwyg(editor, codeBlockStyle(), codeBlocks)
         }
         addInlineCodePaddingInlays(editor, Regex("`([^`\\n]+)`"), delimiterLength = 1)
-        addCodeBlockPaddingInlays(editor, codeBlocks)
         invalidateWysiwygLayout()
     }
 
@@ -617,37 +800,35 @@ class MarkdownEditablePane(
                 }
             }
             if (range.contentStart < range.contentEnd) {
+                // Erase any URL/hyperlink underlines painted by the Markdown plugin at HYPERLINK layer.
+                val eraser = markup.addRangeHighlighter(
+                    range.contentStart,
+                    range.contentEnd,
+                    HighlighterLayer.HYPERLINK + 10,
+                    TextAttributes.ERASE_MARKER,
+                    HighlighterTargetArea.EXACT_RANGE,
+                )
+                ourHighlighters += eraser
+                // Re-apply code foreground above the erase layer and attach the border renderer.
                 val highlighter = markup.addRangeHighlighter(
                     range.contentStart,
                     range.contentEnd,
-                    HighlighterLayer.SYNTAX + 10,
+                    HighlighterLayer.HYPERLINK + 20,
                     style.textAttributes,
                     HighlighterTargetArea.EXACT_RANGE,
                 )
                 highlighter.setCustomRenderer(CodeBlockRenderer(style.background, style.border))
                 ourHighlighters += highlighter
-            }
-        }
-    }
 
-    private fun addCodeBlockPaddingInlays(editor: EditorEx, ranges: List<MarkdownWysiwygRange>) {
-        if (editor.isDisposed) return
-        val settings = editor.settings
-        for (range in ranges) {
-            // Compute indent alignment: use the visual line just before the code block as a
-            // reference so inlay measurements are not skewed by inlays on the block itself.
-            val blockLine = editor.offsetToVisualPosition(range.contentStart).line
-            val refLine = (blockLine - 1).coerceAtLeast(0)
-            val indentPx = if (settings.isUseCustomSoftWrapIndent && settings.customSoftWrapIndent > 0) {
-                val col0X = editor.visualPositionToXY(VisualPosition(refLine, 0)).x
-                val col3X = editor.visualPositionToXY(VisualPosition(refLine, settings.customSoftWrapIndent)).x
-                (col3X - col0X).coerceAtLeast(0)
-            } else 0
-            val padding = indentPx + JBUI.scale(CODE_BLOCK_CONTENT_PADDING)
-            for (offset in codeBlockPaddingInlayOffsets(range)) {
-                editor.inlayModel.addInlineElement(offset, false, CodeBlockPaddingInlay(padding))?.let {
-                    ourInlays += it
-                }
+                val vPad = JBUI.scale(4)
+                val spacer = SpacerRenderer(vPad)
+                // Above first content line (outside the opening fence fold)
+                editor.inlayModel.addBlockElement(range.contentStart, false, true, 0, spacer)
+                    ?.let { ourInlays += it }
+                // Below last content line (outside the closing fence fold)
+                val lastContent = (range.contentEnd - 1).coerceAtLeast(range.contentStart)
+                editor.inlayModel.addBlockElement(lastContent, true, false, 0, spacer)
+                    ?.let { ourInlays += it }
             }
         }
     }
@@ -676,28 +857,6 @@ class MarkdownEditablePane(
                 }
             }
         }
-    }
-
-    private fun codeBlockPaddingInlayOffsets(range: MarkdownWysiwygRange): List<Int> {
-        val indentByStart = range.contentIndentFolds.associateBy { it.start }
-        val offsets = mutableListOf<Int>()
-        var lineStart = range.contentStart
-        while (lineStart < range.contentEnd) {
-            val lineEnd = lineEnd(lineStart, range.contentEnd)
-            if (lineEnd > lineStart) {
-                offsets += indentByStart[lineStart]?.end ?: lineStart
-            }
-            lineStart = if (lineEnd < range.contentEnd) lineEnd + 1 else range.contentEnd
-        }
-        return offsets
-    }
-
-    private fun lineEnd(lineStart: Int, contentEnd: Int): Int {
-        val editor = activeWysiwygEditor ?: return contentEnd
-        val text = editor.document.charsSequence
-        var i = lineStart
-        while (i < contentEnd && text[i] != '\n') i++
-        return i
     }
 
     private fun addDelimitedWysiwyg(
@@ -818,36 +977,59 @@ class MarkdownEditablePane(
 
             val startLine = editor.offsetToVisualPosition(start).line
             val endLine = editor.offsetToVisualPosition((end - 1).coerceAtLeast(start)).line
-            val y = editor.visualLineToY(startLine) + JBUI.scale(1)
-            val height = (editor.visualLineToY(endLine) + editor.lineHeight - y - JBUI.scale(1))
-                .coerceAtLeast(editor.lineHeight - JBUI.scale(2))
+            val y = editor.visualLineToY(startLine)
+            val height = (editor.visualLineToY(endLine) + editor.lineHeight - y)
+                .coerceAtLeast(editor.lineHeight)
             val visible = editor.scrollingModel.visibleArea
-            // Align the code block border with the soft-wrap continuation column.
-            // Use the line before the block as reference to avoid inlay-width distortion.
-            val refLine = (startLine - 1).coerceAtLeast(0)
-            val softWrapIndentPx = if (editor.settings.isUseCustomSoftWrapIndent
-                && editor.settings.customSoftWrapIndent > 0
-            ) {
-                val col0X = editor.visualPositionToXY(VisualPosition(refLine, 0)).x
-                val col3X = editor.visualPositionToXY(VisualPosition(refLine, editor.settings.customSoftWrapIndent)).x
-                (col3X - col0X).coerceAtLeast(0)
-            } else 0
-            val x = visible.x + softWrapIndentPx + JBUI.scale(1)
-            val width = (visible.width - softWrapIndentPx - JBUI.scale(2)).coerceAtLeast(JBUI.scale(24))
-            val arc = JBUI.scale(4)
+            val x = visible.x
+            val width = visible.width
 
+            val arc = JBUI.scale(6)
             val g2 = g.create() as Graphics2D
             try {
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
                 g2.color = background
                 g2.fillRoundRect(x, y, width, height, arc, arc)
-                g2.color = border
-                g2.drawRoundRect(x, y, width, height, arc, arc)
+                // Re-paint selection on top: the renderer runs after the editor's selection
+                // pass, so the fill above would otherwise cover it.
+                paintSelectionOverlay(editor, highlighter, g2, x, blockWidth = width)
             } finally {
                 g2.dispose()
             }
         }
 
+        private fun paintSelectionOverlay(
+            editor: Editor,
+            highlighter: RangeHighlighter,
+            g2: Graphics2D,
+            blockX: Int,
+            blockWidth: Int,
+        ) {
+            val ex = editor as? EditorEx ?: return
+            if (!ex.selectionModel.hasSelection()) return
+            val selColor = EditorColorsManager.getInstance().globalScheme
+                .getColor(EditorColors.SELECTION_BACKGROUND_COLOR) ?: return
+            val selStart = ex.selectionModel.selectionStart
+            val selEnd = ex.selectionModel.selectionEnd
+            val hlStart = highlighter.startOffset.coerceAtLeast(0)
+            val hlEnd = highlighter.endOffset.coerceAtMost(editor.document.textLength)
+            val overlapStart = maxOf(selStart, hlStart)
+            val overlapEnd = minOf(selEnd, hlEnd)
+            if (overlapStart >= overlapEnd) return
+            val selStartLine = editor.offsetToVisualPosition(overlapStart).line
+            val selEndLine = editor.offsetToVisualPosition((overlapEnd - 1).coerceAtLeast(overlapStart)).line
+            g2.color = selColor
+            for (line in selStartLine..selEndLine) {
+                g2.fillRect(blockX, editor.visualLineToY(line), blockWidth, editor.lineHeight)
+            }
+        }
+
+    }
+
+    private class SpacerRenderer(private val height: Int) : EditorCustomElementRenderer {
+        override fun calcWidthInPixels(inlay: Inlay<*>) = 0
+        override fun calcHeightInPixels(inlay: Inlay<*>) = height
+        override fun paint(inlay: Inlay<*>, g: Graphics, targetRegion: Rectangle, textAttributes: TextAttributes) = Unit
     }
 
     private class InlineCodeBorderRenderer(
@@ -928,17 +1110,6 @@ class MarkdownEditablePane(
                 }
             }
         }
-    }
-
-    private class CodeBlockPaddingInlay(private val width: Int) : EditorCustomElementRenderer {
-        override fun calcWidthInPixels(inlay: Inlay<*>): Int = width
-
-        override fun paint(
-            inlay: Inlay<*>,
-            g: Graphics,
-            targetRegion: Rectangle,
-            textAttributes: TextAttributes,
-        ) = Unit
     }
 
     private class InlineCodePaddingInlay(private val width: Int) : EditorCustomElementRenderer {

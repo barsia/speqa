@@ -285,6 +285,10 @@ class SpeqaPreviewEditor(
                 scrollSync.restoreVerticalPosition(preservedPanelPosition)
             } finally {
                 suppressDocumentRefresh--
+                // The document listener was suppressed during this patch, so
+                // refreshFromDocument was never triggered. Fire it immediately
+                // so the preview reflects the change without any delay.
+                ApplicationManager.getApplication().invokeLater { refreshFromDocument() }
             }
         }
     }

@@ -376,6 +376,99 @@ class DocumentPatcherTest {
         assertTrue("Links should be before Scenario", linksIdx < stepsIdx)
     }
 
+    // ── Deleting last tag / environment removes the field entirely ─
+
+    @Test
+    fun `deleting last tag removes tags field from frontmatter`() {
+        val doc = """
+            |---
+            |title: "Test"
+            |tags:
+            |  - "smoke"
+            |---
+            |
+            |Scenario:
+            |
+            |1. Do something
+        """.trimMargin()
+
+        val edits = DocumentPatcher.patch(doc, PatchOperation.SetFrontmatterList("tags", emptyList()))
+        val result = applyEdits(doc, edits)
+
+        assertFalse("tags field must be removed when last tag is deleted", result.contains("tags:"))
+        assertFalse("tags: [] must not appear in the file", result.contains("tags: []"))
+        assertTrue(result.contains("title: \"Test\""))
+    }
+
+    @Test
+    fun `deleting last tag produces a file where parser gives tags null`() {
+        val doc = """
+            |---
+            |title: "Test"
+            |tags:
+            |  - "smoke"
+            |---
+            |
+            |Scenario:
+            |
+            |1. Do something
+        """.trimMargin()
+
+        val edits = DocumentPatcher.patch(doc, PatchOperation.SetFrontmatterList("tags", emptyList()))
+        val result = applyEdits(doc, edits)
+        val parsed = TestCaseParser.parse(result)
+
+        assertEquals(
+            "Parser must return tags=null (not emptyList) when tags field is absent",
+            null, parsed.tags
+        )
+    }
+
+    @Test
+    fun `deleting last environment removes environment field from frontmatter`() {
+        val doc = """
+            |---
+            |title: "Test"
+            |environment:
+            |  - "Chrome"
+            |---
+            |
+            |Scenario:
+            |
+            |1. Do something
+        """.trimMargin()
+
+        val edits = DocumentPatcher.patch(doc, PatchOperation.SetFrontmatterList("environment", emptyList()))
+        val result = applyEdits(doc, edits)
+
+        assertFalse("environment field must be removed when last value is deleted", result.contains("environment:"))
+        assertFalse("environment: [] must not appear in the file", result.contains("environment: []"))
+    }
+
+    @Test
+    fun `deleting last environment produces a file where parser gives environment null`() {
+        val doc = """
+            |---
+            |title: "Test"
+            |environment:
+            |  - "Chrome"
+            |---
+            |
+            |Scenario:
+            |
+            |1. Do something
+        """.trimMargin()
+
+        val edits = DocumentPatcher.patch(doc, PatchOperation.SetFrontmatterList("environment", emptyList()))
+        val result = applyEdits(doc, edits)
+        val parsed = TestCaseParser.parse(result)
+
+        assertEquals(
+            "Parser must return environment=null when environment field is absent",
+            null, parsed.environment
+        )
+    }
+
     // ── 14. SetLinks: no-op when no section and empty links ─────
 
     @Test

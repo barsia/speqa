@@ -78,8 +78,8 @@ You can also edit the raw Markdown on the left panel. The format uses YAML front
 ---
 id: TC-001
 title: "User can log in with valid credentials"
-priority: Medium
-status: Active
+priority: normal
+status: ready
 tags:
   - smoke
   - critical

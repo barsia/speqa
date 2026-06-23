@@ -9,7 +9,7 @@ SpeQA brings test case management and execution into your IDE with:
 - **Markdown editor** for test cases with interactive preview
 - **Visual test run tracking** - mark steps as Passed, Failed, or Skipped in interactive preview
 - **Built-in links and attachments** - add screenshots and files to test evidence
-- **Tags and environment manegement** - mark your tests and runs with corresponding env and tags
+- **Tags and environment management** - mark your tests and runs with corresponding env and tags
 - **Claude Code skill for test cases generation** - automatically generate test cases rom your ticket, requirements or Pull request
 - **Git-friendly** - store test cases as `.tc.md` files, just like a code
 
@@ -24,7 +24,7 @@ SpeQA brings test case management and execution into your IDE with:
 ## What's Next?
 
 - **Want to automate?** Learn about [Claude Code Skills](./claude-code-skills.md)
-- **Need power features?** Explore [Advanced Features](./advanced-features.md)
+- **Need power features?** Explore [Test Case Properties](./test-case-properties.md)
 
 ## Key Concepts
 

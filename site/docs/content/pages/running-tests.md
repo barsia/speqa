@@ -180,6 +180,6 @@ Or use a test suite (if your project defines one) to run multiple tests in order
 
 ## What's Next?
 
-- Learn about [Advanced Features](./advanced-features.md) to enhance test evidence
+- Learn about [Test Case Properties](./test-case-properties.md) to enhance test evidence
 - Set up [Claude Code Skills](./claude-code-skills.md) to write more test cases
 - Review your test runs to identify patterns in failures

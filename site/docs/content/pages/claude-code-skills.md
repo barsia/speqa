@@ -237,7 +237,7 @@ The skill can provide feedback on:
 ## What's Next?
 
 - Learn about [Writing Test Cases](./writing-test-cases.md) to understand the format
-- Explore [Advanced Features](./advanced-features.md) like attachments and links
+- Explore [Test Case Properties](./test-case-properties.md) like attachments and links
 - Check out [Running Tests](./running-tests.md) to execute your generated test cases
 
 ## Advanced: Customizing Skills

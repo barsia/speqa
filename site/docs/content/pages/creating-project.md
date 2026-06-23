@@ -99,7 +99,7 @@ Now that you've created a test case project:
 1. [Write your first test case](./writing-test-cases.md)
 2. [Learn to run and track tests](./running-tests.md)
 3. *(Optional)* [Use Claude Code skill to speed up test writing](./claude-code-skills.md)
-4. Explore [Advanced Features](./advanced-features.md) like attachments and links
+4. Explore [Test Case Properties](./test-case-properties.md) like attachments and links
 
 ## Troubleshooting
 

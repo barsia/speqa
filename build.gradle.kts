@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "io.github.barsia"
-version = "0.1.6"
+version = "0.1.7"
 
 val localProps = rootProject.file("local.properties")
     .takeIf { it.exists() }
@@ -50,10 +50,11 @@ intellijPlatform {
         }
 
         changeNotes = """
-            <h3>0.1.6</h3>
+            <h3>0.1.7</h3>
             <ul>
-                <li>Changing a step's result during a test run keeps the rest of the steps intact</li>
-                <li>Inline code stays literal: backticked URLs render as code, not links</li>
+                <li>Soft wrap is now enabled by default in the Markdown editor for test cases and test runs</li>
+                <li>Step text that doesn't fit on one line stays aligned as it wraps</li>
+                <li>Fixed keyboard handling when editing expected results in Markdown editor</li>
             </ul>
         """.trimIndent()
     }

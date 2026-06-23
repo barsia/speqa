@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.7
+
+- Soft wrap is now enabled by default in the Markdown editor for test cases and test runs
+- Step text that doesn't fit on one line stays aligned as it wraps
+- Fixed keyboard handling when editing expected results in Markdown editor
+
 ## 0.1.6
 
 - Changing a step's result during a test run keeps the rest of the steps intact

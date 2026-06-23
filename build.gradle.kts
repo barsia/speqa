@@ -60,6 +60,7 @@ intellijPlatform {
                 <li>Fixed backspace on empty lines inside code blocks</li>
                 <li>Hover over a code block to reveal a copy button</li>
                 <li>Removing a link no longer asks for confirmation</li>
+                <li>Scroll sync now tracks individual step positions so the preview stays aligned with the text editor on documents with code blocks or long expected results</li>
             </ul>
         """.trimIndent()
     }

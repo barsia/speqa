@@ -10,6 +10,7 @@
 - Fixed backspace on empty lines inside code blocks
 - Hover over a code block to reveal a copy button
 - Removing a link no longer asks for confirmation
+- Scroll sync now tracks individual step positions so the preview stays aligned with the text editor on documents with code blocks or long expected results
 
 ## 0.1.6
 

@@ -8,5 +8,6 @@ toc:
   - page: pages/running-tests.md
   - page: pages/claude-code-skills.md
   - page: pages/soft-wrap.md
+  - page: pages/sync-scroll.md
   - page: pages/test-case-properties.md
 footer: []

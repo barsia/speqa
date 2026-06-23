@@ -72,30 +72,36 @@ Here's what a complete test case looks like:
 
 ## Editing Markdown Directly
 
-You can also edit the raw Markdown on the left panel. The format is:
+You can also edit the raw Markdown on the left panel. The format uses YAML frontmatter for metadata and a plain Markdown body for content:
 
 ```markdown
-# Title of Test Case
+---
+id: TC-001
+title: "User can log in with valid credentials"
+priority: Medium
+status: Active
+tags:
+  - smoke
+  - critical
+---
 
-## Description
 Brief description of what you're testing.
 
-## Preconditions
+Preconditions:
+
 - User account exists
 - User is logged out
 
-## Scenario
+Scenario:
 
-### Step 1
-- Action: Navigate to login page
-- Expected Result: Login form appears
+1. Navigate to the login page
+   > Login form is displayed with email and password fields
 
-### Step 2
-- Action: Enter email
-- Expected Result: Email is shown in the field
+2. Enter email address in the email field
+   > Email is entered and visible in the field
 
-## Tags
-`smoke` `critical`
+3. Click the Sign In button
+   > User is logged in and redirected to the dashboard
 ```
 
 Changes in the Markdown automatically update the form on the right, and vice versa.
@@ -149,7 +155,7 @@ Test cases are **saved automatically** as you type. The `.tc.md` file is updated
 Once you've written your test case:
 
 1. [Run the test](./running-tests.md) to see results
-2. Add attachments, links, or more details (see [Advanced Features](./advanced-features.md))
+2. Add attachments, links, tags, or environments (see [Test Case Properties](./test-case-properties.md))
 3. Create additional test cases for other flows
 
 ## Tips & Troubleshooting

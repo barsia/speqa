@@ -54,9 +54,10 @@ Links connect a test case to external resources such as bug tracker tickets or d
 Each link has a **title** and a **URL**. Click **Add link** in the preview and fill in both fields, or edit the Markdown directly:
 
 ```markdown
-## Links
-- [TICKET-123: Login requirements](https://tracker.example.com/TICKET-123)
-- [API docs](https://docs.example.com/auth)
+Links:
+
+[TICKET-123: Login requirements](https://tracker.example.com/TICKET-123)
+[API docs](https://docs.example.com/auth)
 ```
 
 Links are useful for tracing which requirement or bug report a test case covers, and for navigating directly to the relevant ticket from within the IDE.

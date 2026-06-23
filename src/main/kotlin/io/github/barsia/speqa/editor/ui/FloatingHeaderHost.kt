@@ -9,8 +9,7 @@ import javax.swing.Timer
 
 /**
  * Overlay container that toggles a [FloatingHeaderBar] on/off based on the
- * scrolled position, mirroring the WebView reference (`IntersectionObserver`
- * on the title row).
+ * scrolled position.
  *
  * Show predicate: scroll value crosses above `anchorYProvider() + showBuffer`.
  * Hide predicate: scroll value drops below `anchorYProvider() - hideBuffer`.

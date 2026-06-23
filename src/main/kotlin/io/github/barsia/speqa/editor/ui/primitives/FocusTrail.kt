@@ -1,9 +1,8 @@
 package io.github.barsia.speqa.editor.ui.primitives
 
 /**
- * Pure stack of visited focus-target ids. Intentionally minimal — Swing
- * integration (attaching a `FocusListener` that calls [push]) is deferred
- * to a later migration step.
+ * Pure stack of visited focus-target ids. Intentionally minimal; Swing
+ * integration (attaching a `FocusListener` that calls [push]) is not yet wired.
  */
 class FocusTrail {
     private val stack: ArrayDeque<String> = ArrayDeque()

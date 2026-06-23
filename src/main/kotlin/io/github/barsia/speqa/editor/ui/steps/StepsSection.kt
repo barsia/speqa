@@ -28,13 +28,13 @@ import javax.swing.JPanel
 import javax.swing.SwingUtilities
 
 /**
- * Swing port of `editor/ui/StepsSection.kt`. Hosts [StepCard]s plus a trailing
- * "+ Add step" button. Wires `DragReorderSupport` for drag-to-reorder, and
- * paints the drop-indicator line itself in [paintChildren] (the support class
- * exposes [DragReorderSupport.dropTargetIndex]).
+ * Hosts [StepCard]s plus a trailing "+ Add step" button. Wires
+ * `DragReorderSupport` for drag-to-reorder, and paints the drop-indicator line
+ * itself in [paintChildren] (the support class exposes
+ * [DragReorderSupport.dropTargetIndex]).
  *
- * Live-preview reorder (neighbour shift) is intentionally not ported — see the
- * migration plan §1 non-goals. Drop indicator + auto-scroll only.
+ * Live-preview reorder (neighbour shift) is intentionally omitted.
+ * Drop indicator + auto-scroll only.
  */
 class StepsSection(
     private val scrollPane: JBScrollPane,
@@ -512,7 +512,7 @@ class StepsSection(
         val accentFg = com.intellij.ui.JBColor.namedColor("Link.activeForeground", com.intellij.ui.JBColor.BLUE)
 
         // Scale the default 16x16 add icon down by 0.75 -> ~12x12 logical
-        // pixels so it matches the WebView add-button SVG (13x13). Tint to
+        // pixels (visually balanced with the label text). Tint to
         // the same colour as the label text so the icon and text read as a
         // single typographic unit.
         val basePlus = com.intellij.util.IconUtil.scale(

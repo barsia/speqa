@@ -87,8 +87,7 @@ fun tagChipCornerDeleteGeometry(
  * Tag chip with a label, optional edit (pencil) button, and optional delete (X)
  * button. Click on the chip body activates `onClick` (typically opens a
  * matches dialog). Keyboard: Enter/Space activates click, F2 fires `onEdit`,
- * Delete/Backspace fires `onDelete`. Right-click does nothing (the WebView
- * reference has no context menu on chips).
+ * Delete/Backspace fires `onDelete`. Right-click does nothing.
  */
 class TagChip(
     tag: String,

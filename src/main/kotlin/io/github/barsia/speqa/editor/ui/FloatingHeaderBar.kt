@@ -47,8 +47,7 @@ class FloatingHeaderBar : JPanel(BorderLayout(JBUI.scale(12), 0)) {
     }
 
     /**
-     * Update the displayed title. Composes via [floatingHeaderText] so the
-     * exact string format matches the WebView reference.
+     * Update the displayed title.
      */
     fun setTitle(idPrefix: String, id: String, title: String) {
         titleLabel.text = floatingHeaderText(

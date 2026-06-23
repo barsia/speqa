@@ -155,8 +155,7 @@ class HeaderUtilityRow(
 
         /**
          * Test-run variant: three dates (Created from the file, Started, Finished)
-         * plus a trailing slot. Matches the WebView reference, which renders all
-         * three when present.
+         * plus a trailing slot. All three are shown when present.
          */
         fun forTestRun(
             idChip: JComponent,

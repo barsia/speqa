@@ -763,17 +763,8 @@ class TestCasePanel(
         }
     }
 
-    private fun runStepsStructurallyChanged(old: List<StepResult>, new: List<StepResult>): Boolean {
-        if (old.size != new.size) return true
-        for (i in old.indices) {
-            if (old[i].action != new[i].action) return true
-            if (old[i].expected != new[i].expected) return true
-            if (old[i].tickets != new[i].tickets) return true
-            if (old[i].links != new[i].links) return true
-            if (old[i].attachments != new[i].attachments) return true
-        }
-        return false
-    }
+    private fun runStepsStructurallyChanged(old: List<StepResult>, new: List<StepResult>): Boolean =
+        Companion.runStepsStructurallyChanged(old, new)
 
     private fun TestRun.progressDisplayText(): String {
         val total = stepResults.size
@@ -785,20 +776,18 @@ class TestCasePanel(
         }
     }
 
-    private fun stepsStructurallyChanged(old: List<TestStep>, new: List<TestStep>): Boolean {
-        if (old.size != new.size) return true
-        for (i in old.indices) {
-            if (old[i].tickets != new[i].tickets) return true
-            if (old[i].links != new[i].links) return true
-            if (old[i].attachments != new[i].attachments) return true
-            if ((old[i].expected == null) != (new[i].expected == null)) return true
-        }
-        return false
-    }
+    private fun stepsStructurallyChanged(old: List<TestStep>, new: List<TestStep>): Boolean =
+        Companion.stepsStructurallyChanged(old, new)
 
     companion object {
         internal fun isSingleStepAppend(old: List<TestStep>, new: List<TestStep>): Boolean =
             new.size == old.size + 1 && old.indices.all { index -> old[index] == new[index] }
+
+        internal fun stepsStructurallyChanged(old: List<TestStep>, new: List<TestStep>): Boolean =
+            old.size != new.size
+
+        internal fun runStepsStructurallyChanged(old: List<StepResult>, new: List<StepResult>): Boolean =
+            old.size != new.size
     }
 
     private fun commitDescription(text: String) {

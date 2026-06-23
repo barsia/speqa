@@ -484,13 +484,13 @@ class StepCard(
         }
         val existingExpected = expectedArea
         when {
-            newStep.expected == null && existingExpected != null -> rebuildExpected(null)
-            newStep.expected != null && existingExpected == null -> rebuildExpected(newStep.expected)
-            existingExpected != null &&
-                (allowFocusedUpdate || !existingExpected.isFocusOwner) &&
-                existingExpected.text != newStep.expected -> {
-                existingExpected.setTextSuppressing(newStep.expected.orEmpty())
-                CommitFlash.flash(existingExpected)
+            existingExpected == null && newStep.expected != null -> rebuildExpected(newStep.expected)
+            existingExpected != null -> {
+                val target = newStep.expected.orEmpty()
+                if ((allowFocusedUpdate || !existingExpected.isFocusOwner) && existingExpected.text != target) {
+                    existingExpected.setTextSuppressing(target)
+                    if (target.isNotEmpty()) CommitFlash.flash(existingExpected)
+                }
             }
         }
         metaRow.setData(newStep.tickets, newStep.links, newStep.attachments)

@@ -1,12 +1,12 @@
 package io.github.barsia.speqa.editor
 
-internal enum class PreviewRefreshTiming {
+enum class PreviewRefreshTiming {
     IMMEDIATE,
     DEBOUNCED,
     NONE,
 }
 
-internal class PreviewRefreshController {
+class PreviewRefreshController {
     private var forceFocusedTextSyncOnNextRefresh = false
     private var immediateRefreshScheduled = false
 

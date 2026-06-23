@@ -325,7 +325,7 @@ class MarkdownEditablePane(
             action = action,
         )
         runWriteAction {
-            editor.document.setText(result.text)
+            editor.document.replaceString(0, editor.document.textLength, result.text)
         }
         suppressFormattingToolbarUpdate = true
         selectionModel.removeSelection()
@@ -465,7 +465,7 @@ class MarkdownEditablePane(
                 val caret = editor.caretModel.offset
                 val result = ListContinuation.onEnter(text, caret) ?: return
                 runWriteAction {
-                    document.setText(result.text)
+                    document.replaceString(0, document.textLength, result.text)
                 }
                 editor.caretModel.moveToOffset(result.cursor.coerceIn(0, document.textLength))
             }
@@ -501,6 +501,7 @@ class MarkdownEditablePane(
 
         val doneLabel = javax.swing.JLabel(AllIcons.General.GreenCheckmark).apply {
             isVisible = false
+            isFocusable = false
             val s = JBUI.scale(22)
             preferredSize = java.awt.Dimension(s, s)
         }
@@ -527,7 +528,13 @@ class MarkdownEditablePane(
                     if (currentBlock != null) button.isVisible = true
                 }.apply { isRepeats = false; start() }
             }
-        }.apply { isVisible = false }
+        }.apply {
+            isVisible = false
+            // Must not be focusable: when an ActionButton appears/disappears inside
+            // editor.contentComponent, Swing triggers TRAVERSAL_FORWARD and steals
+            // focus from the active text field.
+            isFocusable = false
+        }
 
         editor.contentComponent.add(button)
         editor.contentComponent.add(doneLabel)
@@ -670,7 +677,7 @@ class MarkdownEditablePane(
             override fun documentChanged(event: DocumentEvent) {
                 scheduleMarkdownWysiwygRefresh(editor)
             }
-        })
+        }, editorDisposable(editor))
     }
 
     private fun scheduleMarkdownWysiwygRefresh(editor: EditorEx) {
@@ -721,6 +728,7 @@ class MarkdownEditablePane(
             addCodeBlockWysiwyg(editor, codeBlockStyle(), codeBlocks)
         }
         addInlineCodePaddingInlays(editor, Regex("`([^`\\n]+)`"), delimiterLength = 1)
+        addCodeBlockSpacerInlays(editor, codeBlocks)
         invalidateWysiwygLayout()
     }
 
@@ -819,17 +827,21 @@ class MarkdownEditablePane(
                 )
                 highlighter.setCustomRenderer(CodeBlockRenderer(style.background, style.border))
                 ourHighlighters += highlighter
-
-                val vPad = JBUI.scale(4)
-                val spacer = SpacerRenderer(vPad)
-                // Above first content line (outside the opening fence fold)
-                editor.inlayModel.addBlockElement(range.contentStart, false, true, 0, spacer)
-                    ?.let { ourInlays += it }
-                // Below last content line (outside the closing fence fold)
-                val lastContent = (range.contentEnd - 1).coerceAtLeast(range.contentStart)
-                editor.inlayModel.addBlockElement(lastContent, true, false, 0, spacer)
-                    ?.let { ourInlays += it }
             }
+        }
+    }
+
+    private fun addCodeBlockSpacerInlays(editor: EditorEx, ranges: List<MarkdownWysiwygRange>) {
+        if (editor.isDisposed) return
+        val vPad = JBUI.scale(4)
+        val spacer = SpacerRenderer(vPad)
+        for (range in ranges) {
+            if (range.contentStart >= range.contentEnd) continue
+            editor.inlayModel.addBlockElement(range.contentStart, false, true, 0, spacer)
+                ?.let { ourInlays += it }
+            val lastContent = (range.contentEnd - 1).coerceAtLeast(range.contentStart)
+            editor.inlayModel.addBlockElement(lastContent, true, false, 0, spacer)
+                ?.let { ourInlays += it }
         }
     }
 

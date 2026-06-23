@@ -138,7 +138,7 @@ internal object TestRunSupport {
         if (document.text == content) {
             return false
         }
-        document.setText(content)
+        document.replaceString(0, document.textLength, content)
         return true
     }
 

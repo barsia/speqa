@@ -98,6 +98,8 @@ class ScrollSyncController(
     private var scrollPane: JBScrollPane? = null
     private var adjustmentListener: AdjustmentListener? = null
     private var stepsSection: StepsSection? = null
+    @Volatile private var editorToPanelSyncPending = false
+    @Volatile private var panelToEditorSyncPending = false
     private var pendingPanelPositionRestore: PendingPanelPositionRestore? = null
     private val clearEditorMutationScrollAfterSettleTimer = Timer(EDITOR_MUTATION_SCROLL_SETTLE_MS) {
         editorMutationScrollGuard.clear()
@@ -128,8 +130,12 @@ class ScrollSyncController(
         val pane = scrollPane ?: return@VisibleAreaListener
         cancelPendingPanelPositionRestore()
         suppressionState.suppressPanelToEditor(System.currentTimeMillis())
-        ApplicationManager.getApplication().invokeLater {
-            syncEditorToPanel(pane)
+        if (!editorToPanelSyncPending) {
+            editorToPanelSyncPending = true
+            ApplicationManager.getApplication().invokeLater {
+                editorToPanelSyncPending = false
+                syncEditorToPanel(pane)
+            }
         }
     }
 
@@ -153,7 +159,10 @@ class ScrollSyncController(
             if (programmaticPanelSuppressionActive) return@AdjustmentListener
             if (pendingPanelPositionRestore != null) return@AdjustmentListener
             cancelPendingPanelPositionRestore()
-            onPanelScroll(pane)
+            if (!panelToEditorSyncPending) {
+                panelToEditorSyncPending = true
+                onPanelScroll(pane)
+            }
         }
         pane.verticalScrollBar.addAdjustmentListener(listener)
         adjustmentListener = listener
@@ -272,6 +281,7 @@ class ScrollSyncController(
         val section = stepsSection
         val panelY = pane.verticalScrollBar.value
         ApplicationManager.getApplication().invokeLater {
+            panelToEditorSyncPending = false
             if (textEditor.isDisposed) return@invokeLater
             if (section == null || !hasAnchors(section)) {
                 val bar = pane.verticalScrollBar

@@ -28,6 +28,7 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.runWriteAction
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.editor.EditorCustomElementRenderer
+import com.intellij.openapi.editor.VisualPosition
 import com.intellij.openapi.editor.FoldRegion
 import com.intellij.openapi.editor.FoldingModel
 import com.intellij.openapi.editor.Inlay
@@ -103,6 +104,10 @@ class MarkdownEditablePane(
             // at each wrap point; they are visual noise in these small preview fields.
             // Scoped to this embedded editor only - the main text editor is unaffected.
             editor.settings.isPaintSoftWraps = false
+            // Indent continuation lines to visually align with list-item content
+            // (e.g. `1. text` wraps with a 3-space hanging indent matching `N. `).
+            editor.settings.isUseCustomSoftWrapIndent = true
+            editor.settings.customSoftWrapIndent = 3
             editor.settings.isLineNumbersShown = false
             editor.settings.isLineMarkerAreaShown = false
             editor.settings.isFoldingOutlineShown = false
@@ -627,8 +632,18 @@ class MarkdownEditablePane(
 
     private fun addCodeBlockPaddingInlays(editor: EditorEx, ranges: List<MarkdownWysiwygRange>) {
         if (editor.isDisposed) return
-        val padding = JBUI.scale(CODE_BLOCK_CONTENT_PADDING)
+        val settings = editor.settings
         for (range in ranges) {
+            // Compute indent alignment: use the visual line just before the code block as a
+            // reference so inlay measurements are not skewed by inlays on the block itself.
+            val blockLine = editor.offsetToVisualPosition(range.contentStart).line
+            val refLine = (blockLine - 1).coerceAtLeast(0)
+            val indentPx = if (settings.isUseCustomSoftWrapIndent && settings.customSoftWrapIndent > 0) {
+                val col0X = editor.visualPositionToXY(VisualPosition(refLine, 0)).x
+                val col3X = editor.visualPositionToXY(VisualPosition(refLine, settings.customSoftWrapIndent)).x
+                (col3X - col0X).coerceAtLeast(0)
+            } else 0
+            val padding = indentPx + JBUI.scale(CODE_BLOCK_CONTENT_PADDING)
             for (offset in codeBlockPaddingInlayOffsets(range)) {
                 editor.inlayModel.addInlineElement(offset, false, CodeBlockPaddingInlay(padding))?.let {
                     ourInlays += it
@@ -807,8 +822,18 @@ class MarkdownEditablePane(
             val height = (editor.visualLineToY(endLine) + editor.lineHeight - y - JBUI.scale(1))
                 .coerceAtLeast(editor.lineHeight - JBUI.scale(2))
             val visible = editor.scrollingModel.visibleArea
-            val x = visible.x + JBUI.scale(1)
-            val width = (visible.width - JBUI.scale(2)).coerceAtLeast(JBUI.scale(24))
+            // Align the code block border with the soft-wrap continuation column.
+            // Use the line before the block as reference to avoid inlay-width distortion.
+            val refLine = (startLine - 1).coerceAtLeast(0)
+            val softWrapIndentPx = if (editor.settings.isUseCustomSoftWrapIndent
+                && editor.settings.customSoftWrapIndent > 0
+            ) {
+                val col0X = editor.visualPositionToXY(VisualPosition(refLine, 0)).x
+                val col3X = editor.visualPositionToXY(VisualPosition(refLine, editor.settings.customSoftWrapIndent)).x
+                (col3X - col0X).coerceAtLeast(0)
+            } else 0
+            val x = visible.x + softWrapIndentPx + JBUI.scale(1)
+            val width = (visible.width - softWrapIndentPx - JBUI.scale(2)).coerceAtLeast(JBUI.scale(24))
             val arc = JBUI.scale(4)
 
             val g2 = g.create() as Graphics2D

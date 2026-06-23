@@ -22,21 +22,29 @@ private const val EDITOR_MUTATION_SCROLL_MAX_MS = 2_000
 private const val BOTTOM_ANCHOR_TOLERANCE_PX = 2
 
 /**
- * Proportional scroll synchronization between the IntelliJ text editor (left)
- * and the Swing visual editor (right). Both surfaces sync by scroll fraction
- * (0.0–1.0).
+ * Step-anchored scroll synchronization between the IntelliJ text editor (left)
+ * and the Swing visual editor (right).
+ *
+ * When a [StepsSection] is attached via [attachStepsSection], sync uses
+ * [StepsSection.stepSourceLine] and [StepsSection.cardAbsoluteY] to interpolate
+ * between adjacent step card positions, keeping the matching step visible on
+ * both sides regardless of card height. Falls back to proportional
+ * (fraction-based) sync when anchors are unavailable (no steps, layout not yet
+ * done, or [StepsSection] not attached).
  *
  * The right-hand panel is a [JBScrollPane]; callers attach it via
  * [attachScrollPane]. The controller drives its `verticalScrollBar` whenever
  * the left editor scrolls, and mirrors the opposite direction via an
  * [AdjustmentListener] it installs on the bar.
  *
+ * Rapid scroll events are coalesced: only one [ApplicationManager.invokeLater]
+ * call is queued per direction at a time; subsequent events while a sync is
+ * pending are dropped.
+ *
  * 220 ms suppression windows short-circuit both directions around programmatic
  * changes, so in particular:
  *  - [suppressBothDirections] must be called before editor-driven preview
- *    refreshes and preview-initiated document patches. Both paths can trigger
- *    programmatic Swing scrollbar/model changes and IntelliJ caret-follow
- *    scrolls while preserving offsets.
+ *    refreshes and preview-initiated document patches.
  *  - [preservedVerticalPosition] / [restoreVerticalPosition] capture and re-apply the
  *    right-panel scroll position around an external re-layout; bottom-aligned
  *    viewports stay bottom-aligned when content is appended below them.
@@ -98,8 +106,8 @@ class ScrollSyncController(
     private var scrollPane: JBScrollPane? = null
     private var adjustmentListener: AdjustmentListener? = null
     private var stepsSection: StepsSection? = null
-    @Volatile private var editorToPanelSyncPending = false
-    @Volatile private var panelToEditorSyncPending = false
+    private var editorToPanelSyncPending = false
+    private var panelToEditorSyncPending = false
     private var pendingPanelPositionRestore: PendingPanelPositionRestore? = null
     private val clearEditorMutationScrollAfterSettleTimer = Timer(EDITOR_MUTATION_SCROLL_SETTLE_MS) {
         editorMutationScrollGuard.clear()

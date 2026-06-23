@@ -25,6 +25,7 @@ import java.awt.event.MouseEvent
 import javax.swing.BoxLayout
 import javax.swing.JComponent
 import javax.swing.JPanel
+import javax.swing.JViewport
 import javax.swing.SwingUtilities
 
 /**
@@ -113,11 +114,11 @@ class StepsSection(
         // Walk up to find the component directly inside a JViewport; that is
         // the coordinate space the scroll bar value refers to.
         var root: java.awt.Component = this
-        while (root.parent != null && root.parent !is javax.swing.JViewport) {
+        while (root.parent != null && root.parent !is JViewport) {
             root = root.parent
         }
         if (root.parent == null) return null
-        return javax.swing.SwingUtilities.convertPoint(wrapper, 0, 0, root).y
+        return SwingUtilities.convertPoint(wrapper, 0, 0, root).y
     }
     private val deleteRestorer = DeleteFocusRestorer(
         itemProvider = { cards.getOrNull(it)?.actionArea },

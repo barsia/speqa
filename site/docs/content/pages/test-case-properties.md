@@ -20,7 +20,10 @@ In the test case editor, scroll to the **Tags** section and type a tag name. Use
 In Markdown:
 
 ```markdown
-tags: smoke, regression, login-flow
+tags:
+  - smoke
+  - regression
+  - login-flow
 ```
 
 ## Environments
@@ -39,7 +42,9 @@ In the test case editor, scroll to the **Environment** section and type a value.
 In Markdown:
 
 ```markdown
-environment: staging, chrome
+environment:
+  - staging
+  - chrome
 ```
 
 ## Links

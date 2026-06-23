@@ -38,22 +38,6 @@ After installation, you should see SpeQA features available:
 - The plugin icon may appear in the toolbar or left sidebar (depending on IDE theme and settings)
 - Open any `.tc.md` file (test case) and you should see the split editor with preview
 
-## Supported IDEs
-
-SpeQA works with:
-
-- IntelliJ IDEA (Community and Ultimate)
-- WebStorm
-- PyCharm
-- PhpStorm
-- RubyMine
-- GoLand
-- CLion
-- DataGrip
-- AppCode
-- Rider
-- And other JetBrains IDEs on the IntelliJ platform
-
 ## Troubleshooting
 
 **Plugin doesn't appear after install:**

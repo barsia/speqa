@@ -7,5 +7,6 @@ toc:
   - page: pages/writing-test-cases.md
   - page: pages/running-tests.md
   - page: pages/claude-code-skills.md
-  - page: pages/advanced-features.md
+  - page: pages/soft-wrap.md
+  - page: pages/test-case-properties.md
 footer: []

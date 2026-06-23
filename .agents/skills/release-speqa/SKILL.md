@@ -24,20 +24,25 @@ In `build.gradle.kts`, line `version = "X.Y.Z"` to the next minor.
 
 Prepend a new section at the top, after the `# Changelog` heading.
 
-**Format - plain prose bullets, present tense, no full stops:**
+**Format - plain prose bullets, no full stops:**
 
 ```markdown
-## 0.1.7
+## 0.1.8
 
-- Backspace on a step expected result line removes the full `> ` prefix in one keystroke
-- Enter continues a numbered list inside an expected result block
-- Native editor uses soft wrap by default for `.tc.md` and `.tr.md` files
+- Soft wrap is now enabled by default in the Markdown editor for test cases and test runs
+- Fixed selecting text inside a code block
+- Fixed backspace on empty lines inside code blocks
+- Hover over a code block to reveal a copy button
+- Removing a link no longer asks for confirmation
 ```
 
 Rules:
 - One line per user-visible change; merge related tiny fixes into one entry
 - No implementation details, no PR/commit references
-- Match the tone and length of existing entries (see 0.1.4-0.1.6 in CHANGELOG.md)
+- New features / behavior changes: describe what the user now experiences in present tense - "X now does Y", "Y is now enabled by default", "Hover over X to reveal Y"
+- Bug fixes: start with "Fixed" followed by a gerund or noun phrase - "Fixed selecting text inside...", "Fixed backspace on empty lines..."
+- Removals / simplifications: use "no longer" - "Removing a link no longer asks for confirmation"
+- No "Fixed: " with a colon, no capitalisation after "Fixed", no trailing period
 
 ### 4. Update changeNotes in build.gradle.kts
 
@@ -92,8 +97,17 @@ Do **not** push unless explicitly asked.
 
 ## Tone reference (from existing releases)
 
-- **0.1.6:** "Changing a step's result during a test run keeps the rest of the steps intact"
-- **0.1.5:** "Duplicate test case IDs are highlighted as you type"
-- **0.1.4:** "Preview no longer jumps or flashes while you type"
+New features / behavior:
+- "Soft wrap is now enabled by default in the Markdown editor for test cases and test runs"
+- "Duplicate test case IDs are highlighted as you type"
+- "Hover over a code block to reveal a copy button"
 
-Short, present-tense, describes what the user now experiences.
+Bug fixes:
+- "Fixed selecting text inside a code block"
+- "Fixed backspace on empty lines inside code blocks"
+
+Removals / simplifications:
+- "Removing a link no longer asks for confirmation"
+- "Preview no longer jumps or flashes while you type"
+
+Short, concrete, describes what the user now experiences. No trailing periods.

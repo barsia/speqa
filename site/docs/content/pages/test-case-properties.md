@@ -2,7 +2,7 @@
 title: Test Case Properties
 ---
 
-Beyond the step-by-step scenario, a test case can carry metadata that helps you organize and navigate your test suite: tags, external links, and file attachments.
+Beyond the step-by-step scenario, a test case can carry metadata that helps you organize and navigate your test suite: tags, environments, external links, and file attachments.
 
 ## Tags
 
@@ -21,6 +21,25 @@ In Markdown:
 
 ```markdown
 tags: smoke, regression, login-flow
+```
+
+## Environments
+
+Environments let you specify which infrastructure or configuration a test case targets. Where tags describe *what* is being tested, environments describe *where*: the deployment target, browser, device, or any runtime condition that affects how the test runs.
+
+Common patterns:
+
+- **Deployment stage**: `staging`, `production`, `dev`, `qa`
+- **Browser**: `chrome`, `firefox`, `safari`, `edge`
+- **Platform**: `ios`, `android`, `linux`, `windows`
+- **Data set**: `empty-db`, `seeded`, `migrated`
+
+In the test case editor, scroll to the **Environment** section and type a value. Multiple environments can be added to the same test case.
+
+In Markdown:
+
+```markdown
+environment: staging, chrome
 ```
 
 ## Links

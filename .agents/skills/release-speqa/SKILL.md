@@ -1,6 +1,6 @@
 ---
 name: release-speqa
-description: Use when the user says "оформи релиз", "оформи следующий релиз", or asks to prepare/cut/publish a new SpeQA plugin release: bumping the version, writing CHANGELOG.md and changeNotes, tagging the commit.
+description: Use when the user asks to prepare/cut/publish a new SpeQA plugin release or bump the version.
 user-invocable: true
 ---
 
@@ -18,9 +18,7 @@ Read each commit. Translate to user-facing language: what the user sees, not wha
 
 ### 2. Bump the version
 
-In `build.gradle.kts`, line `version = "0.X.Y"` to the next patch or minor.
-
-**Versioning rule:** patch (0.1.X) for fixes and small features; minor (0.X.0) for a meaningful batch of new capabilities.
+In `build.gradle.kts`, line `version = "X.Y.Z"` to the next minor.
 
 ### 3. Update CHANGELOG.md
 
@@ -51,9 +49,9 @@ Find the `changeNotes = """` block inside `intellijPlatform { pluginConfiguratio
 changeNotes = """
     <h3>0.1.7</h3>
     <ul>
-        <li>Backspace on a step expected result line removes the full <code>&gt; </code> prefix in one keystroke</li>
+        <li>Backspace un-quotes a blockquote expected-result line in one keystroke</li>
         <li>Enter continues a numbered list inside an expected result block</li>
-        <li>Native editor uses soft wrap by default for <code>.tc.md</code> and <code>.tr.md</code> files</li>
+        <li>Native editor uses soft wrap by default for <code>.tc.md</code> files</li>
     </ul>
 """.trimIndent()
 ```
@@ -63,11 +61,13 @@ Rules:
 - Escape `>` as `&gt;` inside `<li>` when it appears as a character
 - Only the current release's notes go in `changeNotes` (JetBrains Marketplace shows this as "What's New")
 
-### 5. Verify and compile
+### 5. Verify the plugin
 
 ```bash
-./gradlew compileKotlin
+./gradlew verifyPlugin
 ```
+
+Fix any reported issues before tagging. Common failures: internal API usage, missing plugin.xml declarations. If `verifyPlugin` passes, proceed.
 
 ### 6. Commit and tag
 
@@ -83,11 +83,11 @@ Do **not** push unless explicitly asked.
 
 ## What goes in release notes vs what doesn't
 
-| Include | Omit |
-|---------|------|
-| User-visible behavior changes | Internal refactors |
-| New features | Test-only commits |
-| Fixed bugs the user could hit | Spec/doc-only changes |
+| Include                         | Omit                                       |
+|---------------------------------|--------------------------------------------|
+| User-visible behavior changes   | Internal refactors                         |
+| New features                    | Test-only commits                          |
+| Fixed bugs the user could hit   | Spec/doc-only changes                      |
 | UX/editor behavior improvements | Performance wins with no observable effect |
 
 ## Tone reference (from existing releases)

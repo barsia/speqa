@@ -369,7 +369,7 @@ class TestCasePanel(
         border = JBUI.Borders.empty()
     }
 
-    private val stepsSection = StepsSection(
+    internal val stepsSection = StepsSection(
         scrollPane = scrollPaneForSteps,
         project = project,
         tcFile = file,

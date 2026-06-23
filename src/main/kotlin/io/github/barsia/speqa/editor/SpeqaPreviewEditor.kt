@@ -122,6 +122,7 @@ class SpeqaPreviewEditor(
         idState.start()
         testCasePanel.updateFrom(parsed.testCase)
         scrollSync.attachScrollPane(scrollPane)
+        scrollSync.attachStepsSection(testCasePanel.stepsSection)
 
         val connection = project.messageBus.connect(this)
         connection.subscribe(

@@ -30,6 +30,8 @@ object TestCaseParser {
             emptyMap()
         }
 
+        val stepSourceLineOffset = bodyStartLine(normalized)
+
         return TestCase(
             id = if ("id" in meta) {
                 val raw = meta["id"]
@@ -43,7 +45,7 @@ object TestCaseParser {
             attachments = parseGeneralAttachments(body),
             links = parseLinks(body),
             bodyBlocks = parseBodyBlocks(body),
-            steps = parseSteps(body),
+            steps = parseSteps(body, stepSourceLineOffset),
         )
     }
 
@@ -157,7 +159,7 @@ object TestCaseParser {
         return null
     }
 
-    private fun parseSteps(body: String): List<TestStep> {
+    private fun parseSteps(body: String, bodyStartLine: Int = 1): List<TestStep> {
         val steps = mutableListOf<TestStep>()
         var actionLines = mutableListOf<String>()
         var attachments = mutableListOf<Attachment>()
@@ -192,7 +194,7 @@ object TestCaseParser {
             attachments = mutableListOf()
         }
 
-        for (line in body.lines()) {
+        for ((lineIdx, line) in body.lines().withIndex()) {
             val trimmed = line.trim()
 
             if (!afterMarker) {
@@ -221,7 +223,10 @@ object TestCaseParser {
                     currentExpectedGroupSize = 1
                 }
                 inExpected = false
-                steps += TestStep(action = stepMatch.groupValues[1].trimEnd().removeSuffix("  "))
+                steps += TestStep(
+                    action = stepMatch.groupValues[1].trimEnd().removeSuffix("  "),
+                    sourceLine = bodyStartLine + lineIdx,
+                )
                 continue
             }
 
@@ -291,6 +296,23 @@ object TestCaseParser {
             steps[steps.lastIndex] = steps.last().copy(links = currentLinks)
         }
         return steps
+    }
+
+    /**
+     * Returns the 1-based line number in [normalized] where the body string
+     * (returned by [SpeqaMarkdown.splitFrontmatter]) begins. Mirrors the
+     * frontmatter-split and trimStart logic so [parseSteps] can record
+     * absolute source line numbers on each [TestStep].
+     */
+    private fun bodyStartLine(normalized: String): Int {
+        val lines = normalized.lines()
+        if (lines.isEmpty() || lines[0].trim() != "---") return 1
+        val closingIdx = lines.drop(1).indexOfFirst { it.trim() == "---" }.takeIf { it >= 0 } ?: return 1
+        // closingIdx is 0-based in drop(1), so the closing --- is at lines[closingIdx + 1]
+        var i = closingIdx + 2  // first line after closing ---
+        // splitFrontmatter does trimStart('\n') on the body, so skip empty lines
+        while (i < lines.size && lines[i].isEmpty()) i++
+        return i + 1  // convert to 1-based
     }
 
     private fun parseLinks(body: String): List<Link> {

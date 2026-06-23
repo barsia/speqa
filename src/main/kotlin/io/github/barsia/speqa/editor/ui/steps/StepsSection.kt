@@ -96,6 +96,29 @@ class StepsSection(
     fun setLivePreviewEnabled(enabled: Boolean) {
         livePreviewEnabled = enabled
     }
+
+    /** Number of step cards currently rendered. */
+    val stepCount: Int get() = cards.size
+
+    /** 1-based source line of the step at [index] in the document, or 0 if unknown. */
+    fun stepSourceLine(index: Int): Int = steps.getOrNull(index)?.sourceLine ?: 0
+
+    /**
+     * Y position of the step card at [index] relative to the JBScrollPane's
+     * content root (the component directly inside the JViewport). Returns null
+     * if [index] is out of range or the component is not yet in a scroll pane.
+     */
+    fun cardAbsoluteY(index: Int): Int? {
+        val wrapper = cardWrappers.getOrNull(index) ?: return null
+        // Walk up to find the component directly inside a JViewport; that is
+        // the coordinate space the scroll bar value refers to.
+        var root: java.awt.Component = this
+        while (root.parent != null && root.parent !is javax.swing.JViewport) {
+            root = root.parent
+        }
+        if (root.parent == null) return null
+        return javax.swing.SwingUtilities.convertPoint(wrapper, 0, 0, root).y
+    }
     private val deleteRestorer = DeleteFocusRestorer(
         itemProvider = { cards.getOrNull(it)?.actionArea },
         addButton = addButton,

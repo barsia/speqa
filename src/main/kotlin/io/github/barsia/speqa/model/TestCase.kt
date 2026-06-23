@@ -37,6 +37,8 @@ data class TestStep(
     val tickets: List<String> = emptyList(),
     val links: List<Link> = emptyList(),
     val uid: Long = nextUid(),
+    /** 1-based line number of the step marker (`N. ...`) in the source document. 0 = unknown. */
+    val sourceLine: Int = 0,
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true

@@ -559,4 +559,84 @@ class TestCaseParserTest {
         assertEquals(emptyList<String>(), tc.steps[1].tickets)
         assertEquals(listOf("BUG-2", "BUG-3"), tc.steps[2].tickets)
     }
+
+    @Test
+    fun `sourceLine points to step marker line with frontmatter`() {
+        val content = """
+            |---
+            |title: "Login"
+            |priority: normal
+            |---
+            |
+            |Scenario:
+            |
+            |1. Open the page
+            |   > Page loads
+            |
+            |2. Click submit
+            |   > Form submitted
+            |
+            |3. Verify result
+        """.trimMargin()
+        // Line 1: ---
+        // Line 2: title: "Login"
+        // Line 3: priority: normal
+        // Line 4: ---
+        // Line 5: (blank, stripped by trimStart)
+        // Line 6: Scenario:
+        // Line 7: (blank)
+        // Line 8: 1. Open the page   <-- step 0
+        // Line 11: 2. Click submit   <-- step 1
+        // Line 14: 3. Verify result  <-- step 2
+        val tc = TestCaseParser.parse(content)
+        assertEquals(3, tc.steps.size)
+        assertEquals(8, tc.steps[0].sourceLine)
+        assertEquals(11, tc.steps[1].sourceLine)
+        assertEquals(14, tc.steps[2].sourceLine)
+    }
+
+    @Test
+    fun `sourceLine points to step marker line without frontmatter`() {
+        val content = """
+            |Scenario:
+            |
+            |1. First step
+            |   > Expected
+            |
+            |2. Second step
+        """.trimMargin()
+        // Line 1: Scenario:
+        // Line 2: (blank)
+        // Line 3: 1. First step   <-- step 0
+        // Line 6: 2. Second step  <-- step 1
+        val tc = TestCaseParser.parse(content)
+        assertEquals(2, tc.steps.size)
+        assertEquals(3, tc.steps[0].sourceLine)
+        assertEquals(6, tc.steps[1].sourceLine)
+    }
+
+    @Test
+    fun `sourceLine is excluded from equals`() {
+        val a = TestCaseParser.parse("""
+            |---
+            |title: "T"
+            |---
+            |
+            |Scenario:
+            |
+            |1. Step one
+        """.trimMargin())
+        val b = TestCaseParser.parse("""
+            |---
+            |title: "T"
+            |priority: normal
+            |---
+            |
+            |Scenario:
+            |
+            |1. Step one
+        """.trimMargin())
+        // Different frontmatter means different sourceLine for step 0, but steps are equal
+        assertEquals(a.steps[0], b.steps[0])
+    }
 }

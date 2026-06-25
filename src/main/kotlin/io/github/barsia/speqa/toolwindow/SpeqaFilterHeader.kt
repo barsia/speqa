@@ -67,10 +67,10 @@ class SpeqaFilterHeader(
 
     /** Actions to install into the tool-window title bar. */
     val titleActions: List<AnAction> = listOf(
-        FacetAction(Facet.STATUS, AllIcons.Actions.GroupBy, SpeqaBundle.message("toolwindow.speqa.filter.status")),
-        FacetAction(Facet.PRIORITY, AllIcons.Nodes.Favorite, SpeqaBundle.message("toolwindow.speqa.filter.priority")),
-        FacetAction(Facet.TAGS, AllIcons.Gutter.ExtAnnotation, SpeqaBundle.message("toolwindow.speqa.filter.tags")),
-        FacetAction(Facet.ENVIRONMENT, AllIcons.General.Web, SpeqaBundle.message("toolwindow.speqa.filter.environment")),
+        FacetAction(Facet.STATUS, SpeqaIcons.FilterStatus, SpeqaBundle.message("toolwindow.speqa.filter.status")),
+        FacetAction(Facet.PRIORITY, SpeqaIcons.FilterPriority, SpeqaBundle.message("toolwindow.speqa.filter.priority")),
+        FacetAction(Facet.TAGS, SpeqaIcons.FilterTags, SpeqaBundle.message("toolwindow.speqa.filter.tags")),
+        FacetAction(Facet.ENVIRONMENT, SpeqaIcons.FilterEnvironment, SpeqaBundle.message("toolwindow.speqa.filter.environment")),
         ClearAllAction(),
     )
 

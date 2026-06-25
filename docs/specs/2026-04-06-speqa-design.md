@@ -1146,7 +1146,7 @@ Matching semantics (pure function `matchesFilter(summary, filter)`, unit-tested)
 - Active facets are combined with **AND** - a test case is shown only if it satisfies every active facet.
 
 Header UI:
-- The four facet triggers - one each for Status, Priority, Tags, and Environment - live in the tool-window **title bar** (next to the tool-window name/gear), installed via `ToolWindow.setTitleActions`. Each is an `AnAction` carrying the facet's icon and a tooltip naming its facet. Clicking a title-bar button opens a small `JBPopup` scoped to that one facet, anchored underneath the clicked button:
+- The four facet triggers - one each for Status, Priority, Tags, and Environment - live in the tool-window **title bar** (next to the tool-window name/gear), installed via `ToolWindow.setTitleActions`. Each is an `AnAction` carrying the facet's icon and a tooltip naming its facet. The facet icons are project-owned 16x16 SVGs under `/icons/` (`filterStatus`, `filterPriority`, `filterTags`, `filterEnvironment`, each with a `_dark` variant), exposed through `SpeqaIcons` rather than referenced as `AllIcons.*` inline. Clicking a title-bar button opens a small `JBPopup` scoped to that one facet, anchored underneath the clicked button:
   - Status and Priority popups list `All <facet>` plus the facet's values (status values carry their stamp icon); picking a value sets that facet and closes the popup.
   - Tags and Environment popups reuse the editor's `TagCloud` + `AddTagPopup` autocomplete picker (fed by `SpeqaTagRegistry`), letting the user add/remove several values; the popup stays open while picking.
   - A facet whose facet is active renders in the native selected/highlighted state (via `Toggleable`) so the active facets are visible at a glance.

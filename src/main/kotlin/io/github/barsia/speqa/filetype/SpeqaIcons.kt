@@ -13,6 +13,11 @@ object SpeqaIcons {
     val TestRunFailed: Icon = IconLoader.getIcon("/icons/testRunFailed.svg", SpeqaIcons::class.java)
     val TestRunBlocked: Icon = IconLoader.getIcon("/icons/testRunBlocked.svg", SpeqaIcons::class.java)
 
+    val FilterStatus: Icon = IconLoader.getIcon("/icons/filterStatus.svg", SpeqaIcons::class.java)
+    val FilterPriority: Icon = IconLoader.getIcon("/icons/filterPriority.svg", SpeqaIcons::class.java)
+    val FilterTags: Icon = IconLoader.getIcon("/icons/filterTags.svg", SpeqaIcons::class.java)
+    val FilterEnvironment: Icon = IconLoader.getIcon("/icons/filterEnvironment.svg", SpeqaIcons::class.java)
+
     fun forStatus(status: Status): Icon = when (status) {
         Status.DRAFT -> TestCaseDraft
         Status.READY -> TestCaseReady

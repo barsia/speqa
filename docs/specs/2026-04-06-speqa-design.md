@@ -1146,15 +1146,15 @@ Matching semantics (pure function `matchesFilter(summary, filter)`, unit-tested)
 - Active facets are combined with **AND** - a test case is shown only if it satisfies every active facet.
 
 Header UI:
-- A funnel toolbar button (`AllIcons.General.Filter` via `speqaIconButton`) carries a badge with the number of active selections and opens a `JBPopup` containing all four facet controls plus `Clear` and `Done`. Status/priority use the established `ComboBox` idiom (with an explicit "All" option); tags/environment reuse the editor's `TagCloud` + `AddTagPopup` autocomplete picker, fed by `SpeqaTagRegistry`.
-- Below the toolbar, a row of removable chips shows each active selection (status value, priority value, each tag, each environment); each chip's close button clears that one selection. The chip row and the "clear all" affordance are hidden when no filter is active.
+- A funnel toolbar button (`AllIcons.General.Filter`), labeled with the number of active selections when any are active, opens a `JBPopup` containing all four facet controls plus `Clear` and `Done`. Status/priority use the established `ComboBox` idiom (with an explicit "All" option); tags/environment reuse the editor's `TagCloud` + `AddTagPopup` autocomplete picker, fed by `SpeqaTagRegistry`.
+- Below the toolbar, a row of removable chips shows each active selection (status value, priority value, each tag, each environment); each chip carries an always-visible close button that clears that one selection. The chip row and the "clear all" affordance are hidden when no filter is active.
 - Changes apply live: any facet change rebuilds the tree from the root (`treeModel.invalidateAsync()`) and refreshes the chip row. `Done` only closes the popup; `Clear` resets every facet.
 
 Tree behavior under a filter:
 - With no active filter (the default) everything is shown, including empty folders, exactly as described above.
 - With any active filter, a test case leaf is shown only if it satisfies `matchesFilter`. A folder is shown only if its subtree (recursively) contains at least one matching test case; folders that would become empty under the filter are hidden.
 
-The filter is session-only state held in memory by the tool window; it is not persisted and resets to "no filter" when the project is reopened. The leaf-level predicate is covered by unit tests; folder pruning and the popup/chip UI are verified by smoke test. All filter labels come from `SpeqaBundle`.
+The filter is session-only state held in memory by the tool window; it is not persisted and resets to "no filter" when the project is reopened. Because the tree builds its children on a background thread while the filter is mutated on the EDT, the filter's tag and environment selections are stored as immutable snapshots swapped atomically on each change, so off-thread reads never observe a partially mutated collection. The leaf-level predicate is covered by unit tests; folder pruning and the popup/chip UI are verified by smoke test. All filter labels come from `SpeqaBundle`.
 
 **Live updates:** the tree reflects file-system changes under `test-cases/` without manual refresh. Creating, deleting, renaming, or moving `.tc.md` files and folders updates the tree; editing a `.tc.md` file's `title` updates that leaf's label. Parsed titles are cached per file and invalidated on content change so the tree does not re-read disk on every repaint.
 

@@ -40,7 +40,7 @@ class SpeqaTreeFilterTest {
 
     @Test
     fun `tags match when test case has at least one selected tag (OR)`() {
-        val f = SpeqaTreeFilter().apply { tags.addAll(listOf("smoke", "api")) }
+        val f = SpeqaTreeFilter().apply { addTag("smoke"); addTag("api") }
         assertTrue(matchesFilter(summary(tags = setOf("smoke")), f))
         assertTrue(matchesFilter(summary(tags = setOf("api", "regression")), f))
         assertFalse(matchesFilter(summary(tags = setOf("regression")), f))
@@ -49,14 +49,14 @@ class SpeqaTreeFilterTest {
 
     @Test
     fun `environment matches with OR semantics`() {
-        val f = SpeqaTreeFilter().apply { environments.add("Chrome") }
+        val f = SpeqaTreeFilter().apply { addEnvironment("Chrome") }
         assertTrue(matchesFilter(summary(environments = setOf("Chrome", "macOS")), f))
         assertFalse(matchesFilter(summary(environments = setOf("Firefox")), f))
     }
 
     @Test
     fun `facets combine with AND`() {
-        val f = SpeqaTreeFilter().apply { status = Status.READY; tags.add("smoke") }
+        val f = SpeqaTreeFilter().apply { status = Status.READY; addTag("smoke") }
         assertTrue(matchesFilter(summary(status = Status.READY, tags = setOf("smoke")), f))
         assertFalse(matchesFilter(summary(status = Status.READY, tags = setOf("api")), f))
         assertFalse(matchesFilter(summary(status = Status.DRAFT, tags = setOf("smoke")), f))
@@ -67,8 +67,8 @@ class SpeqaTreeFilterTest {
         val f = SpeqaTreeFilter().apply {
             status = Status.READY
             priority = Priority.MAJOR
-            tags.addAll(listOf("smoke", "api"))
-            environments.add("Chrome")
+            addTag("smoke"); addTag("api")
+            addEnvironment("Chrome")
         }
         assertEquals(5, f.activeCount())
         assertFalse(f.isEmpty())

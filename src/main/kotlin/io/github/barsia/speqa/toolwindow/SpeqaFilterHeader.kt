@@ -44,6 +44,7 @@ import javax.swing.JPanel
 class SpeqaFilterHeader(
     private val project: Project,
     private val filter: SpeqaTreeFilter,
+    parentDisposable: com.intellij.openapi.Disposable,
     private val onChanged: () -> Unit,
 ) {
 
@@ -97,6 +98,10 @@ class SpeqaFilterHeader(
     private var environmentCloud: TagCloud? = null
 
     init {
+        com.intellij.openapi.util.Disposer.register(parentDisposable) {
+            popup?.cancel()
+            popup = null
+        }
         refresh()
     }
 
@@ -134,7 +139,7 @@ class SpeqaFilterHeader(
             }
             filter.tags.toList().forEach { tag ->
                 chipRow.add(removableChip(tag, colored = true) {
-                    filter.tags.remove(tag)
+                    filter.removeTag(tag)
                     tagCloud?.setTags(filter.tags.toList())
                     refresh()
                     onChanged()
@@ -142,7 +147,7 @@ class SpeqaFilterHeader(
             }
             filter.environments.toList().forEach { environment ->
                 chipRow.add(removableChip(environment, colored = true) {
-                    filter.environments.remove(environment)
+                    filter.removeEnvironment(environment)
                     environmentCloud?.setTags(filter.environments.toList())
                     refresh()
                     onChanged()
@@ -154,7 +159,7 @@ class SpeqaFilterHeader(
     }
 
     private fun removableChip(label: String, colored: Boolean, onRemove: () -> Unit): JComponent =
-        TagChip(tag = label, colored = colored, onDelete = onRemove)
+        TagChip(tag = label, colored = colored, onDelete = onRemove, alwaysShowDelete = true)
 
     private fun showPopup() {
         popup?.let {
@@ -185,8 +190,8 @@ class SpeqaFilterHeader(
             metadataScope = MetadataScope.TEST_CASES,
             metadataProject = project,
             onActivate = {},
-            onAdd = { value -> filter.tags.add(value); syncTagCloud(); refresh(); onChanged() },
-            onRemove = { value -> filter.tags.remove(value); syncTagCloud(); refresh(); onChanged() },
+            onAdd = { value -> filter.addTag(value); syncTagCloud(); refresh(); onChanged() },
+            onRemove = { value -> filter.removeTag(value); syncTagCloud(); refresh(); onChanged() },
         ).also { tagCloud = it }
         tags.setAllKnownTags { registry.allTags.toSet() }
         tags.setTags(filter.tags.toList())
@@ -198,8 +203,8 @@ class SpeqaFilterHeader(
             metadataScope = MetadataScope.TEST_CASES,
             metadataProject = project,
             onActivate = {},
-            onAdd = { value -> filter.environments.add(value); syncEnvironmentCloud(); refresh(); onChanged() },
-            onRemove = { value -> filter.environments.remove(value); syncEnvironmentCloud(); refresh(); onChanged() },
+            onAdd = { value -> filter.addEnvironment(value); syncEnvironmentCloud(); refresh(); onChanged() },
+            onRemove = { value -> filter.removeEnvironment(value); syncEnvironmentCloud(); refresh(); onChanged() },
         ).also { environmentCloud = it }
         environments.setAllKnownTags { registry.allEnvironments.toSet() }
         environments.setTags(filter.environments.toList())

@@ -7,9 +7,8 @@ import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
 import io.github.barsia.speqa.filetype.SpeqaIcons
-import io.github.barsia.speqa.model.Status
 
-/** Folder section: its children are subfolders plus `.tc.md` leaves, honoring the active status filter. */
+/** Folder section: its children are subfolders plus `.tc.md` leaves, honoring the active filter. */
 class SpeqaFolderNode(
     project: Project,
     dir: VirtualFile,
@@ -21,18 +20,18 @@ class SpeqaFolderNode(
         val dir = value
         if (!dir.isValid || !dir.isDirectory) return emptyList()
 
-        val activeStatus = filter.status
+        val filtering = !filter.isEmpty()
         val items = dir.children.mapNotNull { child ->
             when {
                 child.isDirectory ->
-                    if (activeStatus == null || folderHasMatch(child, activeStatus, cache)) {
+                    if (!filtering || folderHasMatch(child, cache, filter)) {
                         SpeqaTreeItem.Folder(child, child.name)
                     } else {
                         null
                     }
                 isTestCaseFileName(child.name) -> {
                     val summary = cache.summaryFor(child)
-                    if (matchesStatusFilter(summary.status, activeStatus)) {
+                    if (matchesFilter(summary, filter)) {
                         SpeqaTreeItem.TestCase(child, summary.title)
                     } else {
                         null
@@ -58,15 +57,15 @@ class SpeqaFolderNode(
 }
 
 /**
- * True when [dir] recursively contains at least one `.tc.md` whose status equals
- * [activeStatus]. Used to hide folders that would be empty under an active filter.
+ * True when [dir] recursively contains at least one `.tc.md` that satisfies [filter].
+ * Used to hide folders that would be empty under an active filter.
  */
-private fun folderHasMatch(dir: VirtualFile, activeStatus: Status, cache: TestCaseSummaryCache): Boolean {
+private fun folderHasMatch(dir: VirtualFile, cache: TestCaseSummaryCache, filter: SpeqaTreeFilter): Boolean {
     if (!dir.isValid || !dir.isDirectory) return false
     return dir.children.any { child ->
         when {
-            child.isDirectory -> folderHasMatch(child, activeStatus, cache)
-            isTestCaseFileName(child.name) -> cache.summaryFor(child).status == activeStatus
+            child.isDirectory -> folderHasMatch(child, cache, filter)
+            isTestCaseFileName(child.name) -> matchesFilter(cache.summaryFor(child), filter)
             else -> false
         }
     }

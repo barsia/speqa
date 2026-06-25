@@ -1123,7 +1123,7 @@ A dedicated **SpeQA** tool window provides a curated, test-case-centric view of 
 
 **Tree contents - the contract:**
 - **Root** is the project's `test-cases/` directory; the root node itself is not shown - its children are the top level of the tree.
-- **Folders are sections.** Every subdirectory under `test-cases/` is shown as a folder node, **including empty folders and folders that (transitively) contain no test cases** (when no status filter is active; see "Status filter" below). The folder hierarchy mirrors the on-disk directory structure exactly.
+- **Folders are sections.** Every subdirectory under `test-cases/` is shown as a folder node, **including empty folders and folders that (transitively) contain no test cases** (when no filter is active; see "Filters" below). The folder hierarchy mirrors the on-disk directory structure exactly.
 - **Test cases are leaves labeled by `title`.** Each `.tc.md` file is a leaf node whose displayed text is the test case's `title` parsed from YAML frontmatter (not the file name). A file with a blank/absent title falls back to `"Untitled Test Case"`. The test-case stamp icon (matching its status) is shown.
 - **Non-`.tc.md` files are hidden.** Regular files (`README.md`, attachment images, `.tr.md` test runs, etc.) never appear in this tree.
 
@@ -1131,18 +1131,40 @@ A dedicated **SpeQA** tool window provides a curated, test-case-centric view of 
 
 **Interaction:** double-click or Enter on a test-case leaf opens the file via `FileEditorManager` (which routes to the SpeqaEditorProvider split editor). Folder nodes expand/collapse. Standard platform speed-search (type-to-filter) is available because the tree is built on the platform tree framework.
 
-**Status filter:** a single-select dropdown (`ComboBox`) sits in a header above the tree with four options: `All`, `Draft`, `Ready`, `Deprecated`. Each status option renders with its stamp icon; `All` has no icon. The selection is a single status, not a multi-select. Behavior:
-- `All` (the default) shows everything, including empty folders, exactly as described above.
-- A specific status shows only test cases whose `status` equals the selection. A folder is shown only if its subtree (recursively) contains at least one matching test case; folders that would become empty under the filter are hidden.
-- The filter is session-only state held in memory by the tool window; it is not persisted and resets to `All` when the project is reopened.
-- Changing the selection rebuilds the tree from the root (`treeModel.invalidateAsync()`).
-- The leaf-level predicate (`status matches active filter`) is a pure function covered by unit tests; folder pruning is verified by smoke test. Filter labels come from `SpeqaBundle`.
+**Filters:** a header above the tree provides a multi-facet filter across four facets: **status**, **priority**, **tags**, and **environment**.
+
+Facets and their values:
+- **Status** - single-select enum: `All statuses` (default) plus Draft / Ready / Deprecated, each rendered with its stamp icon (`All statuses` has no icon).
+- **Priority** - single-select enum: `All priorities` (default) plus Critical / Major / Normal / Low.
+- **Tags** - multi-select over the project's known tags (from `SpeqaTagRegistry.allTags`), picked via the existing tag autocomplete/chip UI.
+- **Environment** - multi-select over the project's known environments (`SpeqaTagRegistry.allEnvironments`), same picker UI.
+
+Matching semantics (pure function `matchesFilter(summary, filter)`, unit-tested):
+- A facet with no selection does not constrain results (status/priority `null`, or an empty tag/environment set).
+- Status and priority match when the test case's value equals the selection.
+- Tags match when the test case has **at least one** of the selected tags (OR within the facet); environment matches the same way.
+- Active facets are combined with **AND** - a test case is shown only if it satisfies every active facet.
+
+Header UI:
+- The toolbar holds four separate facet icon-buttons - one each for Status, Priority, Tags, and Environment - each a `speqaIconButton` with a tooltip naming its facet. Clicking a button opens a small `JBPopup` scoped to that one facet:
+  - Status and Priority popups list `All <facet>` plus the facet's values (status values carry their stamp icon); picking a value sets that facet and closes the popup.
+  - Tags and Environment popups reuse the editor's `TagCloud` + `AddTagPopup` autocomplete picker (fed by `SpeqaTagRegistry`), letting the user add/remove several values; the popup stays open while picking.
+  - A facet button whose facet is active is shown in a selected/highlighted state so the active facets are visible at a glance.
+- A "clear all" button appears in the toolbar only when at least one facet is active and resets every facet.
+- Below the toolbar, a row of removable chips shows each active selection (status value, priority value, each tag, each environment); each chip carries an always-visible close button that clears that one selection. The chip row is hidden when no filter is active.
+- Changes apply live: any facet change rebuilds the tree from the root (`treeModel.invalidateAsync()`) and refreshes the chip row and the facet buttons' active state.
+
+Tree behavior under a filter:
+- With no active filter (the default) everything is shown, including empty folders, exactly as described above.
+- With any active filter, a test case leaf is shown only if it satisfies `matchesFilter`. A folder is shown only if its subtree (recursively) contains at least one matching test case; folders that would become empty under the filter are hidden.
+
+The filter is session-only state held in memory by the tool window; it is not persisted and resets to "no filter" when the project is reopened. Because the tree builds its children on a background thread while the filter is mutated on the EDT, the filter's tag and environment selections are stored as immutable snapshots swapped atomically on each change, so off-thread reads never observe a partially mutated collection. The leaf-level predicate is covered by unit tests; folder pruning and the popup/chip UI are verified by smoke test. All filter labels come from `SpeqaBundle`.
 
 **Live updates:** the tree reflects file-system changes under `test-cases/` without manual refresh. Creating, deleting, renaming, or moving `.tc.md` files and folders updates the tree; editing a `.tc.md` file's `title` updates that leaf's label. Parsed titles are cached per file and invalidated on content change so the tree does not re-read disk on every repaint.
 
 **Implementation:** built on the IntelliJ platform tree framework (`AbstractTreeStructure` plus `StructureTreeModel` plus `Tree`) - the same machinery as the Project view - for native theming, async loading, and speed-search. Nodes live under a dedicated tool-window package. The factory subscribes to VFS changes scoped to `test-cases/` via the tool window's `Disposable`.
 
-**Out of scope (first version):** context menu (new/delete/rename), drag & drop, grouping by tags/priority, and filtering by tags or priority. These may be added later.
+**Out of scope (first version):** context menu (new/delete/rename), drag & drop, and grouping by tags/priority. These may be added later.
 
 ---
 

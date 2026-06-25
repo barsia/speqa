@@ -96,6 +96,7 @@ class TagChip(
     onEdit: (() -> Unit)? = null,
     onDelete: (() -> Unit)? = null,
     tooltip: String? = null,
+    private val alwaysShowDelete: Boolean = false,
 ) : JPanel(null) {
 
     private val backgroundColor: Color =
@@ -145,7 +146,7 @@ class TagChip(
         if (onDelete != null) {
             deleteButton = CornerDeleteButton(onDelete).apply {
                 toolTipText = SpeqaBundle.message("tagCloud.removeTag")
-                isVisible = false
+                isVisible = alwaysShowDelete
                 addFocusListener(object : FocusAdapter() {
                     override fun focusGained(e: FocusEvent) {
                         deleteFocused = true
@@ -246,7 +247,7 @@ class TagChip(
     }
 
     private fun updateDeleteButtonVisibility() {
-        val shown = shouldShowTagChipDeleteAction(
+        val shown = alwaysShowDelete || shouldShowTagChipDeleteAction(
             hasDelete = deleteButton != null,
             hovered = hovered,
             chipFocused = focusedRing,

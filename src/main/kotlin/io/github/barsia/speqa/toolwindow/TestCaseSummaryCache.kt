@@ -2,13 +2,20 @@ package io.github.barsia.speqa.toolwindow
 
 import com.intellij.openapi.vfs.VfsUtilCore
 import com.intellij.openapi.vfs.VirtualFile
+import io.github.barsia.speqa.model.Priority
 import io.github.barsia.speqa.model.Status
 import io.github.barsia.speqa.model.TestCase
 import io.github.barsia.speqa.parser.TestCaseParser
 import java.util.concurrent.ConcurrentHashMap
 
-/** Parsed display data for a single test case leaf. */
-data class TestCaseSummary(val title: String, val status: Status)
+/** Parsed display + filter data for a single test case leaf. */
+data class TestCaseSummary(
+    val title: String,
+    val status: Status,
+    val priority: Priority,
+    val tags: Set<String>,
+    val environments: Set<String>,
+)
 
 /**
  * Caches the parsed [TestCaseSummary] for each `.tc.md` file, keyed by path and
@@ -34,8 +41,14 @@ class TestCaseSummaryCache {
 
     private fun readSummary(file: VirtualFile): TestCaseSummary = try {
         val testCase = TestCaseParser.parse(VfsUtilCore.loadText(file))
-        TestCaseSummary(testCase.title, testCase.status ?: Status.DRAFT)
+        TestCaseSummary(
+            title = testCase.title,
+            status = testCase.status ?: Status.DRAFT,
+            priority = testCase.priority ?: Priority.NORMAL,
+            tags = testCase.tags?.toSet() ?: emptySet(),
+            environments = testCase.environment?.toSet() ?: emptySet(),
+        )
     } catch (_: Exception) {
-        TestCaseSummary(TestCase().title, Status.DRAFT)
+        TestCaseSummary(TestCase().title, Status.DRAFT, Priority.NORMAL, emptySet(), emptySet())
     }
 }

@@ -1,9 +1,16 @@
 package io.github.barsia.speqa.toolwindow
 
 import com.intellij.icons.AllIcons
+import com.intellij.ide.ActivityTracker
+import com.intellij.openapi.actionSystem.ActionUpdateThread
+import com.intellij.openapi.actionSystem.AnAction
+import com.intellij.openapi.actionSystem.AnActionEvent
+import com.intellij.openapi.actionSystem.Toggleable
+import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.popup.JBPopup
 import com.intellij.openapi.ui.popup.JBPopupFactory
+import com.intellij.openapi.util.NlsActions
 import com.intellij.ui.components.JBList
 import com.intellij.util.ui.JBUI
 import io.github.barsia.speqa.SpeqaBundle
@@ -12,7 +19,6 @@ import io.github.barsia.speqa.editor.ui.chips.MetadataScope
 import io.github.barsia.speqa.editor.ui.chips.TagChip
 import io.github.barsia.speqa.editor.ui.chips.TagCloud
 import io.github.barsia.speqa.editor.ui.primitives.WrapLayout
-import io.github.barsia.speqa.editor.ui.primitives.speqaIconButton
 import io.github.barsia.speqa.filetype.SpeqaIcons
 import io.github.barsia.speqa.model.Priority
 import io.github.barsia.speqa.model.Status
@@ -25,18 +31,20 @@ import javax.swing.JList
 import javax.swing.JPanel
 
 /**
- * Header above the test-case tool-window tree owning the multi-facet filter UI.
+ * Owns the multi-facet filter UI for the test-case tool window.
  *
- * Two rows:
- *  - a toolbar with four facet icon-buttons (Status, Priority, Tags,
- *    Environment), each opening its own scoped popup, plus a "clear all" button
- *    visible only while a filter is active. A facet button whose facet is active
- *    is rendered in a highlighted state;
- *  - a wrap-layout row of removable chips, one per active selection, hidden when
- *    no filter is active.
+ * The four facet triggers (Status, Priority, Tags, Environment) plus the
+ * "clear all" trigger are exposed as [titleActions] and installed into the
+ * tool-window title bar by the factory. An active facet renders highlighted
+ * natively via [Toggleable]; the clear-all action is hidden while no filter is
+ * active. Each facet opens its own scoped popup, anchored under the clicked
+ * title-bar button.
+ *
+ * The [component] is the wrap-layout row of removable chips, one per active
+ * selection, hidden when no filter is active, shown just above the tree.
  *
  * Every facet mutation invokes [onChanged] (wired by the factory to
- * `treeModel.invalidateAsync()`) and refreshes the header.
+ * `treeModel.invalidateAsync()`) and refreshes the chip row and title actions.
  */
 class SpeqaFilterHeader(
     private val project: Project,
@@ -47,50 +55,6 @@ class SpeqaFilterHeader(
 
     private val registry = SpeqaTagRegistry.getInstance(project)
 
-    private val statusButton = facetButton(
-        icon = AllIcons.Actions.GroupBy,
-        tooltip = SpeqaBundle.message("toolwindow.speqa.filter.status"),
-        onAction = { showStatusPopup() },
-    )
-
-    private val priorityButton = facetButton(
-        icon = AllIcons.Nodes.Favorite,
-        tooltip = SpeqaBundle.message("toolwindow.speqa.filter.priority"),
-        onAction = { showPriorityPopup() },
-    )
-
-    private val tagsButton = facetButton(
-        icon = AllIcons.Gutter.ExtAnnotation,
-        tooltip = SpeqaBundle.message("toolwindow.speqa.filter.tags"),
-        onAction = { showTagsPopup() },
-    )
-
-    private val environmentButton = facetButton(
-        icon = AllIcons.General.Web,
-        tooltip = SpeqaBundle.message("toolwindow.speqa.filter.environment"),
-        onAction = { showEnvironmentPopup() },
-    )
-
-    private val clearAllButton: JComponent = speqaIconButton(
-        icon = AllIcons.Actions.Close,
-        tooltip = SpeqaBundle.message("toolwindow.speqa.filter.clearAll"),
-        danger = true,
-        onAction = {
-            filter.clear()
-            refresh()
-            onChanged()
-        },
-    )
-
-    private val toolbarRow = JPanel(FlowLayout(FlowLayout.LEFT, JBUI.scale(4), JBUI.scale(2))).apply {
-        isOpaque = false
-        add(statusButton.wrapper)
-        add(priorityButton.wrapper)
-        add(tagsButton.wrapper)
-        add(environmentButton.wrapper)
-        add(clearAllButton)
-    }
-
     private val chipRow = JPanel(
         WrapLayout(FlowLayout.LEFT, JBUI.scale(4), JBUI.scale(2), gapAround = false),
     ).apply {
@@ -98,13 +62,17 @@ class SpeqaFilterHeader(
         border = JBUI.Borders.empty(0, 4, 2, 4)
     }
 
-    /** The component to add to the tool-window content. */
-    val component: JComponent = JPanel(BorderLayout()).apply {
-        isOpaque = false
-        border = JBUI.Borders.empty(2)
-        add(toolbarRow, BorderLayout.NORTH)
-        add(chipRow, BorderLayout.SOUTH)
-    }
+    /** The component to add to the tool-window content: the active-chip row. */
+    val component: JComponent = chipRow
+
+    /** Actions to install into the tool-window title bar. */
+    val titleActions: List<AnAction> = listOf(
+        FacetAction(Facet.STATUS, AllIcons.Actions.GroupBy, SpeqaBundle.message("toolwindow.speqa.filter.status")),
+        FacetAction(Facet.PRIORITY, AllIcons.Nodes.Favorite, SpeqaBundle.message("toolwindow.speqa.filter.priority")),
+        FacetAction(Facet.TAGS, AllIcons.Gutter.ExtAnnotation, SpeqaBundle.message("toolwindow.speqa.filter.tags")),
+        FacetAction(Facet.ENVIRONMENT, AllIcons.General.Web, SpeqaBundle.message("toolwindow.speqa.filter.environment")),
+        ClearAllAction(),
+    )
 
     /** The currently-open facet popup, if any. */
     private var popup: JBPopup? = null
@@ -121,14 +89,62 @@ class SpeqaFilterHeader(
         refresh()
     }
 
-    /** Re-render facet active-state, the clear-all visibility, and the chip row. */
+    private fun isFacetActive(facet: Facet): Boolean = when (facet) {
+        Facet.STATUS -> filter.status != null
+        Facet.PRIORITY -> filter.priority != null
+        Facet.TAGS -> filter.tags.isNotEmpty()
+        Facet.ENVIRONMENT -> filter.environments.isNotEmpty()
+    }
+
+    /** Title-bar trigger for a single facet, highlighted while that facet is active. */
+    private inner class FacetAction(
+        private val facet: Facet,
+        icon: Icon,
+        @NlsActions.ActionText tooltip: String,
+    ) : DumbAwareAction(tooltip, null, icon), Toggleable {
+
+        override fun actionPerformed(e: AnActionEvent) {
+            val anchor = e.inputEvent?.component as? JComponent
+            when (facet) {
+                Facet.STATUS -> showStatusPopup(e, anchor)
+                Facet.PRIORITY -> showPriorityPopup(e, anchor)
+                Facet.TAGS -> showTagsPopup(e, anchor)
+                Facet.ENVIRONMENT -> showEnvironmentPopup(e, anchor)
+            }
+        }
+
+        override fun update(e: AnActionEvent) {
+            Toggleable.setSelected(e.presentation, isFacetActive(facet))
+        }
+
+        override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
+    }
+
+    /** Title-bar trigger that clears every active facet; hidden while none is active. */
+    private inner class ClearAllAction : DumbAwareAction(
+        SpeqaBundle.message("toolwindow.speqa.filter.clearAll"),
+        null,
+        AllIcons.Actions.Close,
+    ) {
+        override fun actionPerformed(e: AnActionEvent) {
+            filter.clear()
+            refresh()
+            onChanged()
+        }
+
+        override fun update(e: AnActionEvent) {
+            e.presentation.isEnabledAndVisible = filter.activeCount() > 0
+        }
+
+        override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
+    }
+
+    /** Re-render the clear-all/facet title-bar state and the chip row. */
     private fun refresh() {
-        statusButton.setActive(filter.status != null)
-        priorityButton.setActive(filter.priority != null)
-        tagsButton.setActive(filter.tags.isNotEmpty())
-        environmentButton.setActive(filter.environments.isNotEmpty())
-        clearAllButton.isVisible = filter.activeCount() > 0
         rebuildChipRow()
+        // Nudge the title toolbar to re-run update() so the Toggleable highlight
+        // and clear-all visibility refresh immediately.
+        ActivityTracker.getInstance().inc()
     }
 
     private fun rebuildChipRow() {
@@ -189,8 +205,11 @@ class SpeqaFilterHeader(
         return !sameAlreadyOpen
     }
 
-    /** Shows [p] under [anchor] as [facet]'s popup, tracking it until it closes. */
-    private fun openPopup(facet: Facet, p: JBPopup, anchor: JComponent) {
+    /**
+     * Shows [p] as [facet]'s popup, tracking it until it closes. Anchors under
+     * [anchor] when available, otherwise at the best-guess location for [e].
+     */
+    private fun openPopup(facet: Facet, p: JBPopup, anchor: JComponent?, e: AnActionEvent) {
         popup = p
         openFacet = facet
         p.addListener(object : com.intellij.openapi.ui.popup.JBPopupListener {
@@ -201,27 +220,31 @@ class SpeqaFilterHeader(
                 }
             }
         })
-        p.showUnderneathOf(anchor)
+        if (anchor != null) {
+            p.showUnderneathOf(anchor)
+        } else {
+            p.show(JBPopupFactory.getInstance().guessBestPopupLocation(e.dataContext))
+        }
     }
 
-    private fun showStatusPopup() {
+    private fun showStatusPopup(e: AnActionEvent, anchor: JComponent?) {
         if (!shouldOpen(Facet.STATUS)) return
         val options = listOf(
             StatusOption(null, SpeqaBundle.message("toolwindow.speqa.filter.allStatuses"), null),
         ) + Status.entries.map { StatusOption(it, capitalize(it.label), SpeqaIcons.forStatus(it)) }
-        showFacetChooser(Facet.STATUS, statusButton.wrapper, options, filter.status) { picked ->
+        showFacetChooser(Facet.STATUS, anchor, e, options, filter.status) { picked ->
             filter.status = picked.value
             refresh()
             onChanged()
         }
     }
 
-    private fun showPriorityPopup() {
+    private fun showPriorityPopup(e: AnActionEvent, anchor: JComponent?) {
         if (!shouldOpen(Facet.PRIORITY)) return
         val options = listOf(
             PriorityOption(null, SpeqaBundle.message("toolwindow.speqa.filter.allPriorities"), null),
         ) + Priority.entries.map { PriorityOption(it, capitalize(it.label), null) }
-        showFacetChooser(Facet.PRIORITY, priorityButton.wrapper, options, filter.priority) { picked ->
+        showFacetChooser(Facet.PRIORITY, anchor, e, options, filter.priority) { picked ->
             filter.priority = picked.value
             refresh()
             onChanged()
@@ -230,7 +253,8 @@ class SpeqaFilterHeader(
 
     private fun <E : Enum<E>, O : FilterOption<E>> showFacetChooser(
         facet: Facet,
-        anchor: JComponent,
+        anchor: JComponent?,
+        e: AnActionEvent,
         options: List<O>,
         selected: E?,
         onPick: (O) -> Unit,
@@ -253,10 +277,10 @@ class SpeqaFilterHeader(
                 onPick(picked)
             }
             .createPopup()
-        openPopup(facet, newPopup, anchor)
+        openPopup(facet, newPopup, anchor, e)
     }
 
-    private fun showTagsPopup() {
+    private fun showTagsPopup(e: AnActionEvent, anchor: JComponent?) {
         if (!shouldOpen(Facet.TAGS)) return
         val cloud = TagCloud(
             coloredChips = true,
@@ -270,10 +294,10 @@ class SpeqaFilterHeader(
         cloud.setAllKnownTags { registry.allTags.toSet() }
         cloud.setTags(filter.tags.toList())
         registry.whenInitialized { cloud.setAllKnownTags { registry.allTags.toSet() } }
-        showCloudPopup(Facet.TAGS, tagsButton.wrapper, cloud)
+        showCloudPopup(Facet.TAGS, anchor, e, cloud)
     }
 
-    private fun showEnvironmentPopup() {
+    private fun showEnvironmentPopup(e: AnActionEvent, anchor: JComponent?) {
         if (!shouldOpen(Facet.ENVIRONMENT)) return
         val cloud = TagCloud(
             coloredChips = true,
@@ -287,10 +311,10 @@ class SpeqaFilterHeader(
         cloud.setAllKnownTags { registry.allEnvironments.toSet() }
         cloud.setTags(filter.environments.toList())
         registry.whenInitialized { cloud.setAllKnownTags { registry.allEnvironments.toSet() } }
-        showCloudPopup(Facet.ENVIRONMENT, environmentButton.wrapper, cloud)
+        showCloudPopup(Facet.ENVIRONMENT, anchor, e, cloud)
     }
 
-    private fun showCloudPopup(facet: Facet, anchor: JComponent, cloud: TagCloud) {
+    private fun showCloudPopup(facet: Facet, anchor: JComponent?, e: AnActionEvent, cloud: TagCloud) {
         val panel = JPanel(BorderLayout()).apply {
             border = JBUI.Borders.empty(8)
             add(cloud, BorderLayout.CENTER)
@@ -302,39 +326,11 @@ class SpeqaFilterHeader(
             .setResizable(false)
             .setMovable(false)
             .createPopup()
-        openPopup(facet, newPopup, anchor)
+        openPopup(facet, newPopup, anchor, e)
         cloud.startAdd()
     }
 
     private fun capitalize(label: String): String = label.replaceFirstChar { it.uppercase() }
-
-    /**
-     * Wraps a [speqaIconButton] in a non-opaque panel that paints a highlighted
-     * background when its facet is active, so active facets read at a glance.
-     */
-    private fun facetButton(icon: Icon, tooltip: String, onAction: () -> Unit): FacetButton {
-        val button = speqaIconButton(icon = icon, tooltip = tooltip, onAction = onAction)
-        return FacetButton(button)
-    }
-
-    private class FacetButton(button: JComponent) {
-        val wrapper: JPanel = object : JPanel(BorderLayout()) {
-            init {
-                isOpaque = false
-                add(button, BorderLayout.CENTER)
-            }
-        }
-
-        fun setActive(active: Boolean) {
-            if (active) {
-                wrapper.isOpaque = true
-                wrapper.background = JBUI.CurrentTheme.ActionButton.pressedBackground()
-            } else {
-                wrapper.isOpaque = false
-            }
-            wrapper.repaint()
-        }
-    }
 
     private enum class Facet { STATUS, PRIORITY, TAGS, ENVIRONMENT }
 

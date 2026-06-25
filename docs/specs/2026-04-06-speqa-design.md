@@ -1146,13 +1146,13 @@ Matching semantics (pure function `matchesFilter(summary, filter)`, unit-tested)
 - Active facets are combined with **AND** - a test case is shown only if it satisfies every active facet.
 
 Header UI:
-- The toolbar holds four separate facet icon-buttons - one each for Status, Priority, Tags, and Environment - each a `speqaIconButton` with a tooltip naming its facet. Clicking a button opens a small `JBPopup` scoped to that one facet:
+- The four facet triggers - one each for Status, Priority, Tags, and Environment - live in the tool-window **title bar** (next to the tool-window name/gear), installed via `ToolWindow.setTitleActions`. Each is an `AnAction` carrying the facet's icon and a tooltip naming its facet. Clicking a title-bar button opens a small `JBPopup` scoped to that one facet, anchored underneath the clicked button:
   - Status and Priority popups list `All <facet>` plus the facet's values (status values carry their stamp icon); picking a value sets that facet and closes the popup.
   - Tags and Environment popups reuse the editor's `TagCloud` + `AddTagPopup` autocomplete picker (fed by `SpeqaTagRegistry`), letting the user add/remove several values; the popup stays open while picking.
-  - A facet button whose facet is active is shown in a selected/highlighted state so the active facets are visible at a glance.
-- A "clear all" button appears in the toolbar only when at least one facet is active and resets every facet.
-- Below the toolbar, a row of removable chips shows each active selection (status value, priority value, each tag, each environment); each chip carries an always-visible close button that clears that one selection. The chip row is hidden when no filter is active.
-- Changes apply live: any facet change rebuilds the tree from the root (`treeModel.invalidateAsync()`) and refreshes the chip row and the facet buttons' active state.
+  - A facet whose facet is active renders in the native selected/highlighted state (via `Toggleable`) so the active facets are visible at a glance.
+- A "clear all" title-bar action appears only when at least one facet is active and resets every facet.
+- Just above the tree, a row of removable chips shows each active selection (status value, priority value, each tag, each environment); each chip carries an always-visible close button that clears that one selection. The chip row is hidden when no filter is active.
+- Changes apply live: any facet change rebuilds the tree from the root (`treeModel.invalidateAsync()`), refreshes the chip row, and nudges the title toolbar (`ActivityTracker.inc()`) so the facet active-highlight and clear-all visibility update immediately.
 
 Tree behavior under a filter:
 - With no active filter (the default) everything is shown, including empty folders, exactly as described above.

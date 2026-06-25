@@ -48,6 +48,7 @@ class SpeqaToolWindowFactory : ToolWindowFactory, DumbAware {
         subscribeToVfsChanges(project, toolWindow, rootDir, cache, treeModel)
 
         val header = SpeqaFilterHeader(project, filter, toolWindow.disposable) { treeModel.invalidateAsync() }
+        toolWindow.setTitleActions(header.titleActions)
         val panel = JPanel(BorderLayout()).apply {
             add(header.component, BorderLayout.NORTH)
             add(ScrollPaneFactory.createScrollPane(tree), BorderLayout.CENTER)

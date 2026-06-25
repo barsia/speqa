@@ -1,9 +1,11 @@
 package io.github.barsia.speqa.toolwindow
 
 import com.intellij.ide.util.treeView.NodeRenderer
+import com.intellij.ide.util.treeView.TreeState
 import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.project.guessProjectDir
+import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.VirtualFileManager
 import com.intellij.openapi.vfs.newvfs.BulkFileListener
@@ -56,6 +58,23 @@ class SpeqaToolWindowFactory : ToolWindowFactory, DumbAware {
 
         val content = ContentFactory.getInstance().createContent(panel, null, false)
         toolWindow.contentManager.addContent(content)
+
+        restoreAndTrackTreeState(project, toolWindow, tree)
+    }
+
+    /**
+     * Re-applies the persisted expansion/selection state and arranges to capture
+     * it again when the tool-window content is disposed (project close included),
+     * so the tree looks the same across reopen and IDE restart.
+     */
+    private fun restoreAndTrackTreeState(project: Project, toolWindow: ToolWindow, tree: Tree) {
+        val store = SpeqaToolWindowTreeState.getInstance(project)
+        store.read()?.let { TreeState.createFrom(it).applyTo(tree) }
+        Disposer.register(toolWindow.disposable) {
+            val element = org.jdom.Element("state")
+            TreeState.createOn(tree).writeExternal(element)
+            store.write(element)
+        }
     }
 
     private fun subscribeToVfsChanges(

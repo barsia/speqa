@@ -266,7 +266,7 @@ class SpeqaFilterHeader(
         )
         return ComboBox(options).apply {
             handCursor()
-            renderer = optionRenderer()
+            renderer = optionRenderer<StatusOption>()
             selectedItem = options.first { it.value == filter.status }
             addActionListener {
                 val picked = selectedItem as? StatusOption ?: return@addActionListener
@@ -286,7 +286,7 @@ class SpeqaFilterHeader(
         )
         return ComboBox(options).apply {
             handCursor()
-            renderer = optionRenderer()
+            renderer = optionRenderer<PriorityOption>()
             selectedItem = options.first { it.value == filter.priority }
             addActionListener {
                 val picked = selectedItem as? PriorityOption ?: return@addActionListener

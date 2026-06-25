@@ -1146,9 +1146,13 @@ Matching semantics (pure function `matchesFilter(summary, filter)`, unit-tested)
 - Active facets are combined with **AND** - a test case is shown only if it satisfies every active facet.
 
 Header UI:
-- A funnel toolbar button (`AllIcons.General.Filter`), labeled with the number of active selections when any are active, opens a `JBPopup` containing all four facet controls plus `Clear` and `Done`. Status/priority use the established `ComboBox` idiom (with an explicit "All" option); tags/environment reuse the editor's `TagCloud` + `AddTagPopup` autocomplete picker, fed by `SpeqaTagRegistry`.
-- Below the toolbar, a row of removable chips shows each active selection (status value, priority value, each tag, each environment); each chip carries an always-visible close button that clears that one selection. The chip row and the "clear all" affordance are hidden when no filter is active.
-- Changes apply live: any facet change rebuilds the tree from the root (`treeModel.invalidateAsync()`) and refreshes the chip row. `Done` only closes the popup; `Clear` resets every facet.
+- The toolbar holds four separate facet icon-buttons - one each for Status, Priority, Tags, and Environment - each a `speqaIconButton` with a tooltip naming its facet. Clicking a button opens a small `JBPopup` scoped to that one facet:
+  - Status and Priority popups list `All <facet>` plus the facet's values (status values carry their stamp icon); picking a value sets that facet and closes the popup.
+  - Tags and Environment popups reuse the editor's `TagCloud` + `AddTagPopup` autocomplete picker (fed by `SpeqaTagRegistry`), letting the user add/remove several values; the popup stays open while picking.
+  - A facet button whose facet is active is shown in a selected/highlighted state so the active facets are visible at a glance.
+- A "clear all" button appears in the toolbar only when at least one facet is active and resets every facet.
+- Below the toolbar, a row of removable chips shows each active selection (status value, priority value, each tag, each environment); each chip carries an always-visible close button that clears that one selection. The chip row is hidden when no filter is active.
+- Changes apply live: any facet change rebuilds the tree from the root (`treeModel.invalidateAsync()`) and refreshes the chip row and the facet buttons' active state.
 
 Tree behavior under a filter:
 - With no active filter (the default) everything is shown, including empty folders, exactly as described above.

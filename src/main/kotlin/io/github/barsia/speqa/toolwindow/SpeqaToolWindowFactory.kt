@@ -2,7 +2,9 @@ package io.github.barsia.speqa.toolwindow
 
 import com.intellij.ide.util.treeView.NodeRenderer
 import com.intellij.ide.util.treeView.TreeState
+import com.intellij.openapi.actionSystem.CommonShortcuts
 import com.intellij.openapi.project.DumbAware
+import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.project.guessProjectDir
 import com.intellij.openapi.util.Disposer
@@ -12,17 +14,18 @@ import com.intellij.openapi.vfs.newvfs.BulkFileListener
 import com.intellij.openapi.vfs.newvfs.events.VFileEvent
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
+import com.intellij.ui.DoubleClickListener
 import com.intellij.ui.ScrollPaneFactory
 import com.intellij.ui.TreeSpeedSearch
 import com.intellij.ui.content.ContentFactory
 import com.intellij.ui.tree.AsyncTreeModel
 import com.intellij.ui.tree.StructureTreeModel
 import com.intellij.ui.treeStructure.Tree
-import com.intellij.util.EditSourceOnDoubleClickHandler
-import com.intellij.util.EditSourceOnEnterKeyHandler
+import com.intellij.util.ui.tree.TreeUtil
 import io.github.barsia.speqa.SpeqaBundle
 import io.github.barsia.speqa.wizard.SpeqaProjectScaffold
 import java.awt.BorderLayout
+import java.awt.event.MouseEvent
 import javax.swing.JPanel
 
 class SpeqaToolWindowFactory : ToolWindowFactory, DumbAware {
@@ -44,8 +47,7 @@ class SpeqaToolWindowFactory : ToolWindowFactory, DumbAware {
             emptyText.text = SpeqaBundle.message("toolwindow.speqa.empty")
         }
         TreeSpeedSearch.installOn(tree)
-        EditSourceOnDoubleClickHandler.install(tree)
-        EditSourceOnEnterKeyHandler.install(tree)
+        installOpenHandlers(tree)
 
         subscribeToVfsChanges(project, toolWindow, rootDir, cache, treeModel)
 
@@ -85,6 +87,29 @@ class SpeqaToolWindowFactory : ToolWindowFactory, DumbAware {
         })
         tree.addTreeSelectionListener { capture() }
         Disposer.register(toolWindow.disposable) { capture() }
+    }
+
+    /**
+     * Opens the test case under a double-click, or the selected one on Enter, by
+     * calling the node's own [SpeqaTestCaseNode.navigate]. We do not use
+     * `EditSourceOnDoubleClickHandler`/`EditSourceOnEnterKeyHandler`: those resolve
+     * the target through `CommonDataKeys.NAVIGATABLE`, which a plain tree over
+     * `AbstractTreeNode`s does not publish (only the Project view's pane does), so
+     * they would silently open nothing.
+     */
+    private fun installOpenHandlers(tree: Tree) {
+        object : DoubleClickListener() {
+            override fun onDoubleClick(event: MouseEvent): Boolean {
+                val path = tree.getPathForLocation(event.x, event.y) ?: return false
+                val node = TreeUtil.getLastUserObject(SpeqaTestCaseNode::class.java, path) ?: return false
+                node.navigate(true)
+                return true
+            }
+        }.installOn(tree)
+
+        DumbAwareAction.create {
+            TreeUtil.getLastUserObject(SpeqaTestCaseNode::class.java, tree.selectionPath)?.navigate(true)
+        }.registerCustomShortcutSet(CommonShortcuts.ENTER, tree)
     }
 
     private fun subscribeToVfsChanges(

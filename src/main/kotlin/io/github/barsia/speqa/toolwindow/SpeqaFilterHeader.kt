@@ -266,7 +266,12 @@ class SpeqaFilterHeader(
         )
         return ComboBox(options).apply {
             handCursor()
-            renderer = optionRenderer<StatusOption>()
+            renderer = object : SimpleListCellRenderer<StatusOption>() {
+                override fun customize(list: JList<out StatusOption>, value: StatusOption?, index: Int, selected: Boolean, hasFocus: Boolean) {
+                    text = value?.label ?: ""
+                    icon = value?.icon
+                }
+            }
             selectedItem = options.first { it.value == filter.status }
             addActionListener {
                 val picked = selectedItem as? StatusOption ?: return@addActionListener
@@ -286,7 +291,12 @@ class SpeqaFilterHeader(
         )
         return ComboBox(options).apply {
             handCursor()
-            renderer = optionRenderer<PriorityOption>()
+            renderer = object : SimpleListCellRenderer<PriorityOption>() {
+                override fun customize(list: JList<out PriorityOption>, value: PriorityOption?, index: Int, selected: Boolean, hasFocus: Boolean) {
+                    text = value?.label ?: ""
+                    icon = value?.icon
+                }
+            }
             selectedItem = options.first { it.value == filter.priority }
             addActionListener {
                 val picked = selectedItem as? PriorityOption ?: return@addActionListener
@@ -296,14 +306,6 @@ class SpeqaFilterHeader(
             }
         }
     }
-
-    private fun <T : FilterOption<*>> optionRenderer() =
-        object : SimpleListCellRenderer<T>() {
-            override fun customize(list: JList<out T>, value: T?, index: Int, selected: Boolean, hasFocus: Boolean) {
-                text = value?.label ?: ""
-                icon = value?.icon
-            }
-        }
 
     private fun ComboBox<StatusOption>.allOption(): StatusOption =
         (0 until itemCount).map { getItemAt(it) }.first { it.value == null }

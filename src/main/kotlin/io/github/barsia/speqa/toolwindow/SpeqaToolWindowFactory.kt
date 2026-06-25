@@ -63,18 +63,28 @@ class SpeqaToolWindowFactory : ToolWindowFactory, DumbAware {
     }
 
     /**
-     * Re-applies the persisted expansion/selection state and arranges to capture
-     * it again when the tool-window content is disposed (project close included),
-     * so the tree looks the same across reopen and IDE restart.
+     * Re-applies the persisted expansion/selection state and keeps the persisted
+     * snapshot current. State is captured eagerly on every expand/collapse and
+     * selection change (and once more on dispose) rather than only on dispose:
+     * on project close the platform may serialize the component before the
+     * tool-window disposable runs, so a dispose-only capture would persist a
+     * stale snapshot and the tree would not restore.
      */
     private fun restoreAndTrackTreeState(project: Project, toolWindow: ToolWindow, tree: Tree) {
         val store = SpeqaToolWindowTreeState.getInstance(project)
         store.read()?.let { TreeState.createFrom(it).applyTo(tree) }
-        Disposer.register(toolWindow.disposable) {
+
+        val capture = {
             val element = org.jdom.Element("state")
             TreeState.createOn(tree).writeExternal(element)
             store.write(element)
         }
+        tree.addTreeExpansionListener(object : javax.swing.event.TreeExpansionListener {
+            override fun treeExpanded(event: javax.swing.event.TreeExpansionEvent) = capture()
+            override fun treeCollapsed(event: javax.swing.event.TreeExpansionEvent) = capture()
+        })
+        tree.addTreeSelectionListener { capture() }
+        Disposer.register(toolWindow.disposable) { capture() }
     }
 
     private fun subscribeToVfsChanges(

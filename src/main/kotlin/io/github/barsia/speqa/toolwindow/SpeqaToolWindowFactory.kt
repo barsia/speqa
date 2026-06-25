@@ -20,6 +20,8 @@ import com.intellij.util.EditSourceOnDoubleClickHandler
 import com.intellij.util.EditSourceOnEnterKeyHandler
 import io.github.barsia.speqa.SpeqaBundle
 import io.github.barsia.speqa.wizard.SpeqaProjectScaffold
+import java.awt.BorderLayout
+import javax.swing.JPanel
 
 class SpeqaToolWindowFactory : ToolWindowFactory, DumbAware {
 
@@ -45,8 +47,13 @@ class SpeqaToolWindowFactory : ToolWindowFactory, DumbAware {
 
         subscribeToVfsChanges(project, toolWindow, rootDir, cache, treeModel)
 
-        val content = ContentFactory.getInstance()
-            .createContent(ScrollPaneFactory.createScrollPane(tree), null, false)
+        val header = SpeqaFilterHeader(project, filter) { treeModel.invalidateAsync() }
+        val panel = JPanel(BorderLayout()).apply {
+            add(header.component, BorderLayout.NORTH)
+            add(ScrollPaneFactory.createScrollPane(tree), BorderLayout.CENTER)
+        }
+
+        val content = ContentFactory.getInstance().createContent(panel, null, false)
         toolWindow.contentManager.addContent(content)
     }
 

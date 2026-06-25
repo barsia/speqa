@@ -109,10 +109,14 @@ class SpeqaFilterHeader(
     /** The currently-open facet popup, if any. */
     private var popup: JBPopup? = null
 
+    /** Which facet's popup is currently open, if any. */
+    private var openFacet: Facet? = null
+
     init {
         com.intellij.openapi.util.Disposer.register(parentDisposable) {
             popup?.cancel()
             popup = null
+            openFacet = null
         }
         refresh()
     }
@@ -167,24 +171,45 @@ class SpeqaFilterHeader(
     private fun removableChip(label: String, colored: Boolean, onRemove: () -> Unit): JComponent =
         TagChip(tag = label, colored = colored, onDelete = onRemove, alwaysShowDelete = true)
 
-    /** Cancel any open popup; returns true if a popup was open (toggle-off case). */
-    private fun closeOpenPopup(): Boolean {
-        popup?.let {
-            if (!it.isDisposed) {
-                it.cancel()
-            }
-        }
-        val wasOpen = popup != null
+    /** Cancels any open facet popup and clears the open-facet tracking. */
+    private fun cancelPopup() {
+        popup?.takeIf { !it.isDisposed }?.cancel()
         popup = null
-        return wasOpen
+        openFacet = null
+    }
+
+    /**
+     * Decides whether clicking [facet]'s button should open its popup. Always
+     * closes any currently-open popup first; returns true to open [facet] unless
+     * that same facet was already open, in which case the click just toggles it shut.
+     */
+    private fun shouldOpen(facet: Facet): Boolean {
+        val sameAlreadyOpen = openFacet == facet
+        cancelPopup()
+        return !sameAlreadyOpen
+    }
+
+    /** Shows [p] under [anchor] as [facet]'s popup, tracking it until it closes. */
+    private fun openPopup(facet: Facet, p: JBPopup, anchor: JComponent) {
+        popup = p
+        openFacet = facet
+        p.addListener(object : com.intellij.openapi.ui.popup.JBPopupListener {
+            override fun onClosed(event: com.intellij.openapi.ui.popup.LightweightWindowEvent) {
+                if (popup === p) {
+                    popup = null
+                    openFacet = null
+                }
+            }
+        })
+        p.showUnderneathOf(anchor)
     }
 
     private fun showStatusPopup() {
-        if (closeOpenPopup()) return
+        if (!shouldOpen(Facet.STATUS)) return
         val options = listOf(
             StatusOption(null, SpeqaBundle.message("toolwindow.speqa.filter.allStatuses"), null),
         ) + Status.entries.map { StatusOption(it, capitalize(it.label), SpeqaIcons.forStatus(it)) }
-        showFacetChooser(statusButton.wrapper, options, filter.status) { picked ->
+        showFacetChooser(Facet.STATUS, statusButton.wrapper, options, filter.status) { picked ->
             filter.status = picked.value
             refresh()
             onChanged()
@@ -192,11 +217,11 @@ class SpeqaFilterHeader(
     }
 
     private fun showPriorityPopup() {
-        if (closeOpenPopup()) return
+        if (!shouldOpen(Facet.PRIORITY)) return
         val options = listOf(
             PriorityOption(null, SpeqaBundle.message("toolwindow.speqa.filter.allPriorities"), null),
         ) + Priority.entries.map { PriorityOption(it, capitalize(it.label), null) }
-        showFacetChooser(priorityButton.wrapper, options, filter.priority) { picked ->
+        showFacetChooser(Facet.PRIORITY, priorityButton.wrapper, options, filter.priority) { picked ->
             filter.priority = picked.value
             refresh()
             onChanged()
@@ -204,6 +229,7 @@ class SpeqaFilterHeader(
     }
 
     private fun <E : Enum<E>, O : FilterOption<E>> showFacetChooser(
+        facet: Facet,
         anchor: JComponent,
         options: List<O>,
         selected: E?,
@@ -227,12 +253,11 @@ class SpeqaFilterHeader(
                 onPick(picked)
             }
             .createPopup()
-        popup = newPopup
-        newPopup.showUnderneathOf(anchor)
+        openPopup(facet, newPopup, anchor)
     }
 
     private fun showTagsPopup() {
-        if (closeOpenPopup()) return
+        if (!shouldOpen(Facet.TAGS)) return
         val cloud = TagCloud(
             coloredChips = true,
             metadataKind = MetadataKind.TAG,
@@ -245,11 +270,11 @@ class SpeqaFilterHeader(
         cloud.setAllKnownTags { registry.allTags.toSet() }
         cloud.setTags(filter.tags.toList())
         registry.whenInitialized { cloud.setAllKnownTags { registry.allTags.toSet() } }
-        showCloudPopup(tagsButton.wrapper, cloud)
+        showCloudPopup(Facet.TAGS, tagsButton.wrapper, cloud)
     }
 
     private fun showEnvironmentPopup() {
-        if (closeOpenPopup()) return
+        if (!shouldOpen(Facet.ENVIRONMENT)) return
         val cloud = TagCloud(
             coloredChips = true,
             metadataKind = MetadataKind.ENVIRONMENT,
@@ -262,10 +287,10 @@ class SpeqaFilterHeader(
         cloud.setAllKnownTags { registry.allEnvironments.toSet() }
         cloud.setTags(filter.environments.toList())
         registry.whenInitialized { cloud.setAllKnownTags { registry.allEnvironments.toSet() } }
-        showCloudPopup(environmentButton.wrapper, cloud)
+        showCloudPopup(Facet.ENVIRONMENT, environmentButton.wrapper, cloud)
     }
 
-    private fun showCloudPopup(anchor: JComponent, cloud: TagCloud) {
+    private fun showCloudPopup(facet: Facet, anchor: JComponent, cloud: TagCloud) {
         val panel = JPanel(BorderLayout()).apply {
             border = JBUI.Borders.empty(8)
             add(cloud, BorderLayout.CENTER)
@@ -277,8 +302,7 @@ class SpeqaFilterHeader(
             .setResizable(false)
             .setMovable(false)
             .createPopup()
-        popup = newPopup
-        newPopup.showUnderneathOf(anchor)
+        openPopup(facet, newPopup, anchor)
         cloud.startAdd()
     }
 
@@ -311,6 +335,8 @@ class SpeqaFilterHeader(
             wrapper.repaint()
         }
     }
+
+    private enum class Facet { STATUS, PRIORITY, TAGS, ENVIRONMENT }
 
     private sealed interface FilterOption<E : Enum<E>> {
         val value: E?

@@ -1,6 +1,7 @@
 package io.github.barsia.speqa.filetype
 
 import com.intellij.openapi.util.IconLoader
+import io.github.barsia.speqa.model.Status
 import javax.swing.Icon
 
 object SpeqaIcons {
@@ -11,4 +12,10 @@ object SpeqaIcons {
     val TestRunPassed: Icon = IconLoader.getIcon("/icons/testRunPassed.svg", SpeqaIcons::class.java)
     val TestRunFailed: Icon = IconLoader.getIcon("/icons/testRunFailed.svg", SpeqaIcons::class.java)
     val TestRunBlocked: Icon = IconLoader.getIcon("/icons/testRunBlocked.svg", SpeqaIcons::class.java)
+
+    fun forStatus(status: Status): Icon = when (status) {
+        Status.DRAFT -> TestCaseDraft
+        Status.READY -> TestCaseReady
+        Status.DEPRECATED -> TestCaseDeprecated
+    }
 }

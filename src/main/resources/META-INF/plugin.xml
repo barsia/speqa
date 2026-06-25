@@ -25,6 +25,12 @@
         <fileEditorProvider implementation="io.github.barsia.speqa.editor.SpeqaEditorProvider"/>
         <fileEditorProvider implementation="io.github.barsia.speqa.run.TestRunEditorProvider"/>
 
+        <toolWindow id="SpeQA"
+                    anchor="left"
+                    secondary="false"
+                    icon="/icons/speqa16.svg"
+                    factoryClass="io.github.barsia.speqa.toolwindow.SpeqaToolWindowFactory"/>
+
         <annotator language="Markdown" implementationClass="io.github.barsia.speqa.validation.SpeqaAnnotator"/>
 
         <projectConfigurable parentId="tools"

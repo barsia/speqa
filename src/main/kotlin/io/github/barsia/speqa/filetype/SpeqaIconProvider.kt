@@ -28,11 +28,7 @@ class SpeqaIconProvider : IconProvider() {
             ?.let(Status::fromString)
             ?: Status.DRAFT
 
-        return when (status) {
-            Status.DRAFT -> SpeqaIcons.TestCaseDraft
-            Status.READY -> SpeqaIcons.TestCaseReady
-            Status.DEPRECATED -> SpeqaIcons.TestCaseDeprecated
-        }
+        return SpeqaIcons.forStatus(status)
     }
 
     private fun iconForTestRun(file: PsiFile): Icon {

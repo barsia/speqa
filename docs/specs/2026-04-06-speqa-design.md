@@ -1112,6 +1112,33 @@ my-speqa-project/
 
 ---
 
+## 9a. Test Cases Tool Window
+
+A dedicated **SpeQA** tool window provides a curated, test-case-centric view of the project, separate from the platform Project view. It answers "what test cases exist and how are they organized" without the noise of source files, configs, or test runs.
+
+**Placement & availability:**
+- Anchored **top-left** (`anchor="left"`, `secondary="false"`), so it docks above the Project view stripe area.
+- Title: "SpeQA" (from `SpeqaBundle`). Tool window icon reuses the SpeQA plugin/file stamp icon.
+- The tool window is available only when the project contains a `test-cases/` directory; otherwise it is hidden (`ToolWindowFactory.shouldBeAvailable`).
+
+**Tree contents - the contract:**
+- **Root** is the project's `test-cases/` directory; the root node itself is not shown - its children are the top level of the tree.
+- **Folders are sections.** Every subdirectory under `test-cases/` is shown as a folder node, **including empty folders and folders that (transitively) contain no test cases.** The folder hierarchy mirrors the on-disk directory structure exactly.
+- **Test cases are leaves labeled by `title`.** Each `.tc.md` file is a leaf node whose displayed text is the test case's `title` parsed from YAML frontmatter (not the file name). A file with a blank/absent title falls back to `"Untitled Test Case"`. The test-case stamp icon (matching its status) is shown.
+- **Non-`.tc.md` files are hidden.** Regular files (`README.md`, attachment images, `.tr.md` test runs, etc.) never appear in this tree.
+
+**Ordering within a node:** folders first (by name), then test cases ordered by `title`, both case-insensitive and natural-sort (so `Step 2` precedes `Step 10`). This ordering plus the `.tc.md`-only / folders-first filtering is a pure function covered by unit tests.
+
+**Interaction:** double-click or Enter on a test-case leaf opens the file via `FileEditorManager` (which routes to the SpeqaEditorProvider split editor). Folder nodes expand/collapse. Standard platform speed-search (type-to-filter) is available because the tree is built on the platform tree framework.
+
+**Live updates:** the tree reflects file-system changes under `test-cases/` without manual refresh. Creating, deleting, renaming, or moving `.tc.md` files and folders updates the tree; editing a `.tc.md` file's `title` updates that leaf's label. Parsed titles are cached per file and invalidated on content change so the tree does not re-read disk on every repaint.
+
+**Implementation:** built on the IntelliJ platform tree framework (`AbstractTreeStructure` plus `StructureTreeModel` plus `Tree`) - the same machinery as the Project view - for native theming, async loading, and speed-search. Nodes live under a dedicated tool-window package. The factory subscribes to VFS changes scoped to `test-cases/` via the tool window's `Disposable`.
+
+**Out of scope (first version):** context menu (new/delete/rename), drag & drop, grouping or filtering by tags/status/priority. These may be added later.
+
+---
+
 ## 10. Creating Test Cases
 
 **Context menu:** Right-click in Project View -> New -> Speqa Test Case -> dialog with file name -> creates file from default template.

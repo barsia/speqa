@@ -1123,7 +1123,7 @@ A dedicated **SpeQA** tool window provides a curated, test-case-centric view of 
 
 **Tree contents - the contract:**
 - **Root** is the project's `test-cases/` directory; the root node itself is not shown - its children are the top level of the tree.
-- **Folders are sections.** Every subdirectory under `test-cases/` is shown as a folder node, **including empty folders and folders that (transitively) contain no test cases.** The folder hierarchy mirrors the on-disk directory structure exactly.
+- **Folders are sections.** Every subdirectory under `test-cases/` is shown as a folder node, **including empty folders and folders that (transitively) contain no test cases** (when no status filter is active; see "Status filter" below). The folder hierarchy mirrors the on-disk directory structure exactly.
 - **Test cases are leaves labeled by `title`.** Each `.tc.md` file is a leaf node whose displayed text is the test case's `title` parsed from YAML frontmatter (not the file name). A file with a blank/absent title falls back to `"Untitled Test Case"`. The test-case stamp icon (matching its status) is shown.
 - **Non-`.tc.md` files are hidden.** Regular files (`README.md`, attachment images, `.tr.md` test runs, etc.) never appear in this tree.
 
@@ -1131,11 +1131,18 @@ A dedicated **SpeQA** tool window provides a curated, test-case-centric view of 
 
 **Interaction:** double-click or Enter on a test-case leaf opens the file via `FileEditorManager` (which routes to the SpeqaEditorProvider split editor). Folder nodes expand/collapse. Standard platform speed-search (type-to-filter) is available because the tree is built on the platform tree framework.
 
+**Status filter:** a single-select dropdown (`ComboBox`) sits in a header above the tree with four options: `All`, `Draft`, `Ready`, `Deprecated`. Each status option renders with its stamp icon; `All` has no icon. The selection is a single status, not a multi-select. Behavior:
+- `All` (the default) shows everything, including empty folders, exactly as described above.
+- A specific status shows only test cases whose `status` equals the selection. A folder is shown only if its subtree (recursively) contains at least one matching test case; folders that would become empty under the filter are hidden.
+- The filter is session-only state held in memory by the tool window; it is not persisted and resets to `All` when the project is reopened.
+- Changing the selection rebuilds the tree from the root (`treeModel.invalidateAsync()`).
+- The leaf-level predicate (`status matches active filter`) is a pure function covered by unit tests; folder pruning is verified by smoke test. Filter labels come from `SpeqaBundle`.
+
 **Live updates:** the tree reflects file-system changes under `test-cases/` without manual refresh. Creating, deleting, renaming, or moving `.tc.md` files and folders updates the tree; editing a `.tc.md` file's `title` updates that leaf's label. Parsed titles are cached per file and invalidated on content change so the tree does not re-read disk on every repaint.
 
 **Implementation:** built on the IntelliJ platform tree framework (`AbstractTreeStructure` plus `StructureTreeModel` plus `Tree`) - the same machinery as the Project view - for native theming, async loading, and speed-search. Nodes live under a dedicated tool-window package. The factory subscribes to VFS changes scoped to `test-cases/` via the tool window's `Disposable`.
 
-**Out of scope (first version):** context menu (new/delete/rename), drag & drop, grouping or filtering by tags/status/priority. These may be added later.
+**Out of scope (first version):** context menu (new/delete/rename), drag & drop, grouping by tags/priority, and filtering by tags or priority. These may be added later.
 
 ---
 

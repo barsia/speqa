@@ -60,7 +60,12 @@ class SpeqaToolWindowFactory : ToolWindowFactory, DumbAware {
             .subscribe(VirtualFileManager.VFS_CHANGES, object : BulkFileListener {
                 override fun after(events: List<VFileEvent>) {
                     val rootPath = rootDir.path
-                    val relevant = events.filter { it.path.startsWith(rootPath) }
+                    // VFS paths use '/' on all platforms; match the directory itself
+                    // or a descendant, never a sibling like "test-cases-old".
+                    val descendantPrefix = "$rootPath/"
+                    val relevant = events.filter {
+                        it.path == rootPath || it.path.startsWith(descendantPrefix)
+                    }
                     if (relevant.isEmpty()) return
                     relevant.forEach { cache.invalidate(it.path) }
                     treeModel.invalidateAsync()

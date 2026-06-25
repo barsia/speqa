@@ -18,7 +18,7 @@ sealed class SpeqaTreeItem<T> {
 
 /** True when [name] is a SpeQA test case file (`*.tc.md`). */
 fun isTestCaseFileName(name: String): Boolean =
-    name.endsWith(".${SpeqaDefaults.TEST_CASE_EXTENSION}")
+    SpeqaDefaults.speqaExtension(name) == SpeqaDefaults.TEST_CASE_EXTENSION
 
 /**
  * Folders first (by name), then test cases (by title); both case-insensitive

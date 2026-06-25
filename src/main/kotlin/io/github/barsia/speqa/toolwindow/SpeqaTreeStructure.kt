@@ -15,9 +15,10 @@ class SpeqaTreeStructure(
     project: Project,
     rootDir: VirtualFile,
     cache: TestCaseSummaryCache,
+    filter: SpeqaTreeFilter,
 ) : AbstractTreeStructure() {
 
-    private val root = SpeqaFolderNode(project, rootDir, cache)
+    private val root = SpeqaFolderNode(project, rootDir, cache, filter)
 
     override fun getRootElement(): Any = root
 

@@ -7,23 +7,37 @@ import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
 import io.github.barsia.speqa.filetype.SpeqaIcons
+import io.github.barsia.speqa.model.Status
 
-/** Folder section: its children are subfolders (all of them) plus `.tc.md` leaves. */
+/** Folder section: its children are subfolders plus `.tc.md` leaves, honoring the active status filter. */
 class SpeqaFolderNode(
     project: Project,
     dir: VirtualFile,
     private val cache: TestCaseSummaryCache,
+    private val filter: SpeqaTreeFilter,
 ) : AbstractTreeNode<VirtualFile>(project, dir) {
 
     override fun getChildren(): Collection<AbstractTreeNode<*>> {
         val dir = value
         if (!dir.isValid || !dir.isDirectory) return emptyList()
 
+        val activeStatus = filter.status
         val items = dir.children.mapNotNull { child ->
             when {
-                child.isDirectory -> SpeqaTreeItem.Folder(child, child.name)
-                isTestCaseFileName(child.name) ->
-                    SpeqaTreeItem.TestCase(child, cache.summaryFor(child).title)
+                child.isDirectory ->
+                    if (activeStatus == null || folderHasMatch(child, activeStatus, cache)) {
+                        SpeqaTreeItem.Folder(child, child.name)
+                    } else {
+                        null
+                    }
+                isTestCaseFileName(child.name) -> {
+                    val summary = cache.summaryFor(child)
+                    if (matchesStatusFilter(summary.status, activeStatus)) {
+                        SpeqaTreeItem.TestCase(child, summary.title)
+                    } else {
+                        null
+                    }
+                }
                 else -> null
             }
         }
@@ -31,7 +45,7 @@ class SpeqaFolderNode(
         val project = project ?: return emptyList()
         return orderChildren(items).map { item ->
             when (item) {
-                is SpeqaTreeItem.Folder -> SpeqaFolderNode(project, item.payload, cache)
+                is SpeqaTreeItem.Folder -> SpeqaFolderNode(project, item.payload, cache, filter)
                 is SpeqaTreeItem.TestCase -> SpeqaTestCaseNode(project, item.payload, cache)
             }
         }
@@ -40,6 +54,21 @@ class SpeqaFolderNode(
     override fun update(presentation: PresentationData) {
         presentation.presentableText = value.name
         presentation.setIcon(AllIcons.Nodes.Folder)
+    }
+}
+
+/**
+ * True when [dir] recursively contains at least one `.tc.md` whose status equals
+ * [activeStatus]. Used to hide folders that would be empty under an active filter.
+ */
+private fun folderHasMatch(dir: VirtualFile, activeStatus: Status, cache: TestCaseSummaryCache): Boolean {
+    if (!dir.isValid || !dir.isDirectory) return false
+    return dir.children.any { child ->
+        when {
+            child.isDirectory -> folderHasMatch(child, activeStatus, cache)
+            isTestCaseFileName(child.name) -> cache.summaryFor(child).status == activeStatus
+            else -> false
+        }
     }
 }
 

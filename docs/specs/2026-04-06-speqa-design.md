@@ -1118,7 +1118,7 @@ A dedicated **SpeQA** tool window provides a curated, test-case-centric view of 
 
 **Placement & availability:**
 - Anchored **top-left** (`anchor="left"`, `secondary="false"`), so it docks above the Project view stripe area.
-- Title: "SpeQA" (from `SpeqaBundle`). Tool window icon reuses the SpeQA plugin/file stamp icon.
+- Title: the tool window's `id` "SpeQA" (a brand token shown verbatim by the platform; no separate bundle key). Tool window icon reuses the SpeQA plugin/file stamp icon.
 - The tool window is available only when the project contains a `test-cases/` directory; otherwise it is hidden (`ToolWindowFactory.shouldBeAvailable`).
 
 **Tree contents - the contract:**

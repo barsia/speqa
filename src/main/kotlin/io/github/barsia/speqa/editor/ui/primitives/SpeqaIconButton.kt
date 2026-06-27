@@ -37,6 +37,12 @@ fun JComponent.setSpeqaActionEnabled(enabled: Boolean, enabledTooltip: String, d
     toolTipText = tip
 }
 
+/** Swap a [speqaIconButton]'s icon, applying the same muted recolor used at creation. */
+fun JComponent.setSpeqaIcon(icon: Icon, muted: Boolean = true) {
+    if (this !is ActionButton) return
+    presentation.icon = if (muted) replaceIconColor(icon, speqaMutedIconColor()) else icon
+}
+
 fun JComponent.setSpeqaTooltip(text: String) {
     toolTipText = text
     if (this is ActionButton) {

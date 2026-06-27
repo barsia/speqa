@@ -8,6 +8,8 @@ import com.intellij.util.ui.JBFont
 import io.github.barsia.speqa.SpeqaBundle
 import io.github.barsia.speqa.editor.ui.primitives.CommitFlash
 import io.github.barsia.speqa.editor.ui.primitives.handCursor
+import io.github.barsia.speqa.editor.ui.primitives.setSpeqaIcon
+import io.github.barsia.speqa.editor.ui.primitives.setSpeqaTooltip
 import io.github.barsia.speqa.editor.ui.primitives.speqaIconButton
 import java.awt.BorderLayout
 import java.awt.Component
@@ -91,8 +93,15 @@ class InlineEditableTitleRow(
         if (editing) commit() else enterEdit()
     }
 
+    /** Pencil in read mode, checkmark while editing (clicking it then commits the title). */
+    private fun updatePencilAffordance() {
+        pencil.setSpeqaIcon(if (editing) AllIcons.Actions.MenuSaveall else AllIcons.Actions.Edit)
+        pencil.setSpeqaTooltip(SpeqaBundle.message(if (editing) "tooltip.save" else "tooltip.editTitle"))
+    }
+
     private fun enterEdit(caretTarget: Int? = null) {
         editing = true
+        updatePencilAffordance()
         applyEditMode()
         if (field.text == displayText(title) && title.isBlank()) {
             field.text = ""
@@ -110,6 +119,7 @@ class InlineEditableTitleRow(
     private fun commit() {
         if (!editing) return
         editing = false
+        updatePencilAffordance()
         val next = field.text.trim()
         applyReadMode()
         field.text = displayText(next)
@@ -123,6 +133,7 @@ class InlineEditableTitleRow(
     private fun cancel() {
         if (!editing) return
         editing = false
+        updatePencilAffordance()
         applyReadMode()
         field.text = displayText(title)
         field.caretPosition = 0
@@ -219,7 +230,10 @@ class InlineEditableTitleRow(
         })
         f.addFocusListener(object : FocusAdapter() {
             override fun focusLost(e: FocusEvent) {
-                if (editing && !e.isTemporary) commit()
+                // When focus moves to the pencil/checkmark button, let its own toggle handle the
+                // commit; committing here too would then re-enter edit mode (button sees editing
+                // already false) and make the caret jump.
+                if (editing && !e.isTemporary && e.oppositeComponent !== pencil) commit()
             }
         })
         return f

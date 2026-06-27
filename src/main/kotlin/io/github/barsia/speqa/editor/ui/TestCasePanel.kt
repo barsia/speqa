@@ -26,6 +26,7 @@ import io.github.barsia.speqa.editor.ui.primitives.CommitFlash
 import io.github.barsia.speqa.editor.ui.primitives.SpeqaFocusTraversalPolicy
 import io.github.barsia.speqa.editor.ui.primitives.handCursor
 import io.github.barsia.speqa.editor.ui.primitives.headerAddIconButton
+import io.github.barsia.speqa.editor.ui.primitives.manualResultIndicator
 import io.github.barsia.speqa.editor.ui.primitives.sectionCaption
 import io.github.barsia.speqa.editor.ui.primitives.singleLineInput
 import io.github.barsia.speqa.editor.ui.primitives.twoColumnRow
@@ -48,6 +49,7 @@ import io.github.barsia.speqa.parser.PatchOperation
 import io.github.barsia.speqa.registry.IdType
 import java.awt.Component
 import java.awt.Dimension
+import java.awt.FlowLayout
 import java.awt.Rectangle
 import java.time.format.DateTimeFormatter
 import javax.swing.BoxLayout
@@ -180,6 +182,11 @@ class TestCasePanel(
                 }
             }
         }
+    } else null
+
+    /** Icon-only marker next to the run-result combo, shown while the run result was set manually. */
+    private val runManualIndicator: JBLabel? = if (mode == PanelMode.RUN) {
+        manualResultIndicator(SpeqaBundle.message("runResult.manual.tooltip")).apply { isVisible = false }
     } else null
 
     private val runnerField: JBTextField? = if (mode == PanelMode.RUN) {
@@ -462,10 +469,17 @@ class TestCasePanel(
         } else {
             SpeqaBundle.message("label.status")
         }
-        val rightBody: JComponent = if (mode == PanelMode.RUN)
-            requireNotNull(runResultCombo) { "runResultCombo must be non-null in RUN mode" }
-        else
+        val rightBody: JComponent = if (mode == PanelMode.RUN) {
+            val combo = requireNotNull(runResultCombo) { "runResultCombo must be non-null in RUN mode" }
+            val indicator = requireNotNull(runManualIndicator) { "runManualIndicator must be non-null in RUN mode" }
+            JPanel(FlowLayout(FlowLayout.LEFT, JBUI.scale(6), 0)).apply {
+                isOpaque = false
+                add(combo)
+                add(indicator)
+            }
+        } else {
             requireNotNull(statusCombo) { "statusCombo must be non-null in CASE mode" }
+        }
         val priStatRow = twoColumnRow(
             leftCaption = SpeqaBundle.message("label.priority"),
             rightCaption = rightCaption,
@@ -661,6 +675,7 @@ class TestCasePanel(
                 if (shouldFlash) CommitFlash.flash(combo)
             }
         }
+        runManualIndicator?.isVisible = run.manualResult
         if (previous.runner != run.runner) {
             runnerField?.let { field ->
                 syncProgrammaticUiChange {

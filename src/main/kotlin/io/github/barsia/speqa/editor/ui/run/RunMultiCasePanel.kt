@@ -5,6 +5,7 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.editor.colors.EditorColorsListener
 import com.intellij.openapi.editor.colors.EditorColorsManager
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBTextField
@@ -12,8 +13,11 @@ import com.intellij.util.messages.MessageBusConnection
 import com.intellij.util.ui.JBUI
 import io.github.barsia.speqa.SpeqaBundle
 import io.github.barsia.speqa.editor.ui.InlineEditableTitleRow
+import io.github.barsia.speqa.editor.ui.primitives.handCursor
+import io.github.barsia.speqa.editor.ui.primitives.manualResultIndicator
 import io.github.barsia.speqa.editor.ui.primitives.singleLineInput
 import io.github.barsia.speqa.editor.ui.primitives.twoColumnRow
+import io.github.barsia.speqa.model.RunResult
 import io.github.barsia.speqa.model.TestRun
 import io.github.barsia.speqa.run.RunProgressText
 import io.github.barsia.speqa.run.TestRunSupport
@@ -22,6 +26,8 @@ import java.awt.Dimension
 import java.awt.Rectangle
 import java.awt.FlowLayout
 import javax.swing.BoxLayout
+import javax.swing.DefaultListCellRenderer
+import javax.swing.JList
 import javax.swing.JPanel
 import javax.swing.UIManager
 import javax.swing.Scrollable
@@ -59,29 +65,39 @@ class RunMultiCasePanel(
         },
     )
 
-    // Settable overall-result pill: defaults to the computed aggregate, but the user can pin a
-    // manual run result that holds regardless of the per-case results and never touches the
-    // per-case pills. "Auto (from cases)" clears the override back to the aggregate.
-    private val resultPill = ResultPill(
-        initial = TestRunSupport.effectiveRunResult(initial),
-        tooltipText = SpeqaBundle.message("runResult.override.tooltip"),
-        popupTitle = SpeqaBundle.message("runResult.override.popupTitle"),
-        autoLabel = SpeqaBundle.message("runResult.override.auto"),
-        onPick = { picked -> emitRun(TestRunSupport.overrideRunResult(current, picked)) },
-        onAuto = { emitRun(TestRunSupport.clearRunOverride(current)) },
-        dataContextProject = project,
-    )
-
-    /** Muted marker shown only while the overall run result is manually overridden. */
-    private val runManualIndicator = JBLabel(
-        SpeqaBundle.message("runResult.manual.label"),
-        com.intellij.icons.AllIcons.General.Note,
-        JBLabel.LEFT,
-    ).apply {
-        toolTipText = SpeqaBundle.message("runResult.manual.tooltip")
-        foreground = com.intellij.ui.JBColor.namedColor("Label.infoForeground", com.intellij.ui.JBColor.GRAY)
-        isVisible = initial.manualResult
+    // Overall-result dropdown, same control as the single-case run. It shows the effective result
+    // (computed aggregate by default). Picking a real result pins a manual run-level override that
+    // holds regardless of the per-case results and never touches the per-case pills; picking
+    // "Not started" clears the override back to the computed aggregate.
+    private val resultCombo = ComboBox(RunResult.entries.toTypedArray()).apply {
+        toolTipText = SpeqaBundle.message("panel.run.verdict")
+        handCursor()
+        renderer = object : DefaultListCellRenderer() {
+            override fun getListCellRendererComponent(
+                list: JList<*>?, value: Any?, index: Int, isSelected: Boolean, cellHasFocus: Boolean,
+            ): Component {
+                val text = (value as? RunResult)?.label?.replace('_', ' ')?.replaceFirstChar { it.uppercase() } ?: ""
+                return super.getListCellRendererComponent(list, text, index, isSelected, cellHasFocus)
+            }
+        }
+        selectedItem = TestRunSupport.effectiveRunResult(initial)
+        addActionListener {
+            if (suppressProgrammaticSync) return@addActionListener
+            val picked = selectedItem as? RunResult ?: return@addActionListener
+            if (picked == TestRunSupport.effectiveRunResult(current)) return@addActionListener
+            val updated = if (picked == RunResult.NOT_STARTED) {
+                TestRunSupport.clearRunOverride(current)
+            } else {
+                TestRunSupport.overrideRunResult(current, picked)
+            }
+            emitRun(updated)
+        }
     }
+
+    /** Muted icon-only marker shown only while the overall run result is manually overridden. */
+    private val runManualIndicator = manualResultIndicator(
+        SpeqaBundle.message("runResult.manual.tooltip"),
+    ).apply { isVisible = initial.manualResult }
 
     private val progressLabel = JBLabel(progressText(initial)).apply {
         foreground = UIManager.getColor("Label.disabledForeground")
@@ -89,7 +105,7 @@ class RunMultiCasePanel(
 
     private val resultBody = JPanel(FlowLayout(FlowLayout.LEFT, JBUI.scale(8), 0)).apply {
         isOpaque = false
-        add(resultPill)
+        add(resultCombo)
         add(runManualIndicator)
         add(progressLabel)
     }
@@ -156,7 +172,10 @@ class RunMultiCasePanel(
             }
         }
 
-        resultPill.setResult(TestRunSupport.effectiveRunResult(run))
+        syncProgrammaticUiChange {
+            val effective = TestRunSupport.effectiveRunResult(run)
+            if (resultCombo.selectedItem != effective) resultCombo.selectedItem = effective
+        }
         runManualIndicator.isVisible = run.manualResult
         progressLabel.text = progressText(run)
 

@@ -3,11 +3,11 @@ package io.github.barsia.speqa.editor.ui.run
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
-import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBLabel
 import com.intellij.util.ui.JBUI
 import io.github.barsia.speqa.SpeqaBundle
 import io.github.barsia.speqa.editor.ui.primitives.handCursor
+import io.github.barsia.speqa.editor.ui.primitives.manualResultIndicator
 import io.github.barsia.speqa.editor.ui.primitives.speqaIconButton
 import io.github.barsia.speqa.model.RunCase
 import io.github.barsia.speqa.run.TestRunSupport
@@ -39,7 +39,10 @@ class RunCaseSection(
 
     private val body = RunCaseBody(project, file, initial, onCaseChange)
 
-    private val headerLabel = JBLabel(RunCaseSectionState.headerLabel(initial))
+    // Shows the full `TC-<id> <title>` in a tooltip only while the label is truncated to fit.
+    private val headerLabel = object : JBLabel(RunCaseSectionState.headerLabel(initial)) {
+        override fun getToolTipText(): String? = if (preferredSize.width > width) text else null
+    }.apply { toolTipText = "" }
 
     private val resultPill = ResultPill(
         initial = initial.result,
@@ -51,17 +54,10 @@ class RunCaseSection(
         dataContextProject = project,
     )
 
-    /** Muted marker shown only while the case result is manually overridden. */
-    private val manualIndicator = JBLabel(
-        SpeqaBundle.message("runCase.result.manual.label"),
-        AllIcons.General.Note,
-        JBLabel.LEFT,
-    ).apply {
-        toolTipText = SpeqaBundle.message("runCase.result.manual.tooltip")
-        foreground = JBColor.namedColor("Label.infoForeground", JBColor.GRAY)
-        alignmentY = Component.CENTER_ALIGNMENT
-        isVisible = RunCaseSectionState.isManual(initial)
-    }
+    /** Muted icon-only marker shown only while the case result is manually overridden. */
+    private val manualIndicator = manualResultIndicator(
+        SpeqaBundle.message("runCase.result.manual.tooltip"),
+    ).apply { isVisible = RunCaseSectionState.isManual(initial) }
 
     /**
      * Drag grip for reordering whole case sections. [RunCasesContainer] attaches

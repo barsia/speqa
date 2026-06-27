@@ -47,9 +47,9 @@ import io.github.barsia.speqa.model.TestRun
 import io.github.barsia.speqa.model.TestStep
 import io.github.barsia.speqa.parser.PatchOperation
 import io.github.barsia.speqa.registry.IdType
+import java.awt.BorderLayout
 import java.awt.Component
 import java.awt.Dimension
-import java.awt.FlowLayout
 import java.awt.Rectangle
 import java.time.format.DateTimeFormatter
 import javax.swing.BoxLayout
@@ -472,10 +472,12 @@ class TestCasePanel(
         val rightBody: JComponent = if (mode == PanelMode.RUN) {
             val combo = requireNotNull(runResultCombo) { "runResultCombo must be non-null in RUN mode" }
             val indicator = requireNotNull(runManualIndicator) { "runManualIndicator must be non-null in RUN mode" }
-            JPanel(FlowLayout(FlowLayout.LEFT, JBUI.scale(6), 0)).apply {
+            // BorderLayout keeps the combo filling the column width (CENTER) exactly as the bare
+            // combo did before, with the manual indicator pinned to its right (EAST).
+            JPanel(BorderLayout()).apply {
                 isOpaque = false
-                add(combo)
-                add(indicator)
+                add(combo, BorderLayout.CENTER)
+                add(indicator.apply { border = JBUI.Borders.emptyLeft(JBUI.scale(6)) }, BorderLayout.EAST)
             }
         } else {
             requireNotNull(statusCombo) { "statusCombo must be non-null in CASE mode" }

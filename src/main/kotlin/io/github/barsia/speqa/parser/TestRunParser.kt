@@ -6,6 +6,7 @@ import io.github.barsia.speqa.model.Link
 import io.github.barsia.speqa.model.PreconditionsBlock
 import io.github.barsia.speqa.model.PreconditionsMarkerStyle
 import io.github.barsia.speqa.model.Priority
+import io.github.barsia.speqa.model.RunCase
 import io.github.barsia.speqa.model.RunResult
 import io.github.barsia.speqa.model.StepResult
 import io.github.barsia.speqa.model.StepVerdict
@@ -21,22 +22,110 @@ object TestRunParser {
         val (frontmatter, body) = SpeqaMarkdown.splitFrontmatter(normalized)
         val meta = SpeqaMarkdown.parseYamlMap(frontmatter)
 
+        val id = if ("id" in meta) (meta["id"] as? Number)?.toInt() else null
+        val title = SpeqaMarkdown.parseScalar(meta["title"])
+        val result = RunResult.fromString(SpeqaMarkdown.parseScalar(meta["result"]))
+
+        val sections = parseCaseSections(body)
+        val cases = if (sections.isEmpty()) listOf(parseLegacyCase(meta, body)) else sections
+        val comment = if (sections.isEmpty()) parseOverallComment(body) else ""
+
         return TestRun(
-            id = if ("id" in meta) (meta["id"] as? Number)?.toInt() else null,
-            title = SpeqaMarkdown.parseScalar(meta["title"]),
-            tags = SpeqaMarkdown.parseTagList(meta["tags"]),
-            priority = if ("priority" in meta) Priority.fromString(SpeqaMarkdown.parseScalar(meta["priority"])) else null,
+            id = id,
+            title = title,
             startedAt = parseDateTime(meta["started_at"]),
             finishedAt = parseDateTime(meta["finished_at"]),
-            result = RunResult.fromString(SpeqaMarkdown.parseScalar(meta["result"])),
+            result = result,
             manualResult = meta["manual_result"]?.toString()?.trim().equals("true", ignoreCase = true),
-            environment = SpeqaMarkdown.parseStringList(meta["environment"]),
             runner = SpeqaMarkdown.parseScalar(meta["runner"]),
+            comment = comment,
+            cases = cases,
+        )
+    }
+
+    private fun parseCaseSections(body: String): List<RunCase> {
+        val lines = body.lines()
+        data class SectionStart(val caseId: Int, val title: String, val lineIndex: Int)
+
+        val starts = mutableListOf<SectionStart>()
+        for ((index, line) in lines.withIndex()) {
+            val match = CASE_MARKER.matchEntire(line) ?: continue
+            starts += SectionStart(
+                caseId = match.groupValues[1].toInt(),
+                title = match.groupValues[2].trim(),
+                lineIndex = index,
+            )
+        }
+        if (starts.isEmpty()) return emptyList()
+
+        return starts.mapIndexed { i, start ->
+            val end = if (i + 1 < starts.size) starts[i + 1].lineIndex else lines.size
+            val sectionText = lines.subList(start.lineIndex + 1, end).joinToString("\n")
+            parseCaseSection(start.caseId, start.title, sectionText)
+        }
+    }
+
+    private fun parseCaseSection(caseId: Int, title: String, sectionText: String): RunCase {
+        val lines = sectionText.lines()
+        var priority: Priority? = null
+        var tags: List<String> = emptyList()
+        var environment: List<String> = emptyList()
+        var manualResult = false
+
+        var bodyStart = 0
+        for ((index, line) in lines.withIndex()) {
+            val match = CASE_METADATA_PATTERN.matchEntire(line) ?: break
+            val key = match.groupValues[1].lowercase()
+            val value = match.groupValues[2].trim()
+            when (key) {
+                "priority" -> if (value.isNotBlank()) priority = Priority.fromString(value)
+                "tags" -> tags = splitMetadataList(value)
+                "environment" -> environment = splitMetadataList(value)
+                "manual_result" -> manualResult = value.equals("true", ignoreCase = true)
+            }
+            bodyStart = index + 1
+        }
+
+        val caseBody = lines.drop(bodyStart).joinToString("\n")
+        val result = lines
+            .firstNotNullOfOrNull { RESULT_PATTERN.matchEntire(it) }
+            ?.let { RunResult.fromString(it.groupValues[1]) }
+            ?: RunResult.NOT_STARTED
+
+        return RunCase(
+            caseId = caseId,
+            title = title,
+            priority = priority,
+            tags = tags,
+            environment = environment,
+            bodyBlocks = parseBodyBlocks(caseBody),
+            links = parseLinks(caseBody),
+            attachments = parseAttachments(caseBody),
+            stepResults = parseStepResults(caseBody),
+            result = result,
+            manualResult = manualResult,
+        )
+    }
+
+    private fun splitMetadataList(value: String): List<String> =
+        value.split(',').map { it.trim() }.filter { it.isNotBlank() }
+
+    private fun parseLegacyCase(meta: Map<String, Any?>, body: String): RunCase {
+        return RunCase(
+            caseId = (meta["id"] as? Number)?.toInt() ?: 0,
+            title = SpeqaMarkdown.parseScalar(meta["title"]),
+            priority = if ("priority" in meta) {
+                Priority.fromString(SpeqaMarkdown.parseScalar(meta["priority"]))
+            } else {
+                null
+            },
+            tags = SpeqaMarkdown.parseTagList(meta["tags"]),
+            environment = SpeqaMarkdown.parseStringList(meta["environment"]),
             bodyBlocks = parseBodyBlocks(body),
             links = parseLinks(body),
             attachments = parseAttachments(body),
-            comment = parseOverallComment(body),
             stepResults = parseStepResults(body),
+            result = RunResult.fromString(SpeqaMarkdown.parseScalar(meta["result"])),
         )
     }
 
@@ -401,4 +490,7 @@ object TestRunParser {
     private val ATTACHMENT_BARE = Regex("""^\[([^]]+)]$""")
     private val LINKS_PATTERN = Regex("""^\s*Links:\s*(.+)$""", RegexOption.IGNORE_CASE)
     private val TICKET_PATTERN = Regex("""^\s*Ticket:\s*(.+)$""", RegexOption.IGNORE_CASE)
+    private val CASE_MARKER = Regex("""^Test Case:\s+TC-(\d+)(?:\s+(.*))?$""")
+    private val CASE_METADATA_PATTERN = Regex("""^(priority|tags|environment|manual_result):\s*(.*)$""", RegexOption.IGNORE_CASE)
+    private val RESULT_PATTERN = Regex("""^Result:\s*(\w+)$""")
 }

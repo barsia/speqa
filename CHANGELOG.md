@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.8
+
+- New SpeQA tool window on the left lists every test case or test run by its title, grouped by folder
+- Filter test cases by status, priority, tags, and environment
+- Fixed Tab adding stray spaces inside a step's expected result
+
 ## 0.1.7
 
 - Soft wrap is now enabled by default in the Markdown editor for test cases and test runs

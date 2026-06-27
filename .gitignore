@@ -60,3 +60,6 @@ local.properties
 # Editor / agent scratch directories
 .junie/
 .playwright-mcp/
+
+# Superpowers brainstorming visual companion
+.superpowers/

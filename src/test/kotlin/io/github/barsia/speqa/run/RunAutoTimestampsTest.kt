@@ -1,5 +1,6 @@
 package io.github.barsia.speqa.run
 
+import io.github.barsia.speqa.model.RunCase
 import io.github.barsia.speqa.model.RunResult
 import io.github.barsia.speqa.model.StepResult
 import io.github.barsia.speqa.model.StepVerdict
@@ -23,11 +24,11 @@ class RunAutoTimestampsTest {
         result: RunResult = RunResult.NOT_STARTED,
         manualResult: Boolean = false,
     ): TestRun = TestRun(
-        stepResults = steps.map { StepResult(verdict = it) },
         startedAt = startedAt,
         finishedAt = finishedAt,
         result = result,
         manualResult = manualResult,
+        cases = listOf(RunCase(caseId = 0, stepResults = steps.map { StepResult(verdict = it) })),
     )
 
     @Test

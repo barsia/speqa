@@ -1,5 +1,6 @@
 package io.github.barsia.speqa.toolwindow
 
+import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.vfs.VfsUtilCore
 import com.intellij.openapi.vfs.VirtualFile
 import io.github.barsia.speqa.model.Priority
@@ -23,15 +24,20 @@ data class TestCaseSummary(
  * [invalidate] on a VFS event).
  */
 class TestCaseSummaryCache {
-    private data class Entry(val stamp: Long, val summary: TestCaseSummary)
+    private data class Entry(val stamp: Long, val fromDocument: Boolean, val summary: TestCaseSummary)
 
     private val cache = ConcurrentHashMap<String, Entry>()
 
     fun summaryFor(file: VirtualFile): TestCaseSummary {
-        val stamp = file.modificationStamp
-        cache[file.path]?.let { if (it.stamp == stamp) return it.summary }
-        val summary = readSummary(file)
-        cache[file.path] = Entry(stamp, summary)
+        // Prefer the live in-memory document so unsaved edits (status changes) are
+        // reflected immediately; fall back to the saved file when none is open.
+        val document = FileDocumentManager.getInstance().getCachedDocument(file)
+        val stamp = document?.modificationStamp ?: file.modificationStamp
+        val fromDocument = document != null
+        cache[file.path]?.let { if (it.stamp == stamp && it.fromDocument == fromDocument) return it.summary }
+        val text = document?.text ?: VfsUtilCore.loadText(file)
+        val summary = readSummary(text)
+        cache[file.path] = Entry(stamp, fromDocument, summary)
         return summary
     }
 
@@ -39,8 +45,8 @@ class TestCaseSummaryCache {
         cache.remove(path)
     }
 
-    private fun readSummary(file: VirtualFile): TestCaseSummary = try {
-        val testCase = TestCaseParser.parse(VfsUtilCore.loadText(file))
+    private fun readSummary(text: String): TestCaseSummary = try {
+        val testCase = TestCaseParser.parse(text)
         TestCaseSummary(
             title = testCase.title,
             status = testCase.status ?: Status.DRAFT,

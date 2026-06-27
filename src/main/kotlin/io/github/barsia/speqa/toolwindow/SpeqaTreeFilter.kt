@@ -1,63 +1,20 @@
 package io.github.barsia.speqa.toolwindow
 
-import io.github.barsia.speqa.model.Priority
 import io.github.barsia.speqa.model.Status
 
 /**
- * Session-only multi-facet filter for the tool window tree. An empty filter
- * (no status, no priority, no tags, no environments) does not constrain results.
- *
- * The tree builds its children on a background thread while the UI mutates this
- * filter on the EDT, so [tags] and [environments] are stored as immutable sets
- * that are swapped atomically (the `@Volatile` reference is replaced, never
- * mutated in place). Off-thread readers therefore always see a consistent set.
+ * Test-case filter for the TCs tab. The primary facet is [status]; priority,
+ * tags, and environment are inherited from [SpeqaFilter]. An empty filter does
+ * not constrain results.
  */
-class SpeqaTreeFilter {
+class SpeqaTreeFilter : SpeqaFilter() {
     @Volatile
     var status: Status? = null
 
-    @Volatile
-    var priority: Priority? = null
+    override fun primaryActive(): Boolean = status != null
 
-    @Volatile
-    var tags: Set<String> = emptySet()
-        private set
-
-    @Volatile
-    var environments: Set<String> = emptySet()
-        private set
-
-    fun addTag(tag: String) {
-        tags = tags + tag
-    }
-
-    fun removeTag(tag: String) {
-        tags = tags - tag
-    }
-
-    fun addEnvironment(environment: String) {
-        environments = environments + environment
-    }
-
-    fun removeEnvironment(environment: String) {
-        environments = environments - environment
-    }
-
-    fun isEmpty(): Boolean =
-        status == null && priority == null && tags.isEmpty() && environments.isEmpty()
-
-    /** Total number of active selections; each selected tag/environment counts individually. */
-    fun activeCount(): Int =
-        (if (status != null) 1 else 0) +
-            (if (priority != null) 1 else 0) +
-            tags.size +
-            environments.size
-
-    fun clear() {
+    override fun clearPrimary() {
         status = null
-        priority = null
-        tags = emptySet()
-        environments = emptySet()
     }
 }
 

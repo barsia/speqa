@@ -83,7 +83,6 @@ class TestCasePanel(
     private val onRun: () -> Unit = {},
     private val onHeaderStateChanged: (idPrefix: String, id: String, title: String) -> Unit = { _, _, _ -> },
     private val onRunChange: ((TestRun) -> Unit)? = null,
-    private val onRunPatch: ((TestRun, PatchOperation) -> Unit)? = null,
 ) : JPanel(), Scrollable {
 
     override fun getPreferredScrollableViewportSize(): Dimension = preferredSize
@@ -110,24 +109,16 @@ class TestCasePanel(
         if (op != null && patch != null) patch(updated, op) else onChange(updated)
     }
 
-    private fun emitRun(updated: TestRun, op: PatchOperation? = null) {
+    private fun emitRun(updated: TestRun) {
         currentRun = updated
-        val patch = onRunPatch
-        if (op != null && patch != null) patch(updated, op) else onRunChange?.invoke(updated)
+        onRunChange?.invoke(updated)
     }
-
-    private fun autoTimestampsChanged(prev: TestRun, next: TestRun): Boolean =
-        prev.startedAt != next.startedAt ||
-            prev.finishedAt != next.finishedAt ||
-            prev.manualResult != next.manualResult ||
-            prev.result != next.result
 
     // --- UI leaves ---------------------------------------------------------
     private val idRow = InlineEditableIdRow(
         if (mode == PanelMode.RUN) IdType.TEST_RUN else IdType.TEST_CASE,
     ) { newId ->
         if (mode == PanelMode.RUN) {
-            // No SetRunId op in DocumentPatcher; emit the full run snapshot.
             emitRun(currentRun.copy(id = newId))
         } else {
             emit(
@@ -145,7 +136,6 @@ class TestCasePanel(
         onCommit = { newTitle ->
             if (mode == PanelMode.RUN) {
                 if (newTitle != currentRun.title) {
-                    // No SetRunTitle op; emit full run snapshot for whole-document write fallback.
                     emitRun(currentRun.copy(title = newTitle))
                 }
             } else {
@@ -186,11 +176,7 @@ class TestCasePanel(
                         currentRun.copy(result = picked),
                         manualResultOverride = manual,
                     )
-                    if (autoTimestampsChanged(currentRun, updated)) {
-                        emitRun(updated)
-                    } else {
-                        emitRun(updated, PatchOperation.SetRunVerdict(picked))
-                    }
+                    emitRun(updated)
                 }
             }
         }
@@ -202,7 +188,7 @@ class TestCasePanel(
             onChange = { text ->
                 if (suppressProgrammaticSync) return@singleLineInput
                 if (text != currentRun.runner) {
-                    emitRun(currentRun.copy(runner = text), PatchOperation.SetRunner(text))
+                    emitRun(currentRun.copy(runner = text))
                 }
             },
         )
@@ -233,12 +219,7 @@ class TestCasePanel(
     private val priorityCombo = PriorityComboBox { picked ->
         if (mode == PanelMode.RUN) {
             if (picked != currentRun.priority) {
-                // No SetRunPriority op; reuse the frontmatter field op so the
-                // shared YAML patcher rewrites `priority:`.
-                emitRun(
-                    currentRun.copy(priority = picked),
-                    PatchOperation.SetFrontmatterField("priority", picked.label),
-                )
+                emitRun(currentRun.withSingleCase { it.copy(priority = picked) })
             }
         } else {
             if (picked != currentCase.priority) {
@@ -270,7 +251,7 @@ class TestCasePanel(
         onAdd = { tag ->
             if (mode == PanelMode.RUN) {
                 val next = currentRun.tags + tag
-                emitRun(currentRun.copy(tags = next), PatchOperation.SetRunTags(next))
+                emitRun(currentRun.withSingleCase { it.copy(tags = next) })
             } else {
                 val next = (currentCase.tags ?: emptyList()) + tag
                 emit(currentCase.copy(tags = next), PatchOperation.SetFrontmatterList("tags", next))
@@ -279,7 +260,7 @@ class TestCasePanel(
         onRemove = { tag ->
             if (mode == PanelMode.RUN) {
                 val next = currentRun.tags - tag
-                emitRun(currentRun.copy(tags = next), PatchOperation.SetRunTags(next))
+                emitRun(currentRun.withSingleCase { it.copy(tags = next) })
             } else {
                 val next = (currentCase.tags ?: emptyList()) - tag
                 emit(currentCase.copy(tags = next), PatchOperation.SetFrontmatterList("tags", next))
@@ -303,7 +284,7 @@ class TestCasePanel(
         onAdd = { env ->
             if (mode == PanelMode.RUN) {
                 val next = currentRun.environment + env
-                emitRun(currentRun.copy(environment = next), PatchOperation.SetRunEnvironment(next))
+                emitRun(currentRun.withSingleCase { it.copy(environment = next) })
             } else {
                 val next = (currentCase.environment ?: emptyList()) + env
                 emit(
@@ -315,7 +296,7 @@ class TestCasePanel(
         onRemove = { env ->
             if (mode == PanelMode.RUN) {
                 val next = currentRun.environment - env
-                emitRun(currentRun.copy(environment = next), PatchOperation.SetRunEnvironment(next))
+                emitRun(currentRun.withSingleCase { it.copy(environment = next) })
             } else {
                 val next = (currentCase.environment ?: emptyList()) - env
                 emit(
@@ -336,7 +317,7 @@ class TestCasePanel(
     private val attachmentList: AttachmentList? = if (project != null && file != null) {
         AttachmentList(project, file, hideAddButton = true, showEmptyPlaceholder = true) { next ->
             if (mode == PanelMode.RUN) {
-                emitRun(currentRun.copy(attachments = next), PatchOperation.SetRunAttachments(next))
+                emitRun(currentRun.withSingleCase { it.copy(attachments = next) })
             } else {
                 emit(currentCase.copy(attachments = next), PatchOperation.SetAttachments(next))
             }
@@ -345,7 +326,7 @@ class TestCasePanel(
 
     private val linkList = LinkList(project, hideAddButton = true, showEmptyPlaceholder = true) { next ->
         if (mode == PanelMode.RUN) {
-            emitRun(currentRun.copy(links = next), PatchOperation.SetRunLinks(next))
+            emitRun(currentRun.withSingleCase { it.copy(links = next) })
         } else {
             emit(currentCase.copy(links = next), PatchOperation.SetLinks(next))
         }
@@ -398,15 +379,14 @@ class TestCasePanel(
                         attachments = step.attachments,
                     )
                 }
-                currentRun = currentRun.copy(stepResults = newResults)
-                if (onRunPatch == null) onRunChange?.invoke(currentRun)
+                emitRun(currentRun.withSingleCase { it.copy(stepResults = newResults) })
             } else if (onPatch == null) {
                 onChange(currentCase)
             }
         },
         onStepPatch = when (mode) {
             PanelMode.CASE -> onPatch?.let { sink -> { op -> sink(currentCase, op) } }
-            PanelMode.RUN -> onRunPatch?.let { sink -> { op -> sink(currentRun, op) } }
+            PanelMode.RUN -> null
         },
         runMode = (mode == PanelMode.RUN),
         onStepVerdictChange = if (mode == PanelMode.RUN) {
@@ -414,12 +394,8 @@ class TestCasePanel(
                 val list = currentRun.stepResults.toMutableList()
                 if (idx in list.indices) {
                     list[idx] = list[idx].copy(verdict = verdict)
-                    val updated = RunAutoTimestamps.apply(currentRun.copy(stepResults = list))
-                    if (autoTimestampsChanged(currentRun, updated)) {
-                        emitRun(updated)
-                    } else {
-                        emitRun(updated, PatchOperation.SetRunStepVerdict(idx, verdict))
-                    }
+                    val updated = RunAutoTimestamps.apply(currentRun.withSingleCase { it.copy(stepResults = list) })
+                    emitRun(updated)
                 }
             }
         } else null,
@@ -428,10 +404,7 @@ class TestCasePanel(
                 val list = currentRun.stepResults.toMutableList()
                 if (idx in list.indices) {
                     list[idx] = list[idx].copy(comment = comment)
-                    emitRun(
-                        currentRun.copy(stepResults = list),
-                        PatchOperation.SetRunStepComment(idx, comment),
-                    )
+                    emitRun(currentRun.withSingleCase { it.copy(stepResults = list) })
                 }
             }
         } else null,
@@ -795,7 +768,7 @@ class TestCasePanel(
             val next = replaceBodyBlocks(currentRun.bodyBlocks, DescriptionBlock::class.java) {
                 DescriptionBlock(text)
             }
-            emitRun(currentRun.copy(bodyBlocks = next), PatchOperation.SetDescription(text))
+            emitRun(currentRun.withSingleCase { it.copy(bodyBlocks = next) })
         } else {
             val next = replaceBodyBlocks(currentCase.bodyBlocks, DescriptionBlock::class.java) {
                 DescriptionBlock(text)
@@ -813,7 +786,7 @@ class TestCasePanel(
             val next = replaceBodyBlocks(currentRun.bodyBlocks, PreconditionsBlock::class.java) {
                 PreconditionsBlock(markerStyle = existingStyle, markdown = text)
             }
-            emitRun(currentRun.copy(bodyBlocks = next), PatchOperation.SetPreconditions(existingStyle, text))
+            emitRun(currentRun.withSingleCase { it.copy(bodyBlocks = next) })
         } else {
             val existingStyle = currentCase.bodyBlocks
                 .filterIsInstance<PreconditionsBlock>()
@@ -837,7 +810,7 @@ class TestCasePanel(
         if (mode == PanelMode.RUN) {
             val updated = editValueResult(currentRun.tags, oldValue, newValue)
             if (updated == currentRun.tags) return
-            emitRun(currentRun.copy(tags = updated), PatchOperation.SetRunTags(updated))
+            emitRun(currentRun.withSingleCase { it.copy(tags = updated) })
         } else {
             val updated = editValueResult(currentCase.tags ?: emptyList(), oldValue, newValue)
             if (updated == (currentCase.tags ?: emptyList<String>())) return
@@ -856,7 +829,7 @@ class TestCasePanel(
         if (mode == PanelMode.RUN) {
             val updated = editValueResult(currentRun.environment, oldValue, newValue)
             if (updated == currentRun.environment) return
-            emitRun(currentRun.copy(environment = updated), PatchOperation.SetRunEnvironment(updated))
+            emitRun(currentRun.withSingleCase { it.copy(environment = updated) })
         } else {
             val updated = editValueResult(currentCase.environment ?: emptyList(), oldValue, newValue)
             if (updated == (currentCase.environment ?: emptyList<String>())) return

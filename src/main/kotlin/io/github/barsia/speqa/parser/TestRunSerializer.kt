@@ -2,7 +2,10 @@ package io.github.barsia.speqa.parser
 
 import io.github.barsia.speqa.model.Attachment
 import io.github.barsia.speqa.model.DescriptionBlock
+import io.github.barsia.speqa.model.Link
 import io.github.barsia.speqa.model.PreconditionsBlock
+import io.github.barsia.speqa.model.RunCase
+import io.github.barsia.speqa.model.RunResult
 import io.github.barsia.speqa.model.StepResult
 import io.github.barsia.speqa.model.StepVerdict
 import io.github.barsia.speqa.model.TestCaseBodyBlock
@@ -14,76 +17,87 @@ object TestRunSerializer {
 
     private val IMAGE_EXTENSIONS = setOf("png", "jpg", "jpeg", "gif", "svg", "webp", "bmp", "ico")
 
-    fun serialize(testRun: TestRun): String {
-        return buildString {
-            appendLine("---")
-            testRun.id?.let { appendLine("id: $it") }
-            appendLine("title: ${SpeqaMarkdown.quoteYamlScalar(testRun.title)}")
-            testRun.priority?.let { appendLine("priority: ${it.label}") }
-            testRun.startedAt?.let { appendLine("started_at: ${SpeqaMarkdown.quoteYamlScalar(formatter.format(it))}") }
-            testRun.finishedAt?.let { appendLine("finished_at: ${SpeqaMarkdown.quoteYamlScalar(formatter.format(it))}") }
-            appendLine("result: ${testRun.result.label}")
-            if (testRun.manualResult) appendLine("manual_result: true")
-            SpeqaMarkdown.appendStringListField(this, "environment", testRun.environment)
-            appendLine("runner: ${SpeqaMarkdown.quoteYamlScalar(testRun.runner)}")
-            SpeqaMarkdown.appendStringListField(this, "tags", testRun.tags)
-            appendLine("---")
-            appendLine()
+    fun serialize(testRun: TestRun): String = buildString {
+        appendRunFrontmatter(testRun)
+        testRun.cases.forEach { appendCaseSection(it) }
+        // Run-level overall comment for the sectioned format is intentionally deferred (later plan);
+        // the sectioned parser does not read it, so serialize and parse stay symmetric here.
+    }.trimEnd() + "\n"
 
-            // Body blocks
-            val orderedBlocks = testRun.bodyBlocks.sortedBy { block ->
-                when (block) {
-                    is DescriptionBlock -> 0
-                    is PreconditionsBlock -> 1
-                }
-            }
-            if (orderedBlocks.isNotEmpty()) {
-                orderedBlocks.forEachIndexed { index, block ->
-                    appendBodyBlock(block)
-                    if (index != orderedBlocks.lastIndex || testRun.links.isNotEmpty() || testRun.attachments.isNotEmpty() || testRun.stepResults.isNotEmpty()) {
-                        appendLine()
-                    }
-                }
-            }
+    private fun StringBuilder.appendRunFrontmatter(testRun: TestRun) {
+        appendLine("---")
+        testRun.id?.let { appendLine("id: $it") }
+        appendLine("title: ${SpeqaMarkdown.quoteYamlScalar(testRun.title)}")
+        testRun.startedAt?.let { appendLine("started_at: ${SpeqaMarkdown.quoteYamlScalar(formatter.format(it))}") }
+        testRun.finishedAt?.let { appendLine("finished_at: ${SpeqaMarkdown.quoteYamlScalar(formatter.format(it))}") }
+        appendLine("result: ${testRun.result.label}")
+        if (testRun.manualResult) appendLine("manual_result: true")
+        appendLine("runner: ${SpeqaMarkdown.quoteYamlScalar(testRun.runner)}")
+        appendLine("---")
+    }
 
-            // Links section
-            if (testRun.links.isNotEmpty()) {
-                appendLine("Links:")
-                appendLine()
-                testRun.links.forEach { link -> appendLine("[${link.title}](${link.url})") }
-                if (testRun.attachments.isNotEmpty() || testRun.stepResults.isNotEmpty()) {
-                    appendLine()
-                }
-            }
+    private fun StringBuilder.appendCaseSection(case: RunCase) {
+        appendLine()
+        append("Test Case: TC-").append(case.caseId)
+        if (case.title.isNotBlank()) append(' ').append(case.title)
+        appendLine()
+        case.priority?.let { appendLine("priority: ${it.label}") }
+        if (case.tags.isNotEmpty()) appendLine("tags: ${case.tags.joinToString(", ")}")
+        if (case.environment.isNotEmpty()) appendLine("environment: ${case.environment.joinToString(", ")}")
+        if (case.manualResult) appendLine("manual_result: true")
+        appendCaseBodyBlocks(case.bodyBlocks)
+        appendCaseLinks(case.links)
+        appendCaseAttachments(case.attachments)
+        appendCaseScenario(case.stepResults)
+        appendCaseResult(case.result)
+    }
 
-            // Attachments section
-            if (testRun.attachments.isNotEmpty()) {
-                appendLine("Attachments:")
-                appendLine()
-                testRun.attachments.forEach { appendAttachment(it) }
-                if (testRun.stepResults.isNotEmpty()) {
-                    appendLine()
-                }
+    private fun StringBuilder.appendCaseBodyBlocks(blocks: List<TestCaseBodyBlock>) {
+        if (blocks.isEmpty()) return
+        val orderedBlocks = blocks.sortedBy { block ->
+            when (block) {
+                is DescriptionBlock -> 0
+                is PreconditionsBlock -> 1
             }
+        }
+        appendLine()
+        orderedBlocks.forEachIndexed { index, block ->
+            appendBodyBlock(block)
+            if (index != orderedBlocks.lastIndex) appendLine()
+        }
+    }
 
-            // Scenario
-            if (testRun.stepResults.isNotEmpty()) {
-                appendLine("Scenario:")
-                appendLine()
-                testRun.stepResults.forEachIndexed { index, step ->
-                    appendStepResult(index + 1, step)
-                    if (index != testRun.stepResults.lastIndex) {
-                        appendLine()
-                    }
-                }
-            }
+    private fun StringBuilder.appendCaseLinks(links: List<Link>) {
+        if (links.isEmpty()) return
+        appendLine()
+        appendLine("Links:")
+        appendLine()
+        links.forEach { link -> appendLine("[${link.title}](${link.url})") }
+    }
 
-            // Overall comment
-            if (testRun.comment.isNotBlank()) {
-                appendLine()
-                testRun.comment.lines().forEach(::appendLine)
-            }
-        }.trimEnd() + "\n"
+    private fun StringBuilder.appendCaseAttachments(attachments: List<Attachment>) {
+        if (attachments.isEmpty()) return
+        appendLine()
+        appendLine("Attachments:")
+        appendLine()
+        attachments.forEach { appendAttachment(it) }
+    }
+
+    private fun StringBuilder.appendCaseScenario(stepResults: List<StepResult>) {
+        if (stepResults.isEmpty()) return
+        appendLine()
+        appendLine("Scenario:")
+        appendLine()
+        stepResults.forEachIndexed { index, step ->
+            appendStepResult(index + 1, step)
+            if (index != stepResults.lastIndex) appendLine()
+        }
+    }
+
+    private fun StringBuilder.appendCaseResult(result: RunResult) {
+        if (result == RunResult.NOT_STARTED) return
+        appendLine()
+        appendLine("Result: ${result.label}")
     }
 
     private fun StringBuilder.appendBodyBlock(block: TestCaseBodyBlock) {

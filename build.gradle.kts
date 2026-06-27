@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "io.github.barsia"
-version = "0.1.7"
+version = "0.1.8"
 
 val localProps = rootProject.file("local.properties")
     .takeIf { it.exists() }
@@ -50,17 +50,11 @@ intellijPlatform {
         }
 
         changeNotes = """
-            <h3>0.1.7</h3>
+            <h3>0.1.8</h3>
             <ul>
-                <li>Soft wrap is now enabled by default in the Markdown editor for test cases and test runs</li>
-                <li>Fixed keyboard handling when editing expected results in the Markdown editor</li>
-                <li>Removing a tag, link, attachment, or environment value from the preview now takes effect immediately</li>
-                <li>Deleting the last tag or environment value now removes the field from the file cleanly</li>
-                <li>Fixed selecting text inside a code block</li>
-                <li>Fixed backspace on empty lines inside code blocks</li>
-                <li>Hover over a code block to reveal a copy button</li>
-                <li>Removing a link no longer asks for confirmation</li>
-                <li>Fixed scroll sync losing alignment on documents with code blocks or long expected results</li>
+                <li>New SpeQA tool window on the left lists every test case or test run by its title, grouped by folder</li>
+                <li>Filter test cases by status, priority, tags, and environment</li>
+                <li>Fixed Tab adding stray spaces inside a step's expected result</li>
             </ul>
         """.trimIndent()
     }

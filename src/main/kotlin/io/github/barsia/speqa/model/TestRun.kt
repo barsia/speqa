@@ -42,20 +42,56 @@ data class StepResult(
     val attachments: List<Attachment> = emptyList(),
 )
 
-data class TestRun(
-    val id: Int? = null,
+data class RunCase(
+    val caseId: Int,
     val title: String = "",
-    val tags: List<String> = emptyList(),
     val priority: Priority? = null,
-    val manualResult: Boolean = false,
-    val startedAt: LocalDateTime? = null,
-    val finishedAt: LocalDateTime? = null,
-    val result: RunResult = RunResult.NOT_STARTED,
+    val tags: List<String> = emptyList(),
     val environment: List<String> = emptyList(),
-    val runner: String = "",
     val bodyBlocks: List<TestCaseBodyBlock> = emptyList(),
     val links: List<Link> = emptyList(),
     val attachments: List<Attachment> = emptyList(),
-    val comment: String = "",
     val stepResults: List<StepResult> = emptyList(),
+    val result: RunResult = RunResult.NOT_STARTED,
+    val manualResult: Boolean = false,
 )
+
+data class TestRun(
+    val id: Int? = null,
+    val title: String = "",
+    val runner: String = "",
+    val startedAt: LocalDateTime? = null,
+    val finishedAt: LocalDateTime? = null,
+    val result: RunResult = RunResult.NOT_STARTED,
+    val manualResult: Boolean = false,
+    val cases: List<RunCase> = emptyList(),
+    val comment: String = "",
+) {
+    /** Single-case compatibility view: the lone case, or null when not exactly one. */
+    val singleCase: RunCase? get() = cases.singleOrNull()
+
+    // Compat read accessors used by the existing single-case editor/patcher (Plan 2 migrates them).
+    val tags: List<String> get() = singleCase?.tags ?: emptyList()
+    val priority: Priority? get() = singleCase?.priority
+    val environment: List<String> get() = singleCase?.environment ?: emptyList()
+    val bodyBlocks: List<TestCaseBodyBlock> get() = singleCase?.bodyBlocks ?: emptyList()
+    val links: List<Link> get() = singleCase?.links ?: emptyList()
+    val attachments: List<Attachment> get() = singleCase?.attachments ?: emptyList()
+
+    // Unlike the other per-case getters (which delegate to the single case), this intentionally
+    // flattens step results across all cases so multi-case runs still expose every step.
+    val stepResults: List<StepResult> get() = cases.flatMap { it.stepResults }
+
+    /**
+     * Single-case compatibility mutator: transforms the lone case (creating one from run-level
+     * id/title when there is none) and returns a copy with exactly that one case. Used by the
+     * existing single-case editor that still edits per-case fields via the run; Plan 2 migrates it.
+     *
+     * Single-case runs only: a run with more than one case is not supported here - [singleOrNull]
+     * yields null, so the fallback synthesizes a fresh case and drops the existing ones.
+     */
+    fun withSingleCase(transform: (RunCase) -> RunCase): TestRun {
+        val base = cases.singleOrNull() ?: RunCase(caseId = id ?: 0, title = title)
+        return copy(cases = listOf(transform(base)))
+    }
+}

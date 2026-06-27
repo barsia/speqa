@@ -2,6 +2,7 @@ package io.github.barsia.speqa.parser
 
 import io.github.barsia.speqa.model.Attachment
 import io.github.barsia.speqa.model.Priority
+import io.github.barsia.speqa.model.RunCase
 import io.github.barsia.speqa.model.RunResult
 import io.github.barsia.speqa.model.Link
 import io.github.barsia.speqa.model.StepResult
@@ -279,7 +280,7 @@ class TestRunParserTest {
 
     @Test
     fun `multiline action roundtrip preserves data`() {
-        val original = TestRun(
+        val original = flatRun(
             title = "Roundtrip test",
             result = RunResult.PASSED,
             stepResults = listOf(
@@ -302,10 +303,10 @@ class TestRunParserTest {
 
     @Test
     fun `run round trip preserves editable metadata and readonly scenario`() {
-        val original = TestRun(
+        val original = flatRun(
             title = "Login",
             tags = listOf("smoke"),
-            environment = listOf("test1, env20"),
+            environment = listOf("test1", "env20"),
             links = listOf(Link("Spec", "https://example.com/spec")),
             attachments = listOf(Attachment("top.png")),
             stepResults = listOf(
@@ -350,9 +351,107 @@ class TestRunParserTest {
     }
 
     @Test
+    fun `parses two case sections with metadata and per-case result`() {
+        val text = """
+            ---
+            id: 7
+            title: "Run"
+            result: failed
+            ---
+
+            Test Case: TC-5 Sign in
+            priority: major
+            tags: smoke, auth
+
+            Scenario:
+
+            1. Open page
+               > Visible
+               - passed
+
+            Result: passed
+
+            Test Case: TC-8 Wrong password
+
+            Scenario:
+
+            1. Enter wrong password
+               - failed
+
+            Result: failed
+        """.trimIndent()
+
+        val run = TestRunParser.parse(text)
+
+        assertEquals(2, run.cases.size)
+        assertEquals(5, run.cases[0].caseId)
+        assertEquals("Sign in", run.cases[0].title)
+        assertEquals(Priority.MAJOR, run.cases[0].priority)
+        assertEquals(listOf("smoke", "auth"), run.cases[0].tags)
+        assertEquals(RunResult.PASSED, run.cases[0].result)
+        assertEquals(1, run.cases[0].stepResults.size)
+        assertEquals(StepVerdict.PASSED, run.cases[0].stepResults[0].verdict)
+        assertEquals(8, run.cases[1].caseId)
+        assertEquals(RunResult.FAILED, run.cases[1].result)
+    }
+
+    @Test
+    fun `legacy marker-less file parses as one implicit case`() {
+        val text = """
+            ---
+            id: 3
+            title: "Legacy"
+            priority: normal
+            tags: smoke
+            result: passed
+            ---
+
+            Scenario:
+
+            1. Do thing
+               - passed
+        """.trimIndent()
+
+        val run = TestRunParser.parse(text)
+
+        assertEquals(1, run.cases.size)
+        assertEquals(3, run.cases[0].caseId)            // falls back to run id
+        assertEquals(Priority.NORMAL, run.cases[0].priority)
+        assertEquals(listOf("smoke"), run.cases[0].tags)
+        assertEquals(1, run.cases[0].stepResults.size)
+    }
+
+    @Test
     fun `does not parse steps without Scenario marker`() {
         val content = "---\ntitle: \"Test\"\nresult: passed\n---\n\n1. Click button\n   > Page loads\n   - passed"
         val run = TestRunParser.parse(content)
         assertTrue(run.stepResults.isEmpty())
+    }
+
+    @Test
+    fun `parses manual_result and round-trips it`() {
+        val text = """
+            ---
+            id: 1
+            ---
+
+            Test Case: TC-5 A
+            manual_result: true
+
+            Scenario:
+
+            1. Do
+               - passed
+
+            Result: blocked
+        """.trimIndent()
+        val run = TestRunParser.parse(text)
+        assertEquals(true, run.cases.single().manualResult)
+        assertEquals(RunResult.BLOCKED, run.cases.single().result)
+
+        val original = TestRun(id = 1, cases = listOf(RunCase(caseId = 5, title = "A",
+            stepResults = listOf(StepResult(action = "Do", verdict = StepVerdict.PASSED)),
+            result = RunResult.BLOCKED, manualResult = true)))
+        assertEquals(original.cases, TestRunParser.parse(TestRunSerializer.serialize(original)).cases)
     }
 }

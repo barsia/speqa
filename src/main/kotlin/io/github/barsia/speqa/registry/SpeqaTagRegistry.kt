@@ -49,6 +49,18 @@ class SpeqaTagRegistry(private val project: Project) {
         return environments.sorted()
     }
 
+    /** Tags used by test runs (`.tr.md`), kept separate so they do not pollute test-case suggestions. */
+    val allTestRunTags: List<String> get() {
+        ensureInitialized()
+        return testRunFilesByTag.keys.sorted()
+    }
+
+    /** Environments used by test runs (`.tr.md`), separate from test-case suggestions. */
+    val allTestRunEnvironments: List<String> get() {
+        ensureInitialized()
+        return testRunFilesByEnvironment.keys.sorted()
+    }
+
     fun ensureInitialized() {
         if (initialized) return
         if (subscribedToVfs.compareAndSet(false, true)) {

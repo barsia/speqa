@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="44 40 444 444">
+  <!-- Dark-theme variant of speqa-tw.svg (platform stripe icon color #CED0D6) -->
+  <g transform="translate(256,252) scale(1.35) translate(-256,-252)" fill="#CED0D6">
+    <!-- Q ring (thinner: inner radius 120 instead of 111) -->
+    <path d="M 332 369
+             A 145 145 0 1 1 376 327
+             L 355.3 312.9
+             A 120 120 0 1 0 323.3 344.8
+             Z"/>
+    <!-- Tail -->
+    <path d="M 330 328
+             L 340 322
+             L 412 388
+             L 372 398
+             Z"/>
+    <!-- Check -->
+    <path d="M 208 245
+             L 250 288
+             L 322 205"
+          fill="none" stroke="#CED0D6" stroke-width="25"
+          stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>

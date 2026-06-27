@@ -28,8 +28,10 @@
         <toolWindow id="SpeQA"
                     anchor="left"
                     secondary="false"
-                    icon="/icons/speqa16.svg"
+                    icon="/icons/speqa-tw.svg"
                     factoryClass="io.github.barsia.speqa.toolwindow.SpeqaToolWindowFactory"/>
+
+        <defaultToolWindowLayout implementation="io.github.barsia.speqa.toolwindow.SpeqaToolWindowLayout"/>
 
         <annotator language="Markdown" implementationClass="io.github.barsia.speqa.validation.SpeqaAnnotator"/>
 
@@ -67,6 +69,8 @@
 
     <applicationListeners>
         <listener class="io.github.barsia.speqa.editor.SpeqaBackspaceActionSetup"
+                  topic="com.intellij.ide.AppLifecycleListener"/>
+        <listener class="io.github.barsia.speqa.editor.SpeqaTabActionSetup"
                   topic="com.intellij.ide.AppLifecycleListener"/>
     </applicationListeners>
 

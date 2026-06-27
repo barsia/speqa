@@ -7,18 +7,18 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
 
 /**
- * Tree structure rooted at the `test-cases/` directory. The root node is hidden
- * (the tree is configured with `isRootVisible = false`), so its children form
- * the top level shown to the user.
+ * Tree structure rooted at a tab's directory (`test-cases/` or `test-runs/`).
+ * The root node is hidden (the tree is configured with `isRootVisible = false`),
+ * so its children form the top level shown to the user. The [spec] adapts the
+ * structure to the tab's leaf file type and filter.
  */
 class SpeqaTreeStructure(
     project: Project,
     rootDir: VirtualFile,
-    cache: TestCaseSummaryCache,
-    filter: SpeqaTreeFilter,
+    spec: SpeqaLeafSpec,
 ) : AbstractTreeStructure() {
 
-    private val root = SpeqaFolderNode(project, rootDir, cache, filter)
+    private val root = SpeqaFolderNode(project, rootDir, spec)
 
     override fun getRootElement(): Any = root
 

@@ -8,13 +8,13 @@ import org.junit.Test
 class SpeqaTreeOrderingTest {
 
     private fun folder(name: String) = SpeqaTreeItem.Folder(name, name)
-    private fun case(title: String) = SpeqaTreeItem.TestCase(title, title)
+    private fun leaf(title: String) = SpeqaTreeItem.Leaf(title, title)
 
     @Test
-    fun `folders come before test cases`() {
-        val ordered = orderChildren(listOf(case("zzz"), folder("alpha")))
+    fun `folders come before leaves`() {
+        val ordered = orderChildren(listOf(leaf("zzz"), folder("alpha")))
         assertTrue(ordered[0] is SpeqaTreeItem.Folder)
-        assertTrue(ordered[1] is SpeqaTreeItem.TestCase)
+        assertTrue(ordered[1] is SpeqaTreeItem.Leaf)
     }
 
     @Test
@@ -24,8 +24,8 @@ class SpeqaTreeOrderingTest {
     }
 
     @Test
-    fun `test cases sorted by title with natural order`() {
-        val ordered = orderChildren(listOf(case("Step 10"), case("Step 2"), case("Step 1")))
+    fun `leaves sorted by title with natural order`() {
+        val ordered = orderChildren(listOf(leaf("Step 10"), leaf("Step 2"), leaf("Step 1")))
         assertEquals(listOf("Step 1", "Step 2", "Step 10"), ordered.map { it.payload })
     }
 
@@ -34,5 +34,12 @@ class SpeqaTreeOrderingTest {
         assertTrue(isTestCaseFileName("login.tc.md"))
         assertFalse(isTestCaseFileName("notes.md"))
         assertFalse(isTestCaseFileName("run.tr.md"))
+    }
+
+    @Test
+    fun `test run file names recognized by tr-md suffix`() {
+        assertTrue(isTestRunFileName("login_2026-01-01_10-00-00.tr.md"))
+        assertFalse(isTestRunFileName("notes.md"))
+        assertFalse(isTestRunFileName("login.tc.md"))
     }
 }

@@ -1,9 +1,10 @@
 package io.github.barsia.speqa.editor
 
-import com.intellij.ide.DataManager
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.actionSystem.CommonDataKeys
+import com.intellij.openapi.actionSystem.DataSink
 import com.intellij.openapi.actionSystem.PlatformCoreDataKeys
+import com.intellij.openapi.actionSystem.UiDataProvider
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.runWriteAction
 import com.intellij.openapi.command.CommandProcessor
@@ -89,7 +90,16 @@ abstract class SpeqaEditorBase(
     }
 
     val component: JPanel by lazy {
-        JPanel(BorderLayout()).apply {
+        object : JPanel(BorderLayout()), UiDataProvider {
+            override fun uiDataSnapshot(sink: DataSink) {
+                sink[CommonDataKeys.PROJECT] = project
+                sink[CommonDataKeys.VIRTUAL_FILE] = virtualFile
+                sink[PlatformCoreDataKeys.FILE_EDITOR] = this@SpeqaEditorBase
+                // Do NOT expose HOST_EDITOR / EDITOR keys — they route typed
+                // characters into the underlying text editor and break input in
+                // every Swing field on the preview side.
+            }
+        }.apply {
             background = scrollPane.background
             isOpaque = true
             add(floatingHeaderHost, BorderLayout.CENTER)
@@ -184,18 +194,8 @@ abstract class SpeqaEditorBase(
         }
 
     protected fun initBase() {
-        @Suppress("DEPRECATION")
-        DataManager.registerDataProvider(component) { dataId ->
-            when {
-                CommonDataKeys.PROJECT.`is`(dataId) -> project
-                CommonDataKeys.VIRTUAL_FILE.`is`(dataId) -> virtualFile
-                PlatformCoreDataKeys.FILE_EDITOR.`is`(dataId) -> this
-                // Do NOT expose HOST_EDITOR / EDITOR keys — they route typed
-                // characters into the underlying text editor and break input in
-                // every Swing field on the preview side.
-                else -> null
-            }
-        }
+        // Editor context data (project, file, FILE_EDITOR) is provided by the
+        // component implementing UiDataProvider (see [component]).
         document.addDocumentListener(documentListener, this)
         val appConnection = ApplicationManager.getApplication().messageBus.connect(this)
         appConnection.subscribe(
@@ -233,7 +233,5 @@ abstract class SpeqaEditorBase(
         disposeSubclass()
         refreshTimer.stop()
         scrollSync.dispose()
-        @Suppress("DEPRECATION")
-        DataManager.removeDataProvider(component)
     }
 }

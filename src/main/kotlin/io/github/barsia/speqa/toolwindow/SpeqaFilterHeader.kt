@@ -5,6 +5,7 @@ import com.intellij.ide.ActivityTracker
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
+import com.intellij.openapi.actionSystem.Separator
 import com.intellij.openapi.actionSystem.Toggleable
 import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.openapi.project.Project
@@ -21,7 +22,6 @@ import io.github.barsia.speqa.editor.ui.chips.TagCloud
 import io.github.barsia.speqa.editor.ui.primitives.WrapLayout
 import io.github.barsia.speqa.filetype.SpeqaIcons
 import io.github.barsia.speqa.model.Priority
-import io.github.barsia.speqa.model.Status
 import io.github.barsia.speqa.registry.SpeqaTagRegistry
 import java.awt.BorderLayout
 import java.awt.FlowLayout
@@ -31,14 +31,41 @@ import javax.swing.JList
 import javax.swing.JPanel
 
 /**
- * Owns the multi-facet filter UI for the test-case tool window.
+ * A single option in the tab-specific primary facet (Status for TCs, Result for
+ * TRs). The "All <facet>" entry is modeled as an option whose [apply] clears the
+ * selection. [apply] mutates the filter to this option's value.
+ */
+class PrimaryOption(
+    val label: String,
+    val icon: Icon?,
+    val selected: Boolean,
+    val apply: () -> Unit,
+)
+
+/**
+ * Describes the tab-specific primary facet so [SpeqaFilterHeader] can render it
+ * without knowing whether it is a test-case status or a test-run result.
+ */
+class PrimaryFacet(
+    val icon: Icon,
+    val tooltip: @NlsActions.ActionText String,
+    val isActive: () -> Boolean,
+    /** Capitalized label of the current selection, or null when inactive. */
+    val chipLabel: () -> String?,
+    val clear: () -> Unit,
+    /** All selectable options, including the "All <facet>" entry at index 0. */
+    val options: () -> List<PrimaryOption>,
+)
+
+/**
+ * Owns the multi-facet filter UI for one tool-window tab.
  *
- * The four facet triggers (Status, Priority, Tags, Environment) plus the
- * "clear all" trigger are exposed as [titleActions] and installed into the
- * tool-window title bar by the factory. An active facet renders highlighted
- * natively via [Toggleable]; the clear-all action is hidden while no filter is
- * active. Each facet opens its own scoped popup, anchored under the clicked
- * title-bar button.
+ * The four facet triggers (the tab-specific primary facet plus Priority, Tags,
+ * Environment) and the "clear all" trigger are exposed as [titleActions]; the
+ * factory installs the active tab's actions into the tool-window title bar and
+ * swaps them on tab change. An active facet renders highlighted natively via
+ * [Toggleable]; the clear-all action is hidden while no filter is active. Each
+ * facet opens its own scoped popup, anchored under the clicked title-bar button.
  *
  * The [component] is the wrap-layout row of removable chips, one per active
  * selection, hidden when no filter is active, shown just above the tree.
@@ -48,9 +75,15 @@ import javax.swing.JPanel
  */
 class SpeqaFilterHeader(
     private val project: Project,
-    private val filter: SpeqaTreeFilter,
+    private val filter: SpeqaFilter,
+    private val primary: PrimaryFacet,
+    private val metadataScope: MetadataScope,
+    private val knownTags: () -> Set<String>,
+    private val knownEnvironments: () -> Set<String>,
+    private val hasContent: () -> Boolean,
     parentDisposable: com.intellij.openapi.Disposable,
     private val onChanged: () -> Unit,
+    leadingActions: List<AnAction> = emptyList(),
 ) {
 
     private val registry = SpeqaTagRegistry.getInstance(project)
@@ -66,13 +99,15 @@ class SpeqaFilterHeader(
     val component: JComponent = chipRow
 
     /** Actions to install into the tool-window title bar. */
-    val titleActions: List<AnAction> = listOf(
-        FacetAction(Facet.STATUS, SpeqaIcons.FilterStatus, SpeqaBundle.message("toolwindow.speqa.filter.status")),
-        FacetAction(Facet.PRIORITY, SpeqaIcons.FilterPriority, SpeqaBundle.message("toolwindow.speqa.filter.priority")),
-        FacetAction(Facet.TAGS, SpeqaIcons.FilterTags, SpeqaBundle.message("toolwindow.speqa.filter.tags")),
-        FacetAction(Facet.ENVIRONMENT, SpeqaIcons.FilterEnvironment, SpeqaBundle.message("toolwindow.speqa.filter.environment")),
-        ClearAllAction(),
-    )
+    val titleActions: List<AnAction> = buildList {
+        addAll(leadingActions)
+        if (leadingActions.isNotEmpty()) add(Separator.create())
+        add(FacetAction(Facet.PRIMARY, primary.icon, primary.tooltip))
+        add(FacetAction(Facet.PRIORITY, SpeqaIcons.FilterPriority, SpeqaBundle.message("toolwindow.speqa.filter.priority")))
+        add(FacetAction(Facet.TAGS, SpeqaIcons.FilterTags, SpeqaBundle.message("toolwindow.speqa.filter.tags")))
+        add(FacetAction(Facet.ENVIRONMENT, SpeqaIcons.FilterEnvironment, SpeqaBundle.message("toolwindow.speqa.filter.environment")))
+        add(ClearAllAction())
+    }
 
     /** The currently-open facet popup, if any. */
     private var popup: JBPopup? = null
@@ -90,7 +125,7 @@ class SpeqaFilterHeader(
     }
 
     private fun isFacetActive(facet: Facet): Boolean = when (facet) {
-        Facet.STATUS -> filter.status != null
+        Facet.PRIMARY -> primary.isActive()
         Facet.PRIORITY -> filter.priority != null
         Facet.TAGS -> filter.tags.isNotEmpty()
         Facet.ENVIRONMENT -> filter.environments.isNotEmpty()
@@ -106,7 +141,7 @@ class SpeqaFilterHeader(
         override fun actionPerformed(e: AnActionEvent) {
             val anchor = e.inputEvent?.component as? JComponent
             when (facet) {
-                Facet.STATUS -> showStatusPopup(e, anchor)
+                Facet.PRIMARY -> showPrimaryPopup(e, anchor)
                 Facet.PRIORITY -> showPriorityPopup(e, anchor)
                 Facet.TAGS -> showTagsPopup(e, anchor)
                 Facet.ENVIRONMENT -> showEnvironmentPopup(e, anchor)
@@ -114,7 +149,11 @@ class SpeqaFilterHeader(
         }
 
         override fun update(e: AnActionEvent) {
-            Toggleable.setSelected(e.presentation, isFacetActive(facet))
+            // Hide every facet trigger when the tab has no leaves at all - there is
+            // nothing to filter until at least one test case / test run exists.
+            val enabled = hasContent()
+            e.presentation.isEnabledAndVisible = enabled
+            if (enabled) Toggleable.setSelected(e.presentation, isFacetActive(facet))
         }
 
         override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
@@ -151,9 +190,9 @@ class SpeqaFilterHeader(
         chipRow.removeAll()
         chipRow.isVisible = !filter.isEmpty()
         if (!filter.isEmpty()) {
-            filter.status?.let { status ->
-                chipRow.add(removableChip(capitalize(status.label), colored = false) {
-                    filter.status = null
+            primary.chipLabel()?.let { label ->
+                chipRow.add(removableChip(label, colored = false) {
+                    primary.clear()
                     refresh()
                     onChanged()
                 })
@@ -227,43 +266,20 @@ class SpeqaFilterHeader(
         }
     }
 
-    private fun showStatusPopup(e: AnActionEvent, anchor: JComponent?) {
-        if (!shouldOpen(Facet.STATUS)) return
-        val options = listOf(
-            StatusOption(null, SpeqaBundle.message("toolwindow.speqa.filter.allStatuses"), null),
-        ) + Status.entries.map { StatusOption(it, capitalize(it.label), SpeqaIcons.forStatus(it)) }
-        showFacetChooser(Facet.STATUS, anchor, e, options, filter.status) { picked ->
-            filter.status = picked.value
-            refresh()
-            onChanged()
-        }
-    }
-
-    private fun showPriorityPopup(e: AnActionEvent, anchor: JComponent?) {
-        if (!shouldOpen(Facet.PRIORITY)) return
-        val options = listOf(
-            PriorityOption(null, SpeqaBundle.message("toolwindow.speqa.filter.allPriorities"), null),
-        ) + Priority.entries.map { PriorityOption(it, capitalize(it.label), null) }
-        showFacetChooser(Facet.PRIORITY, anchor, e, options, filter.priority) { picked ->
-            filter.priority = picked.value
-            refresh()
-            onChanged()
-        }
-    }
-
-    private fun <E : Enum<E>, O : FilterOption<E>> showFacetChooser(
-        facet: Facet,
-        anchor: JComponent?,
-        e: AnActionEvent,
-        options: List<O>,
-        selected: E?,
-        onPick: (O) -> Unit,
-    ) {
+    private fun showPrimaryPopup(e: AnActionEvent, anchor: JComponent?) {
+        if (!shouldOpen(Facet.PRIMARY)) return
+        val options = primary.options()
         val list = JBList(options).apply {
             selectionMode = javax.swing.ListSelectionModel.SINGLE_SELECTION
-            selectedIndex = options.indexOfFirst { it.value == selected }.coerceAtLeast(0)
-            cellRenderer = object : com.intellij.ui.SimpleListCellRenderer<O>() {
-                override fun customize(list: JList<out O>, value: O?, index: Int, selected: Boolean, hasFocus: Boolean) {
+            selectedIndex = options.indexOfFirst { it.selected }.coerceAtLeast(0)
+            cellRenderer = object : com.intellij.ui.SimpleListCellRenderer<PrimaryOption>() {
+                override fun customize(
+                    list: JList<out PrimaryOption>,
+                    value: PrimaryOption?,
+                    index: Int,
+                    selected: Boolean,
+                    hasFocus: Boolean,
+                ) {
                     text = value?.label ?: ""
                     icon = value?.icon
                 }
@@ -274,10 +290,45 @@ class SpeqaFilterHeader(
             .setRequestFocus(true)
             .setItemChoosenCallback {
                 val picked = list.selectedValue ?: return@setItemChoosenCallback
-                onPick(picked)
+                picked.apply()
+                refresh()
+                onChanged()
             }
             .createPopup()
-        openPopup(facet, newPopup, anchor, e)
+        openPopup(Facet.PRIMARY, newPopup, anchor, e)
+    }
+
+    private fun showPriorityPopup(e: AnActionEvent, anchor: JComponent?) {
+        if (!shouldOpen(Facet.PRIORITY)) return
+        val options = listOf(
+            PriorityOption(null, SpeqaBundle.message("toolwindow.speqa.filter.allPriorities")),
+        ) + Priority.entries.map { PriorityOption(it, capitalize(it.label)) }
+        val list = JBList(options).apply {
+            selectionMode = javax.swing.ListSelectionModel.SINGLE_SELECTION
+            selectedIndex = options.indexOfFirst { it.value == filter.priority }.coerceAtLeast(0)
+            cellRenderer = object : com.intellij.ui.SimpleListCellRenderer<PriorityOption>() {
+                override fun customize(
+                    list: JList<out PriorityOption>,
+                    value: PriorityOption?,
+                    index: Int,
+                    selected: Boolean,
+                    hasFocus: Boolean,
+                ) {
+                    text = value?.label ?: ""
+                }
+            }
+        }
+        val newPopup = JBPopupFactory.getInstance()
+            .createListPopupBuilder(list)
+            .setRequestFocus(true)
+            .setItemChoosenCallback {
+                val picked = list.selectedValue ?: return@setItemChoosenCallback
+                filter.priority = picked.value
+                refresh()
+                onChanged()
+            }
+            .createPopup()
+        openPopup(Facet.PRIORITY, newPopup, anchor, e)
     }
 
     private fun showTagsPopup(e: AnActionEvent, anchor: JComponent?) {
@@ -285,15 +336,15 @@ class SpeqaFilterHeader(
         val cloud = TagCloud(
             coloredChips = true,
             metadataKind = MetadataKind.TAG,
-            metadataScope = MetadataScope.TEST_CASES,
+            metadataScope = metadataScope,
             metadataProject = project,
             onActivate = {},
             onAdd = { value -> filter.addTag(value); refresh(); onChanged() },
             onRemove = { value -> filter.removeTag(value); refresh(); onChanged() },
         )
-        cloud.setAllKnownTags { registry.allTags.toSet() }
+        cloud.setAllKnownTags { knownTags() }
         cloud.setTags(filter.tags.toList())
-        registry.whenInitialized { cloud.setAllKnownTags { registry.allTags.toSet() } }
+        registry.whenInitialized { cloud.setAllKnownTags { knownTags() } }
         showCloudPopup(Facet.TAGS, anchor, e, cloud)
     }
 
@@ -302,15 +353,15 @@ class SpeqaFilterHeader(
         val cloud = TagCloud(
             coloredChips = true,
             metadataKind = MetadataKind.ENVIRONMENT,
-            metadataScope = MetadataScope.TEST_CASES,
+            metadataScope = metadataScope,
             metadataProject = project,
             onActivate = {},
             onAdd = { value -> filter.addEnvironment(value); refresh(); onChanged() },
             onRemove = { value -> filter.removeEnvironment(value); refresh(); onChanged() },
         )
-        cloud.setAllKnownTags { registry.allEnvironments.toSet() }
+        cloud.setAllKnownTags { knownEnvironments() }
         cloud.setTags(filter.environments.toList())
-        registry.whenInitialized { cloud.setAllKnownTags { registry.allEnvironments.toSet() } }
+        registry.whenInitialized { cloud.setAllKnownTags { knownEnvironments() } }
         showCloudPopup(Facet.ENVIRONMENT, anchor, e, cloud)
     }
 
@@ -332,23 +383,7 @@ class SpeqaFilterHeader(
 
     private fun capitalize(label: String): String = label.replaceFirstChar { it.uppercase() }
 
-    private enum class Facet { STATUS, PRIORITY, TAGS, ENVIRONMENT }
+    private enum class Facet { PRIMARY, PRIORITY, TAGS, ENVIRONMENT }
 
-    private sealed interface FilterOption<E : Enum<E>> {
-        val value: E?
-        val label: String
-        val icon: Icon?
-    }
-
-    private data class StatusOption(
-        override val value: Status?,
-        override val label: String,
-        override val icon: Icon?,
-    ) : FilterOption<Status>
-
-    private data class PriorityOption(
-        override val value: Priority?,
-        override val label: String,
-        override val icon: Icon?,
-    ) : FilterOption<Priority>
+    private data class PriorityOption(val value: Priority?, val label: String)
 }

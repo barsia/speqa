@@ -6,9 +6,10 @@ import com.intellij.openapi.vfs.VirtualFile
 import io.github.barsia.speqa.SpeqaBundle
 import io.github.barsia.speqa.editor.IdStateHolder
 import io.github.barsia.speqa.editor.SpeqaEditorBase
+import io.github.barsia.speqa.editor.ui.run.RunCasesContainer
+import io.github.barsia.speqa.editor.ui.run.RunLayout
+import io.github.barsia.speqa.editor.ui.run.RunMultiCasePanel
 import io.github.barsia.speqa.model.TestRun
-import io.github.barsia.speqa.parser.DocumentPatcher
-import io.github.barsia.speqa.parser.PatchOperation
 import io.github.barsia.speqa.parser.TestRunParser
 import io.github.barsia.speqa.parser.TestRunSerializer
 import io.github.barsia.speqa.registry.IdType
@@ -27,36 +28,60 @@ class TestRunEditor(
     )
     private val idState = IdStateHolder(project, IdType.TEST_RUN) { current.id }
 
-    private val panel = io.github.barsia.speqa.editor.ui.TestCasePanel(
-        project = project,
-        file = virtualFile,
-        mode = io.github.barsia.speqa.editor.ui.PanelMode.RUN,
-        onChange = { /* case-side callback never fires in RUN mode */ },
-        onPatch = null,
-        onRunChange = { updated ->
-            current = updated
-            refreshHeaderFromCurrent()
-            saveToDocument()
-        },
-        onRunPatch = { updated, op ->
-            current = updated
-            patchFromPreview(updated, op)
-        },
-        onHeaderStateChanged = { idPrefix, id, title ->
-            floatingHeaderBar.setTitle(idPrefix, id, title)
-            floatingHeaderBar.setProgress(null)
-        },
-    )
+    // Layout is decided once from the initial parse. Multi-case runs render as a
+    // sectioned [RunMultiCasePanel]; single-case (and empty) runs keep the flat
+    // [TestCasePanel] editor unchanged. Only the matching panel is created.
+    // External text edits that change the case count cannot swap the live panel
+    // (the UI never changes case count itself); this is the documented limitation.
+    private val layout: RunLayout = RunCasesContainer.layoutFor(current)
 
-    override fun createInnerPanel(): JComponent = panel
+    private val onRunChange: (TestRun) -> Unit = { updated ->
+        current = updated
+        refreshHeaderFromCurrent()
+        saveToDocument()
+    }
 
-    override fun panelAnchorY(): Int = panel.titleRowBottomY()
+    private val onHeaderStateChanged: (String, String, String) -> Unit = { idPrefix, id, title ->
+        floatingHeaderBar.setTitle(idPrefix, id, title)
+        floatingHeaderBar.setProgress(null)
+    }
 
-    override fun refreshInnerPanelTheme() = panel.refreshTheme()
+    private val flatPanel: io.github.barsia.speqa.editor.ui.TestCasePanel? =
+        if (layout == RunLayout.FLAT) {
+            io.github.barsia.speqa.editor.ui.TestCasePanel(
+                project = project,
+                file = virtualFile,
+                mode = io.github.barsia.speqa.editor.ui.PanelMode.RUN,
+                onChange = { /* case-side callback never fires in RUN mode */ },
+                onPatch = null,
+                onRunChange = onRunChange,
+                onHeaderStateChanged = onHeaderStateChanged,
+            )
+        } else null
+
+    private val multiPanel: RunMultiCasePanel? =
+        if (layout == RunLayout.SECTIONED) {
+            RunMultiCasePanel(
+                project = project,
+                file = virtualFile,
+                initial = current,
+                onRunChange = onRunChange,
+                onHeaderStateChanged = onHeaderStateChanged,
+            )
+        } else null
+
+    override fun createInnerPanel(): JComponent = flatPanel ?: multiPanel!!
+
+    override fun panelAnchorY(): Int = flatPanel?.titleRowBottomY() ?: multiPanel!!.titleRowBottomY()
+
+    override fun refreshInnerPanelTheme() {
+        flatPanel?.refreshTheme()
+        multiPanel?.refreshTheme()
+    }
 
     override fun getName(): String = SpeqaBundle.message("editor.testRun.name")
 
-    override fun getPreferredFocusedComponent(): JComponent? = panel
+    override fun getPreferredFocusedComponent(): JComponent? = flatPanel ?: multiPanel
 
     override fun refreshFromDocument() {
         try {
@@ -69,7 +94,8 @@ class TestRunEditor(
             val parsed = TestRunParser.parse(document.text)
             current = parsed
             idState.refresh()
-            panel.updateFromRun(parsed, forceFocusedTextSync = forceFocusedTextSync)
+            flatPanel?.updateFromRun(parsed, forceFocusedTextSync = forceFocusedTextSync)
+            multiPanel?.updateFromRun(parsed, forceFocusedTextSync = forceFocusedTextSync)
             com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater {
                 scrollSync.restoreVerticalPosition(preservedPanelPosition)
                 if (preservedEditorOffset >= 0 && !textEditor.isDisposed) {
@@ -87,21 +113,6 @@ class TestRunEditor(
         idState.stop()
     }
 
-    private fun patchFromPreview(updated: TestRun, operation: PatchOperation) {
-        suppressedDocumentWrite(
-            commandName = "Speqa: Update test run",
-            write = {
-                try {
-                    val edits = DocumentPatcher.patch(document.text, operation)
-                    DocumentPatcher.applyEditsAsOneReplace(document, edits)
-                } catch (_: Exception) {
-                    TestRunSupport.updateDocument(document, TestRunSerializer.serialize(updated))
-                }
-            },
-            triggerRefresh = true,
-        )
-    }
-
     private fun saveToDocument() {
         val content = TestRunSerializer.serialize(current)
         if (content == document.text) return
@@ -113,13 +124,15 @@ class TestRunEditor(
     }
 
     private fun refreshHeaderFromCurrent() {
-        panel.updateFromRun(current)
+        flatPanel?.updateFromRun(current)
+        multiPanel?.updateFromRun(current)
     }
 
     init {
         initBase()
         idState.start()
-        panel.updateFromRun(current)
+        flatPanel?.updateFromRun(current)
+        multiPanel?.updateFromRun(current)
         scrollSync.attachScrollPane(scrollPane)
     }
 }

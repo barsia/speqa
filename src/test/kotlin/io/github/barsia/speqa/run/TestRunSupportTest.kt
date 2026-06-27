@@ -5,9 +5,11 @@ import io.github.barsia.speqa.model.Attachment
 import io.github.barsia.speqa.model.Link
 import io.github.barsia.speqa.model.TestCase
 import io.github.barsia.speqa.model.TestStep
+import io.github.barsia.speqa.model.RunCase
 import io.github.barsia.speqa.model.RunResult
 import io.github.barsia.speqa.model.StepResult
 import io.github.barsia.speqa.model.StepVerdict
+import io.github.barsia.speqa.model.TestRun
 import java.time.LocalDateTime
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -262,5 +264,145 @@ class TestRunSupportTest {
         assertTrue(run.stepResults.single().tickets.isEmpty())
         assertTrue(run.stepResults.single().links.isEmpty())
         assertTrue(run.stepResults.single().attachments.isEmpty())
+    }
+
+    @Test
+    fun `createMultiCaseRun builds one section per test case`() {
+        val tcA = TestCase(
+            id = 5,
+            title = "A",
+            steps = listOf(
+                TestStep(action = "A step 1", expected = "A expected 1"),
+                TestStep(action = "A step 2", expected = "A expected 2"),
+            ),
+        )
+        val tcB = TestCase(
+            id = 8,
+            title = "B",
+            steps = listOf(
+                TestStep(action = "B step 1", expected = "B expected 1"),
+            ),
+        )
+
+        val run = TestRunSupport.createMultiCaseRun(
+            cases = listOf(
+                TestRunSupport.SourceCase(tcA, "test-cases/a.tc.md"),
+                TestRunSupport.SourceCase(tcB, "test-cases/b.tc.md"),
+            ),
+            targetDirectoryPath = "test-runs",
+            importOptions = RunImportOptions(importTags = true, importEnvironment = true),
+            runner = "alice",
+        )
+
+        assertEquals(2, run.cases.size)
+        assertEquals(5, run.cases[0].caseId)
+        assertEquals(2, run.cases[0].stepResults.size)
+        assertEquals(RunResult.NOT_STARTED, run.cases[0].result)
+        assertEquals(8, run.cases[1].caseId)
+    }
+
+    @Test
+    fun `aggregateResult empty list is NOT_STARTED`() {
+        assertEquals(RunResult.NOT_STARTED, TestRunSupport.aggregateResult(emptyList()))
+    }
+
+    @Test
+    fun `aggregateResult all NOT_STARTED is NOT_STARTED`() {
+        val cases = listOf(
+            RunCase(caseId = 1, result = RunResult.NOT_STARTED),
+            RunCase(caseId = 2, result = RunResult.NOT_STARTED),
+        )
+        assertEquals(RunResult.NOT_STARTED, TestRunSupport.aggregateResult(cases))
+    }
+
+    @Test
+    fun `aggregateResult all PASSED is PASSED`() {
+        val cases = listOf(
+            RunCase(caseId = 1, result = RunResult.PASSED),
+            RunCase(caseId = 2, result = RunResult.PASSED),
+        )
+        assertEquals(RunResult.PASSED, TestRunSupport.aggregateResult(cases))
+    }
+
+    @Test
+    fun `aggregateResult any FAILED is FAILED`() {
+        val cases = listOf(
+            RunCase(caseId = 1, result = RunResult.PASSED),
+            RunCase(caseId = 2, result = RunResult.FAILED),
+            RunCase(caseId = 3, result = RunResult.BLOCKED),
+        )
+        assertEquals(RunResult.FAILED, TestRunSupport.aggregateResult(cases))
+    }
+
+    @Test
+    fun `aggregateResult any BLOCKED without FAILED is BLOCKED`() {
+        val cases = listOf(
+            RunCase(caseId = 1, result = RunResult.PASSED),
+            RunCase(caseId = 2, result = RunResult.BLOCKED),
+        )
+        assertEquals(RunResult.BLOCKED, TestRunSupport.aggregateResult(cases))
+    }
+
+    @Test
+    fun `aggregateResult any IN_PROGRESS without FAILED or BLOCKED is IN_PROGRESS`() {
+        val cases = listOf(
+            RunCase(caseId = 1, result = RunResult.PASSED),
+            RunCase(caseId = 2, result = RunResult.IN_PROGRESS),
+        )
+        assertEquals(RunResult.IN_PROGRESS, TestRunSupport.aggregateResult(cases))
+    }
+
+    @Test
+    fun `aggregateResult mix of PASSED and NOT_STARTED is IN_PROGRESS`() {
+        val cases = listOf(
+            RunCase(caseId = 1, result = RunResult.PASSED),
+            RunCase(caseId = 2, result = RunResult.NOT_STARTED),
+        )
+        assertEquals(RunResult.IN_PROGRESS, TestRunSupport.aggregateResult(cases))
+    }
+
+    @Test
+    fun `recomputeCaseResult derives from steps when not manual`() {
+        val case = RunCase(caseId = 1,
+            stepResults = listOf(StepResult(action = "a", verdict = StepVerdict.PASSED)),
+            result = RunResult.NOT_STARTED, manualResult = false)
+        val updated = TestRunSupport.recomputeCaseResult(case)
+        assertEquals(RunResult.PASSED, updated.result)
+        assertEquals(false, updated.manualResult)
+    }
+
+    @Test
+    fun `recomputeCaseResult leaves a manually overridden case untouched`() {
+        val case = RunCase(caseId = 1,
+            stepResults = listOf(StepResult(action = "a", verdict = StepVerdict.PASSED)),
+            result = RunResult.BLOCKED, manualResult = true)
+        assertEquals(case, TestRunSupport.recomputeCaseResult(case))
+    }
+
+    @Test
+    fun `overrideCaseResult sets result and marks manual`() {
+        val case = RunCase(caseId = 1, result = RunResult.PASSED)
+        val overridden = TestRunSupport.overrideCaseResult(case, RunResult.BLOCKED)
+        assertEquals(RunResult.BLOCKED, overridden.result)
+        assertEquals(true, overridden.manualResult)
+    }
+
+    @Test
+    fun `clearCaseOverride re-derives from steps`() {
+        val case = RunCase(caseId = 1,
+            stepResults = listOf(StepResult(action = "a", verdict = StepVerdict.FAILED)),
+            result = RunResult.PASSED, manualResult = true)
+        val cleared = TestRunSupport.clearCaseOverride(case)
+        assertEquals(RunResult.FAILED, cleared.result)
+        assertEquals(false, cleared.manualResult)
+    }
+
+    @Test
+    fun `moveCase reorders the cases list`() {
+        val a = RunCase(caseId = 1); val b = RunCase(caseId = 2); val c = RunCase(caseId = 3)
+        val run = TestRun(cases = listOf(a, b, c))
+        assertEquals(listOf(2, 3, 1), TestRunSupport.moveCase(run, fromIndex = 0, toIndex = 2).cases.map { it.caseId })
+        assertEquals(listOf(3, 1, 2), TestRunSupport.moveCase(run, fromIndex = 2, toIndex = 0).cases.map { it.caseId })
+        assertEquals(listOf(1, 2, 3), TestRunSupport.moveCase(run, fromIndex = 1, toIndex = 1).cases.map { it.caseId })
     }
 }

@@ -139,6 +139,7 @@ internal fun startTestRun(project: Project, testCaseFile: VirtualFile) {
         now = now,
         existingNames = initialExistingNames,
     )
+    val hasDescription = testCase.bodyBlocks.isNotEmpty()
     val hasTags = testCase.tags.orEmpty().isNotEmpty()
     val hasEnvironment = testCase.environment.orEmpty().isNotEmpty()
     val hasTickets = testCase.steps.any { it.tickets.isNotEmpty() }
@@ -149,6 +150,7 @@ internal fun startTestRun(project: Project, testCaseFile: VirtualFile) {
         project = project,
         destinationRelativePath = savedDestination,
         fileName = defaultFileName,
+        hasDescription = hasDescription,
         hasTags = hasTags,
         hasEnvironment = hasEnvironment,
         hasTickets = hasTickets,
@@ -181,9 +183,7 @@ internal fun startTestRun(project: Project, testCaseFile: VirtualFile) {
         importOptions = request.importOptions,
     )
 
-    val trId = com.intellij.util.SlowOperations.allowSlowOperations<Int, RuntimeException> {
-        SpeqaIds.nextFreeId(project, IdType.TEST_RUN)
-    }
+    val trId = SpeqaIds.nextFreeId(project, IdType.TEST_RUN)
     val initialRunWithId = initialRun.copy(id = trId)
 
     val runFile = runWriteAction {

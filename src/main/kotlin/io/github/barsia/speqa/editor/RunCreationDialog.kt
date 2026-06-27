@@ -26,6 +26,7 @@ import javax.swing.event.DocumentEvent
 import javax.swing.event.DocumentListener
 
 internal data class RunImportOptions(
+    val importDescription: Boolean = true,
     val importTags: Boolean = true,
     val importEnvironment: Boolean = true,
     val importTickets: Boolean = false,
@@ -91,6 +92,7 @@ internal class RunCreationDialog(
     private val project: Project,
     destinationRelativePath: String,
     fileName: String,
+    hasDescription: Boolean,
     hasTags: Boolean,
     hasEnvironment: Boolean,
     hasTickets: Boolean,
@@ -110,6 +112,7 @@ internal class RunCreationDialog(
         }
     }
     private val fileNameField = JBTextField(fileName)
+    private val importDescriptionCheckBox = JBCheckBox(SpeqaBundle.message("dialog.createRun.import.description"), true)
     private val importTagsCheckBox = JBCheckBox(SpeqaBundle.message("dialog.createRun.import.tags"), true)
     private val importEnvironmentCheckBox = JBCheckBox(SpeqaBundle.message("dialog.createRun.import.environment"), true)
     private val importTicketsCheckBox = JBCheckBox(SpeqaBundle.message("dialog.createRun.import.tickets"), false)
@@ -128,6 +131,11 @@ internal class RunCreationDialog(
     private lateinit var fileNameErrorPanel: JPanel
 
     init {
+        configureImportCheckBox(
+            checkBox = importDescriptionCheckBox,
+            hasContent = hasDescription,
+            emptyTooltip = SpeqaBundle.message("dialog.createRun.import.description.empty"),
+        )
         configureImportCheckBox(
             checkBox = importTagsCheckBox,
             hasContent = hasTags,
@@ -154,6 +162,7 @@ internal class RunCreationDialog(
             emptyTooltip = SpeqaBundle.message("dialog.createRun.import.attachments.empty"),
         )
         applyHandCursor(destinationField)
+        applyHandCursor(importDescriptionCheckBox)
         applyHandCursor(importTagsCheckBox)
         applyHandCursor(importEnvironmentCheckBox)
         applyHandCursor(importTicketsCheckBox)
@@ -193,6 +202,7 @@ internal class RunCreationDialog(
                 destinationRelativePath = relativePath,
                 fileName = fileNameField.text.trim(),
                 importOptions = RunImportOptions(
+                    importDescription = importDescriptionCheckBox.isSelected,
                     importTags = importTagsCheckBox.isSelected,
                     importEnvironment = importEnvironmentCheckBox.isSelected,
                     importTickets = importTicketsCheckBox.isSelected,
@@ -207,6 +217,7 @@ internal class RunCreationDialog(
         fileNameField.preferredSize = Dimension(420, fileNameField.preferredSize.height)
         val importSectionLabel = JBLabel(SpeqaBundle.message("dialog.createRun.import.section"))
         val importCheckBoxes = listOf(
+            importDescriptionCheckBox,
             importTagsCheckBox,
             importEnvironmentCheckBox,
             importTicketsCheckBox,

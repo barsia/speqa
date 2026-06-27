@@ -1,0 +1,196 @@
+package io.github.barsia.speqa.editor.ui.run
+
+import com.intellij.openapi.project.Project
+import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.ui.JBColor
+import com.intellij.ui.components.JBScrollPane
+import com.intellij.util.ui.JBUI
+import io.github.barsia.speqa.editor.ui.steps.DragReorderSupport
+import io.github.barsia.speqa.editor.ui.steps.LivePreviewReorderDecorator
+import io.github.barsia.speqa.editor.ui.steps.stepSlotsFromComponents
+import io.github.barsia.speqa.model.TestRun
+import io.github.barsia.speqa.run.TestRunSupport
+import java.awt.Component
+import java.awt.Graphics
+import java.awt.Graphics2D
+import java.awt.RenderingHints
+import javax.swing.Box
+import javax.swing.BoxLayout
+import javax.swing.JComponent
+import javax.swing.JPanel
+import javax.swing.SwingUtilities
+
+/** How a run renders: a flat single-case form, or a vertical list of case sections. */
+enum class RunLayout { FLAT, SECTIONED }
+
+/**
+ * Vertical list of [RunCaseSection]s, one per case in a multi-case [TestRun].
+ * Each section edit is folded back into the whole run and
+ * reported through [onRunChange] (full reserialize — there is no per-case patch
+ * path). Collapse state lives implicitly in each [RunCaseSection] and is
+ * preserved across [update] as long as the case count is unchanged.
+ *
+ * Whole sections can be reordered by dragging a section's [RunCaseSection.dragHandle].
+ * The drag-and-drop machinery (ghost overlay, drop indicator, live-preview
+ * neighbour shift, auto-scroll) is reused verbatim from the step editor via
+ * [DragReorderSupport] + [LivePreviewReorderDecorator]; on drop the run's cases
+ * are reordered through [TestRunSupport.moveCase] and the whole run is emitted.
+ * Drag-to-reorder is active only in the multi-case view (two or more sections).
+ */
+class RunCasesContainer(
+    private val project: Project,
+    private val file: VirtualFile?,
+    initial: TestRun,
+    private val onRunChange: (TestRun) -> Unit,
+) : JPanel() {
+
+    companion object {
+        /** Decide the run layout: two or more cases render as collapsible sections. */
+        fun layoutFor(run: TestRun): RunLayout =
+            if (run.cases.size >= 2) RunLayout.SECTIONED else RunLayout.FLAT
+    }
+
+    private var current: TestRun = initial
+    private var sections: List<RunCaseSection> = emptyList()
+    private val sectionWrappers = mutableListOf<JComponent>()
+
+    /**
+     * Drag machinery, created lazily once the enclosing [JBScrollPane] is known
+     * (resolved in [addNotify]). Until then sections render without DnD.
+     */
+    private var reorder: DragReorderSupport? = null
+    private val livePreview = LivePreviewReorderDecorator(this)
+
+    init {
+        layout = BoxLayout(this, BoxLayout.Y_AXIS)
+        isOpaque = false
+        alignmentX = Component.LEFT_ALIGNMENT
+        rebuild(initial)
+    }
+
+    /** Refresh from [run]; update sections in place when the count is unchanged, else rebuild. */
+    fun update(run: TestRun) {
+        current = run
+        if (run.cases.size == sections.size) {
+            run.cases.forEachIndexed { i, case -> sections[i].update(case) }
+        } else {
+            rebuild(run)
+        }
+    }
+
+    override fun addNotify() {
+        super.addNotify()
+        if (reorder == null) {
+            val scrollPane = SwingUtilities.getAncestorOfClass(JBScrollPane::class.java, this) as? JBScrollPane
+            if (scrollPane != null) {
+                reorder = createReorder(scrollPane)
+                // Re-run the build now that DnD can be wired onto the handles.
+                rebuild(current)
+            }
+        }
+    }
+
+    override fun removeNotify() {
+        reorder?.detach()
+        // Null it so a later addNotify (e.g. switching editor tabs away and back)
+        // re-resolves the scroll pane, recreates the support, and re-attaches the
+        // handles; otherwise drag-to-reorder would stay dead after the first detach.
+        // The re-add rebuild resets collapse state to expanded, an acceptable trade.
+        reorder = null
+        super.removeNotify()
+    }
+
+    private fun createReorder(scrollPane: JBScrollPane): DragReorderSupport =
+        DragReorderSupport(
+            container = this,
+            scrollPane = scrollPane,
+            onReorder = ::performReorder,
+            onDragStart = { draggedIndex, cardHeight, gap -> livePreview.onDragStart(draggedIndex, cardHeight, gap) },
+            onDragUpdate = { dropTargetIndex -> livePreview.onDragUpdate(dropTargetIndex) },
+            onDragEnd = { livePreview.onDragEnd() },
+            onDragCancelStart = { livePreview.onDragCancelStart() },
+            onDragCancelComplete = { livePreview.onDragCancelComplete() },
+        )
+
+    private fun performReorder(from: Int, to: Int) {
+        if (from == to) return
+        val updated = TestRunSupport.moveCase(current, from, to)
+        if (updated === current) return
+        current = updated
+        onRunChange(updated)
+        rebuild(updated)
+    }
+
+    private fun rebuild(run: TestRun) {
+        reorder?.detach()
+        removeAll()
+        current = run
+        sectionWrappers.clear()
+        val built = ArrayList<RunCaseSection>(run.cases.size)
+        run.cases.forEachIndexed { index, case ->
+            val section = RunCaseSection(project, file, case) { updatedCase ->
+                val updatedRun = current.copy(
+                    cases = current.cases.mapIndexed { idx, c -> if (idx == index) updatedCase else c },
+                )
+                current = updatedRun
+                onRunChange(updatedRun)
+            }
+            section.alignmentX = Component.LEFT_ALIGNMENT
+            built.add(section)
+        }
+        sections = built
+
+        val activeReorder = reorder
+        val wrappers = livePreview.install(built)
+        wrappers.forEachIndexed { index, wrapper ->
+            wrapper.alignmentX = Component.LEFT_ALIGNMENT
+            if (index > 0) add(Box.createVerticalStrut(JBUI.scale(16)))
+            add(wrapper)
+            sectionWrappers.add(wrapper)
+            // Drag-to-reorder only makes sense with at least two sections.
+            if (activeReorder != null && built.size >= 2) {
+                val section = built[index]
+                activeReorder.attachHandle(
+                    card = section,
+                    dragHandle = section.dragHandle,
+                    index = { sections.indexOf(section) },
+                    slotProvider = {
+                        stepSlotsFromComponents(
+                            components = components,
+                            originalIndexOf = { component ->
+                                sectionWrappers.indexOf(component).takeIf { it >= 0 }
+                            },
+                        )
+                    },
+                )
+            }
+        }
+        revalidate()
+        repaint()
+    }
+
+    override fun paintChildren(g: Graphics) {
+        super.paintChildren(g)
+        val dropIndex = reorder?.dropTargetIndex ?: -1
+        if (dropIndex < 0 || sectionWrappers.isEmpty()) return
+        // Live-preview opens the landing slot itself; the line would be redundant.
+        if (livePreview.isActive()) return
+        val g2 = g.create() as Graphics2D
+        try {
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+            g2.color = JBColor.namedColor("Link.activeForeground", JBColor.BLUE)
+            val y = when {
+                dropIndex <= 0 -> sectionWrappers.first().y
+                dropIndex >= sectionWrappers.size -> {
+                    val last = sectionWrappers.last()
+                    last.y + last.height
+                }
+                else -> sectionWrappers[dropIndex].y
+            }
+            val thickness = JBUI.scale(2)
+            g2.fillRect(0, y - thickness / 2, width, thickness)
+        } finally {
+            g2.dispose()
+        }
+    }
+}

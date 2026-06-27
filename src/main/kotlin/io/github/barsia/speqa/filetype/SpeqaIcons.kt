@@ -1,6 +1,7 @@
 package io.github.barsia.speqa.filetype
 
 import com.intellij.openapi.util.IconLoader
+import io.github.barsia.speqa.model.RunResult
 import io.github.barsia.speqa.model.Status
 import javax.swing.Icon
 
@@ -12,6 +13,8 @@ object SpeqaIcons {
     val TestRunPassed: Icon = IconLoader.getIcon("/icons/testRunPassed.svg", SpeqaIcons::class.java)
     val TestRunFailed: Icon = IconLoader.getIcon("/icons/testRunFailed.svg", SpeqaIcons::class.java)
     val TestRunBlocked: Icon = IconLoader.getIcon("/icons/testRunBlocked.svg", SpeqaIcons::class.java)
+    val TestRunNotStarted: Icon = IconLoader.getIcon("/icons/testRunNotStarted.svg", SpeqaIcons::class.java)
+    val TestRunInProgress: Icon = IconLoader.getIcon("/icons/testRunInProgress.svg", SpeqaIcons::class.java)
 
     val FilterStatus: Icon = IconLoader.getIcon("/icons/filterStatus.svg", SpeqaIcons::class.java)
     val FilterPriority: Icon = IconLoader.getIcon("/icons/filterPriority.svg", SpeqaIcons::class.java)
@@ -22,5 +25,13 @@ object SpeqaIcons {
         Status.DRAFT -> TestCaseDraft
         Status.READY -> TestCaseReady
         Status.DEPRECATED -> TestCaseDeprecated
+    }
+
+    fun forResult(result: RunResult): Icon = when (result) {
+        RunResult.PASSED -> TestRunPassed
+        RunResult.FAILED -> TestRunFailed
+        RunResult.BLOCKED -> TestRunBlocked
+        RunResult.IN_PROGRESS -> TestRunInProgress
+        RunResult.NOT_STARTED -> TestRunNotStarted
     }
 }

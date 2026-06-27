@@ -28,6 +28,36 @@ class TestRunTest {
     }
 
     @Test
+    fun `single-case run exposes its one case via cases`() {
+        val step = StepResult(action = "do", verdict = StepVerdict.PASSED)
+        val case = RunCase(
+            caseId = 5,
+            title = "Login",
+            priority = Priority.MAJOR,
+            tags = listOf("smoke"),
+            environment = listOf("chrome"),
+            stepResults = listOf(step),
+            result = RunResult.PASSED,
+        )
+        val run = TestRun(id = 12, title = "High", cases = listOf(case))
+
+        assertEquals(1, run.cases.size)
+        assertEquals(5, run.cases.first().caseId)
+        assertEquals(listOf(step), run.cases.first().stepResults)
+        // Compat accessor still flattens to all steps:
+        assertEquals(listOf(step), run.stepResults)
+    }
+
+    @Test
+    fun `RunCase carries a manualResult flag defaulting to false`() {
+        val auto = RunCase(caseId = 1)
+        val manual = RunCase(caseId = 2, result = RunResult.BLOCKED, manualResult = true)
+        assertEquals(false, auto.manualResult)
+        assertEquals(true, manual.manualResult)
+        assertEquals(RunResult.BLOCKED, manual.result)
+    }
+
+    @Test
     fun `result and verdict fromString are case insensitive`() {
         assertEquals(RunResult.PASSED, RunResult.fromString("passed"))
         assertEquals(RunResult.FAILED, RunResult.fromString("FAILED"))

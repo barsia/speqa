@@ -5,6 +5,7 @@ toc:
   - page: pages/installation.md
   - page: pages/creating-project.md
   - page: pages/writing-test-cases.md
+  - page: pages/tool-window.md
   - page: pages/running-tests.md
   - page: pages/claude-code-skills.md
   - page: pages/soft-wrap.md

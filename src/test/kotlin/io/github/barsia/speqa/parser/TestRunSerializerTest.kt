@@ -2,6 +2,9 @@ package io.github.barsia.speqa.parser
 
 import io.github.barsia.speqa.model.Attachment
 import io.github.barsia.speqa.model.Link
+import io.github.barsia.speqa.model.Priority
+import io.github.barsia.speqa.model.RunCase
+import io.github.barsia.speqa.model.RunResult
 import io.github.barsia.speqa.model.StepResult
 import io.github.barsia.speqa.model.StepVerdict
 import io.github.barsia.speqa.model.TestRun
@@ -15,7 +18,7 @@ class TestRunSerializerTest {
 
     @Test
     fun `serializes title in frontmatter`() {
-        val run = TestRun(title = "Login test", startedAt = LocalDateTime.of(2026, 4, 11, 10, 0))
+        val run = flatRun(title = "Login test", startedAt = LocalDateTime.of(2026, 4, 11, 10, 0))
         val result = TestRunSerializer.serialize(run)
         assertTrue(result.contains("title: \"Login test\""))
         assertFalse("Must not contain test_case", result.contains("test_case"))
@@ -23,16 +26,16 @@ class TestRunSerializerTest {
 
     @Test
     fun `serializes manual_result only when true`() {
-        val runTrue = TestRun(title = "Test", manualResult = true, startedAt = LocalDateTime.of(2026, 4, 11, 10, 0))
+        val runTrue = flatRun(title = "Test", manualResult = true, startedAt = LocalDateTime.of(2026, 4, 11, 10, 0))
         assertTrue(TestRunSerializer.serialize(runTrue).contains("manual_result: true"))
 
-        val runFalse = TestRun(title = "Test", manualResult = false, startedAt = LocalDateTime.of(2026, 4, 11, 10, 0))
+        val runFalse = flatRun(title = "Test", manualResult = false, startedAt = LocalDateTime.of(2026, 4, 11, 10, 0))
         assertFalse(TestRunSerializer.serialize(runFalse).contains("manual_result"))
     }
 
     @Test
     fun `serializes step with expected and verdict`() {
-        val run = TestRun(
+        val run = flatRun(
             title = "Test",
             startedAt = LocalDateTime.of(2026, 4, 11, 10, 0),
             stepResults = listOf(StepResult(action = "Click button", expected = "Page loads", verdict = StepVerdict.PASSED)),
@@ -48,7 +51,7 @@ class TestRunSerializerTest {
 
     @Test
     fun `omits verdict line for NONE`() {
-        val run = TestRun(
+        val run = flatRun(
             title = "Test",
             startedAt = LocalDateTime.of(2026, 4, 11, 10, 0),
             stepResults = listOf(StepResult(action = "Click button", expected = "Page loads", verdict = StepVerdict.NONE)),
@@ -60,7 +63,7 @@ class TestRunSerializerTest {
 
     @Test
     fun `serializes step comment as explicit Comment block`() {
-        val run = TestRun(
+        val run = flatRun(
             title = "Test",
             startedAt = LocalDateTime.of(2026, 4, 11, 10, 0),
             stepResults = listOf(StepResult(action = "Click", expected = "", verdict = StepVerdict.FAILED, comment = "Got 500 error")),
@@ -73,7 +76,7 @@ class TestRunSerializerTest {
 
     @Test
     fun `serializes blocked verdict`() {
-        val run = TestRun(
+        val run = flatRun(
             title = "Test",
             startedAt = LocalDateTime.of(2026, 4, 11, 10, 0),
             stepResults = listOf(StepResult(action = "Click", verdict = StepVerdict.BLOCKED)),
@@ -84,21 +87,21 @@ class TestRunSerializerTest {
     }
 
     @Test
-    fun `serializes tags in frontmatter`() {
-        val run = TestRun(
+    fun `serializes tags in the case section`() {
+        val run = flatRun(
             title = "Test",
             tags = listOf("auth", "smoke"),
             startedAt = LocalDateTime.of(2026, 4, 11, 10, 0),
         )
         val result = TestRunSerializer.serialize(run)
-        assertTrue(result.contains("tags:"))
-        assertTrue(result.contains("  - \"auth\""))
-        assertTrue(result.contains("  - \"smoke\""))
+        // tags now live in the case section, not the run frontmatter
+        assertFalse("No tags in frontmatter", result.substringBefore("Test Case:").contains("tags:"))
+        assertTrue(result.substringAfter("Test Case:").contains("tags: auth, smoke"))
     }
 
     @Test
     fun `omits tags when empty`() {
-        val run = TestRun(
+        val run = flatRun(
             title = "Test",
             tags = emptyList(),
             startedAt = LocalDateTime.of(2026, 4, 11, 10, 0),
@@ -107,33 +110,32 @@ class TestRunSerializerTest {
     }
 
     @Test
-    fun `serializes single environment value as scalar`() {
-        val run = TestRun(
-            title = "Test",
-            environment = listOf("Chrome 122, macOS 14"),
-            startedAt = LocalDateTime.of(2026, 4, 11, 10, 0),
+    fun `serializes environment values in the case section`() {
+        // environment now lives in the case section as a single comma-joined line, never in frontmatter
+        val single = TestRunSerializer.serialize(
+            flatRun(
+                title = "Test",
+                environment = listOf("chrome"),
+                startedAt = LocalDateTime.of(2026, 4, 11, 10, 0),
+            ),
         )
-        val result = TestRunSerializer.serialize(run)
-        assertTrue(result.contains("environment: \"Chrome 122, macOS 14\""))
-        assertFalse(result.contains("environment:\n"))
-    }
+        assertFalse("No environment in frontmatter", single.substringBefore("Test Case:").contains("environment:"))
+        assertTrue(single.substringAfter("Test Case:").contains("environment: chrome"))
 
-    @Test
-    fun `serializes multiple environment values as list`() {
-        val run = TestRun(
-            title = "Test",
-            environment = listOf("Chrome 122", "Firefox 123"),
-            startedAt = LocalDateTime.of(2026, 4, 11, 10, 0),
+        val multiple = TestRunSerializer.serialize(
+            flatRun(
+                title = "Test",
+                environment = listOf("chrome", "firefox"),
+                startedAt = LocalDateTime.of(2026, 4, 11, 10, 0),
+            ),
         )
-        val result = TestRunSerializer.serialize(run)
-        assertTrue(result.contains("environment:"))
-        assertTrue(result.contains("  - \"Chrome 122\""))
-        assertTrue(result.contains("  - \"Firefox 123\""))
+        assertFalse("No environment in frontmatter", multiple.substringBefore("Test Case:").contains("environment:"))
+        assertTrue(multiple.substringAfter("Test Case:").contains("environment: chrome, firefox"))
     }
 
     @Test
     fun `writes Scenario marker before steps`() {
-        val run = TestRun(
+        val run = flatRun(
             title = "Test",
             startedAt = LocalDateTime.of(2026, 4, 11, 10, 0),
             stepResults = listOf(StepResult(action = "Click button", verdict = StepVerdict.PASSED)),
@@ -145,7 +147,7 @@ class TestRunSerializerTest {
 
     @Test
     fun `never writes Summary section`() {
-        val run = TestRun(
+        val run = flatRun(
             title = "Test",
             startedAt = LocalDateTime.of(2026, 4, 11, 10, 0),
         )
@@ -155,21 +157,21 @@ class TestRunSerializerTest {
 
     @Test
     fun `omits started_at when null`() {
-        val run = TestRun(title = "Test", startedAt = null)
+        val run = flatRun(title = "Test", startedAt = null)
         val result = TestRunSerializer.serialize(run)
         assertFalse(result.contains("started_at"))
     }
 
     @Test
     fun `writes started_at when present`() {
-        val run = TestRun(title = "Test", startedAt = LocalDateTime.of(2026, 4, 11, 10, 0))
+        val run = flatRun(title = "Test", startedAt = LocalDateTime.of(2026, 4, 11, 10, 0))
         val result = TestRunSerializer.serialize(run)
         assertTrue(result.contains("started_at"))
     }
 
     @Test
     fun `serializes multiline action`() {
-        val run = TestRun(
+        val run = flatRun(
             title = "Test",
             startedAt = LocalDateTime.of(2026, 4, 11, 10, 0),
             stepResults = listOf(
@@ -189,7 +191,7 @@ class TestRunSerializerTest {
 
     @Test
     fun `serializes formatted continuation without turning it into comment`() {
-        val run = TestRun(
+        val run = flatRun(
             title = "Test",
             startedAt = LocalDateTime.of(2026, 4, 11, 10, 0),
             stepResults = listOf(
@@ -207,7 +209,7 @@ class TestRunSerializerTest {
 
     @Test
     fun `serializes step-level attachments`() {
-        val run = TestRun(
+        val run = flatRun(
             title = "Test",
             startedAt = LocalDateTime.of(2026, 4, 11, 10, 0),
             stepResults = listOf(
@@ -231,7 +233,7 @@ class TestRunSerializerTest {
 
     @Test
     fun `serializes step links separately from attachments`() {
-        val run = TestRun(
+        val run = flatRun(
             title = "Test",
             startedAt = LocalDateTime.of(2026, 4, 11, 10, 0),
             stepResults = listOf(
@@ -255,9 +257,9 @@ class TestRunSerializerTest {
 
     @Test
     fun `round trip preserves step links and attachments`() {
-        val original = TestRun(
+        val original = flatRun(
             title = "Round trip",
-            environment = listOf("Chrome 122, macOS 14"),
+            environment = listOf("Chrome 122", "macOS 14"),
             startedAt = LocalDateTime.of(2026, 4, 11, 10, 0),
             stepResults = listOf(
                 StepResult(
@@ -281,7 +283,7 @@ class TestRunSerializerTest {
 
     @Test
     fun `round trip preserves step links with commas inside url`() {
-        val original = TestRun(
+        val original = flatRun(
             title = "Round trip",
             startedAt = LocalDateTime.of(2026, 4, 11, 10, 0),
             stepResults = listOf(
@@ -304,21 +306,59 @@ class TestRunSerializerTest {
     }
 
     @Test
-    fun `writes only one blank line before overall comment`() {
+    fun `serializes one case section with marker, metadata and result`() {
         val run = TestRun(
-            title = "Test",
-            startedAt = LocalDateTime.of(2026, 4, 11, 10, 0),
-            stepResults = listOf(
-                StepResult(
-                    action = "Click",
-                    verdict = StepVerdict.FAILED,
-                    comment = "Step note",
-                ),
-            ),
-            comment = "Overall note",
+            id = 7, title = "Login test", runner = "alice", result = RunResult.PASSED,
+            cases = listOf(RunCase(
+                caseId = 5, title = "Sign in", priority = Priority.MAJOR,
+                tags = listOf("smoke", "auth"), environment = listOf("chrome"),
+                stepResults = listOf(StepResult(action = "Open page", expected = "Visible",
+                    verdict = StepVerdict.PASSED)),
+                result = RunResult.PASSED,
+            )),
         )
-        val result = TestRunSerializer.serialize(run)
-        assertTrue(result.contains("   Step note\n\nOverall note"))
-        assertFalse(result.contains("   Step note\n\n\nOverall note"))
+        val out = TestRunSerializer.serialize(run)
+
+        assertTrue(out.contains("Test Case: TC-5 Sign in"))
+        assertTrue(out.contains("priority: major"))
+        assertTrue(out.contains("tags: smoke, auth"))
+        assertTrue(out.contains("environment: chrome"))
+        assertTrue(out.contains("Scenario:"))
+        assertTrue(out.contains("1. Open page"))
+        assertTrue(out.contains("- passed"))
+        assertTrue(out.contains("Result: passed"))
+        // run-level tags/priority must NOT be in frontmatter anymore
+        assertFalse(out.substringBefore("Test Case:").contains("tags:"))
+    }
+
+    @Test
+    fun `round trip preserves multi-case run`() {
+        val original = TestRun(
+            id = 12, title = "High", runner = "alice", result = RunResult.FAILED,
+            cases = listOf(
+                RunCase(caseId = 5, title = "Sign in", priority = Priority.MAJOR,
+                    tags = listOf("smoke"), environment = listOf("chrome"),
+                    stepResults = listOf(StepResult(action = "Open", expected = "Visible",
+                        verdict = StepVerdict.PASSED)), result = RunResult.PASSED),
+                RunCase(caseId = 8, title = "Wrong password",
+                    stepResults = listOf(StepResult(action = "Enter wrong",
+                        verdict = StepVerdict.FAILED)), result = RunResult.FAILED),
+            ),
+        )
+        val reparsed = TestRunParser.parse(TestRunSerializer.serialize(original))
+        assertEquals(original.cases, reparsed.cases)
+    }
+
+    @Test
+    fun `serializes manual_result in the case section only when manual`() {
+        val manual = TestRun(id = 1, cases = listOf(RunCase(caseId = 5, title = "A",
+            result = RunResult.BLOCKED, manualResult = true)))
+        val auto = TestRun(id = 1, cases = listOf(RunCase(caseId = 5, title = "A",
+            result = RunResult.PASSED, manualResult = false)))
+        val outManual = TestRunSerializer.serialize(manual)
+        val outAuto = TestRunSerializer.serialize(auto)
+        assertTrue(outManual.contains("manual_result: true"))
+        assertTrue(outManual.contains("Result: blocked"))
+        assertFalse(outAuto.contains("manual_result"))
     }
 }

@@ -31,9 +31,7 @@ class CreateTestCaseAction : CreateFileFromTemplateAction(
     override fun createFile(name: String, templateName: String, dir: PsiDirectory): PsiFile {
         val targetDir = dir
         val project = dir.project
-        val nextId = com.intellij.util.SlowOperations.allowSlowOperations<Int, RuntimeException> {
-            SpeqaIds.nextFreeId(project, IdType.TEST_CASE)
-        }
+        val nextId = SpeqaIds.nextFreeId(project, IdType.TEST_CASE)
 
         val template = FileTemplateManager.getInstance(project)
             .getInternalTemplate("SpeQA Test Case.tc.md")

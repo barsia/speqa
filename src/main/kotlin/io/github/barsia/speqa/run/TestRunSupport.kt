@@ -4,6 +4,7 @@ import com.intellij.openapi.editor.Document
 import io.github.barsia.speqa.editor.RunImportOptions
 import io.github.barsia.speqa.model.Attachment
 import io.github.barsia.speqa.model.SpeqaDefaults
+import io.github.barsia.speqa.model.RunCase
 import io.github.barsia.speqa.model.RunResult
 import io.github.barsia.speqa.model.StepResult
 import io.github.barsia.speqa.model.StepVerdict
@@ -56,6 +57,8 @@ internal object TestRunSupport {
         return candidate
     }
 
+    data class SourceCase(val testCase: TestCase, val sourceFilePath: String)
+
     fun createInitialRun(
         testCase: TestCase,
         sourceFilePath: String,
@@ -63,33 +66,82 @@ internal object TestRunSupport {
         importOptions: RunImportOptions = RunImportOptions(),
         runner: String = defaultRunner(),
     ): TestRun {
+        val case = buildRunCase(SourceCase(testCase, sourceFilePath), targetDirectoryPath, importOptions)
         return TestRun(
+            id = null,
             title = testCase.title,
-            tags = if (importOptions.importTags) testCase.tags.orEmpty() else emptyList(),
-            priority = testCase.priority,
-            environment = if (importOptions.importEnvironment) testCase.environment.orEmpty() else emptyList(),
             runner = runner,
-            bodyBlocks = testCase.bodyBlocks,
+            result = aggregateResult(listOf(case)),
+            cases = listOf(case),
+        )
+    }
+
+    fun createMultiCaseRun(
+        cases: List<SourceCase>,
+        targetDirectoryPath: String,
+        importOptions: RunImportOptions = RunImportOptions(),
+        runner: String = defaultRunner(),
+        title: String = "",
+    ): TestRun {
+        val runCases = cases.map { buildRunCase(it, targetDirectoryPath, importOptions) }
+        return TestRun(
+            id = null,
+            title = title,
+            runner = runner,
+            result = aggregateResult(runCases),
+            cases = runCases,
+        )
+    }
+
+    private fun buildRunCase(
+        source: SourceCase,
+        targetDirectoryPath: String,
+        importOptions: RunImportOptions,
+    ): RunCase {
+        val (testCase, sourceFilePath) = source
+        val stepResults = testCase.steps.map { step ->
+            StepResult(
+                action = step.action,
+                expected = step.expected.orEmpty(),
+                tickets = if (importOptions.importTickets) step.tickets else emptyList(),
+                links = if (importOptions.importLinks) step.links else emptyList(),
+                attachments = if (importOptions.importAttachments) {
+                    rebaseAttachments(step.attachments, sourceFilePath, targetDirectoryPath)
+                } else {
+                    emptyList()
+                },
+            )
+        }
+        return RunCase(
+            caseId = testCase.id ?: 0,
+            title = testCase.title,
+            priority = testCase.priority,
+            tags = if (importOptions.importTags) testCase.tags.orEmpty() else emptyList(),
+            environment = if (importOptions.importEnvironment) testCase.environment.orEmpty() else emptyList(),
+            bodyBlocks = if (importOptions.importDescription) testCase.bodyBlocks else emptyList(),
             links = if (importOptions.importLinks) testCase.links else emptyList(),
             attachments = if (importOptions.importAttachments) {
                 rebaseAttachments(testCase.attachments, sourceFilePath, targetDirectoryPath)
             } else {
                 emptyList()
             },
-            stepResults = testCase.steps.map { step ->
-                StepResult(
-                    action = step.action,
-                    expected = step.expected.orEmpty(),
-                    tickets = if (importOptions.importTickets) step.tickets else emptyList(),
-                    links = if (importOptions.importLinks) step.links else emptyList(),
-                    attachments = if (importOptions.importAttachments) {
-                        rebaseAttachments(step.attachments, sourceFilePath, targetDirectoryPath)
-                    } else {
-                        emptyList()
-                    },
-                )
-            },
+            stepResults = stepResults,
+            result = deriveRunResult(stepResults),
         )
+    }
+
+    /** Run-level result aggregated from per-case results; see [deriveRunResult] for the per-case, step-based derivation. */
+    fun aggregateResult(cases: List<RunCase>): RunResult {
+        if (cases.isEmpty()) return RunResult.NOT_STARTED
+        val results = cases.map { it.result }
+        if (results.any { it == RunResult.FAILED }) return RunResult.FAILED
+        if (results.any { it == RunResult.BLOCKED }) return RunResult.BLOCKED
+        if (results.any { it == RunResult.IN_PROGRESS }) return RunResult.IN_PROGRESS
+        if (results.any { it == RunResult.PASSED } && results.any { it == RunResult.NOT_STARTED }) {
+            return RunResult.IN_PROGRESS
+        }
+        if (results.all { it == RunResult.PASSED }) return RunResult.PASSED
+        return RunResult.NOT_STARTED
     }
 
     fun createInitialRun(
@@ -132,6 +184,25 @@ internal object TestRunSupport {
         if (meaningful.any { it.verdict == StepVerdict.FAILED }) return RunResult.FAILED
         if (meaningful.any { it.verdict == StepVerdict.BLOCKED }) return RunResult.BLOCKED
         return RunResult.PASSED
+    }
+
+    /** Re-derive a case's result from its steps unless it was manually overridden. */
+    fun recomputeCaseResult(case: RunCase): RunCase =
+        if (case.manualResult) case else case.copy(result = deriveRunResult(case.stepResults))
+
+    /** Force a case's result and mark it manual. */
+    fun overrideCaseResult(case: RunCase, result: RunResult): RunCase =
+        case.copy(result = result, manualResult = true)
+
+    /** Drop a manual override and re-derive from steps. */
+    fun clearCaseOverride(case: RunCase): RunCase =
+        case.copy(result = deriveRunResult(case.stepResults), manualResult = false)
+
+    fun moveCase(run: TestRun, fromIndex: Int, toIndex: Int): TestRun {
+        if (fromIndex == toIndex || fromIndex !in run.cases.indices || toIndex !in run.cases.indices) return run
+        val next = run.cases.toMutableList()
+        next.add(toIndex, next.removeAt(fromIndex))
+        return run.copy(cases = next)
     }
 
     fun updateDocument(document: Document, content: String): Boolean {

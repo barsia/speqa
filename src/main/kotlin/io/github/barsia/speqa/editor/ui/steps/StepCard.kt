@@ -21,8 +21,10 @@ import com.intellij.util.ui.JBUI
 import io.github.barsia.speqa.SpeqaBundle
 import io.github.barsia.speqa.editor.ui.primitives.CommitFlash
 import io.github.barsia.speqa.editor.ui.primitives.handCursor
+import io.github.barsia.speqa.editor.ui.primitives.isKeyboardFocusCause
 import io.github.barsia.speqa.editor.ui.primitives.MarkdownEditablePane
 import io.github.barsia.speqa.editor.ui.primitives.multiLineInput
+import io.github.barsia.speqa.editor.ui.primitives.paintCompactFocusRing
 import io.github.barsia.speqa.editor.ui.primitives.setSpeqaTooltip
 import io.github.barsia.speqa.editor.ui.primitives.speqaIconButton
 import io.github.barsia.speqa.model.Attachment
@@ -225,6 +227,7 @@ class StepCard(
 
         val handleSize = Dimension(JBUI.scale(16), JBUI.scale(16))
         dragHandle = object : JPanel() {
+            var keyboardFocused = false
             override fun isOpaque() = false
             override fun getPreferredSize() = handleSize
             override fun getMinimumSize() = handleSize
@@ -233,20 +236,29 @@ class StepCard(
                 if (dragHandleVisible) {
                     val iw = dragIcon.iconWidth
                     val ih = dragIcon.iconHeight
-                    if (iw <= 0 || ih <= 0) return
-                    val px = ((width - iw) / 2).coerceAtLeast(0)
-                    val py = ((height - ih) / 2).coerceAtLeast(0)
-                    val img = com.intellij.util.ui.UIUtil.createImage(this, iw, ih, java.awt.image.BufferedImage.TYPE_INT_ARGB)
-                    val ig = img.createGraphics()
-                    try {
-                        dragIcon.paintIcon(this, ig, 0, 0)
-                        ig.composite = java.awt.AlphaComposite.SrcAtop
-                        ig.color = JBColor.namedColor("Label.disabledForeground", JBColor.GRAY)
-                        ig.fillRect(0, 0, iw, ih)
-                    } finally {
-                        ig.dispose()
+                    if (iw > 0 && ih > 0) {
+                        val px = ((width - iw) / 2).coerceAtLeast(0)
+                        val py = ((height - ih) / 2).coerceAtLeast(0)
+                        val img = com.intellij.util.ui.UIUtil.createImage(this, iw, ih, java.awt.image.BufferedImage.TYPE_INT_ARGB)
+                        val ig = img.createGraphics()
+                        try {
+                            dragIcon.paintIcon(this, ig, 0, 0)
+                            ig.composite = java.awt.AlphaComposite.SrcAtop
+                            ig.color = JBColor.namedColor("Label.disabledForeground", JBColor.GRAY)
+                            ig.fillRect(0, 0, iw, ih)
+                        } finally {
+                            ig.dispose()
+                        }
+                        g.drawImage(img, px, py, iw, ih, null)
                     }
-                    g.drawImage(img, px, py, iw, ih, null)
+                }
+                if (keyboardFocused) {
+                    val g2 = g.create() as Graphics2D
+                    try {
+                        paintCompactFocusRing(g2, width, height, JBUI.scale(4).toFloat())
+                    } finally {
+                        g2.dispose()
+                    }
                 }
             }
         }.apply {
@@ -254,12 +266,30 @@ class StepCard(
             toolTipText = SpeqaBundle.message("tooltip.dragToReorder")
             isFocusable = true
             handCursor()
+            addFocusListener(object : FocusAdapter() {
+                override fun focusGained(e: FocusEvent) {
+                    keyboardFocused = isKeyboardFocusCause(e.cause)
+                    repaint()
+                }
+                override fun focusLost(e: FocusEvent) {
+                    keyboardFocused = false
+                    repaint()
+                }
+            })
+            addKeyListener(object : KeyAdapter() {
+                override fun keyPressed(e: KeyEvent) {
+                    if (e.keyCode == KeyEvent.VK_SPACE || e.keyCode == KeyEvent.VK_ENTER) {
+                        showHandleMenu()
+                        e.consume()
+                    }
+                }
+            })
             addMouseListener(object : MouseAdapter() {
                 override fun mousePressed(e: MouseEvent) { maybeShowMenu(e) }
                 override fun mouseReleased(e: MouseEvent) { maybeShowMenu(e) }
                 private fun maybeShowMenu(e: MouseEvent) {
                     if (e.isPopupTrigger) {
-                        showHandleMenu(e)
+                        showHandleMenu(e.component, java.awt.Point(e.x, e.y))
                         e.consume()
                     }
                 }
@@ -553,7 +583,10 @@ class StepCard(
         expectedContainer.repaint()
     }
 
-    private fun showHandleMenu(e: MouseEvent) {
+    private fun showHandleMenu(
+        component: Component = dragHandle,
+        point: java.awt.Point = java.awt.Point(0, dragHandle.height),
+    ) {
         val group = DefaultActionGroup()
         var hasItems = false
         onMoveUp?.let { action ->
@@ -602,7 +635,7 @@ class StepCard(
         })
         JBPopupFactory.getInstance()
             .createActionGroupPopup(null, group, if (project != null) SimpleDataContext.getProjectContext(project) else SimpleDataContext.EMPTY_CONTEXT, JBPopupFactory.ActionSelectionAid.SPEEDSEARCH, false)
-            .show(RelativePoint(e.component, java.awt.Point(e.x, e.y)))
+            .show(RelativePoint(component, point))
     }
 
     private fun confirmAndDelete() {

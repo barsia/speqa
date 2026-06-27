@@ -287,6 +287,16 @@ class StepCard(
             addMouseListener(object : MouseAdapter() {
                 override fun mousePressed(e: MouseEvent) { maybeShowMenu(e) }
                 override fun mouseReleased(e: MouseEvent) { maybeShowMenu(e) }
+                override fun mouseClicked(e: MouseEvent) {
+                    // A genuine left click (no drag) opens the reorder menu, the same as
+                    // right-click and Space/Enter. AWT only fires mouseClicked when press and
+                    // release occur without a significant drag, so a real reorder drag (handled
+                    // by DragReorderSupport via mouseDragged) never triggers this.
+                    if (e.button == MouseEvent.BUTTON1 && !e.isPopupTrigger) {
+                        showHandleMenu(e.component, java.awt.Point(e.x, e.y))
+                        e.consume()
+                    }
+                }
                 private fun maybeShowMenu(e: MouseEvent) {
                     if (e.isPopupTrigger) {
                         showHandleMenu(e.component, java.awt.Point(e.x, e.y))

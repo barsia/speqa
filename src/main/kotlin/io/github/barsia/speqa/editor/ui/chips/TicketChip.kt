@@ -10,6 +10,9 @@ import io.github.barsia.speqa.editor.ui.primitives.isKeyboardFocusCause
 import io.github.barsia.speqa.editor.ui.primitives.paintCompactFocusRing
 import io.github.barsia.speqa.editor.ui.primitives.installRemovableRowActionVisibility
 import io.github.barsia.speqa.editor.ui.primitives.installRowHover
+import io.github.barsia.speqa.editor.ui.primitives.removableRowKeyAction
+import javax.accessibility.AccessibleContext
+import javax.accessibility.AccessibleRole
 import java.awt.BorderLayout
 import java.awt.Dimension
 import java.awt.FlowLayout
@@ -33,7 +36,7 @@ import javax.swing.SwingUtilities
  * the [onActivate] callback.
  */
 class TicketChip(
-    ticket: String,
+    private val ticket: String,
     readOnly: Boolean = false,
     onActivate: () -> Unit,
     onDelete: () -> Unit,
@@ -95,10 +98,7 @@ class TicketChip(
         titleLabel.handCursor()
         addKeyListener(object : KeyAdapter() {
             override fun keyPressed(e: KeyEvent) {
-                if (e.keyCode == KeyEvent.VK_ENTER || e.keyCode == KeyEvent.VK_SPACE) {
-                    onActivate()
-                    e.consume()
-                }
+                if (removableRowKeyAction(e.keyCode, onActivate, null, onDelete)) e.consume()
             }
         })
         addFocusListener(object : FocusAdapter() {
@@ -132,6 +132,18 @@ class TicketChip(
     override fun getMinimumSize(): Dimension {
         val pref = preferredSize
         return Dimension(0, pref.height)
+    }
+
+    override fun getAccessibleContext(): AccessibleContext {
+        if (accessibleContext == null) {
+            accessibleContext = object : AccessibleJPanel() {
+                override fun getAccessibleRole(): AccessibleRole = AccessibleRole.PUSH_BUTTON
+                override fun getAccessibleName(): String = ticket
+                override fun getAccessibleDescription(): String =
+                    SpeqaBundle.message("ticketChip.a11y", ticket)
+            }
+        }
+        return accessibleContext
     }
 
     override fun paintComponent(g: Graphics) {

@@ -16,6 +16,7 @@ import io.github.barsia.speqa.editor.ui.primitives.isKeyboardFocusCause
 import io.github.barsia.speqa.editor.ui.primitives.paintCompactFocusRing
 import io.github.barsia.speqa.editor.ui.primitives.installRemovableRowActionVisibility
 import io.github.barsia.speqa.editor.ui.primitives.installRowHover
+import io.github.barsia.speqa.editor.ui.primitives.removableRowKeyAction
 import io.github.barsia.speqa.editor.ui.primitives.speqaIconButton
 import io.github.barsia.speqa.model.Link
 import java.awt.BorderLayout
@@ -75,7 +76,7 @@ internal class LinkRow(
                 icon = AllIcons.Actions.Edit,
                 tooltip = SpeqaBundle.message("tooltip.edit"),
                 onAction = { openEdit() },
-            )
+            ).also { it.isFocusable = false }
             actions.add(editButton)
 
             removeSlot = RemovableRowActionSlot(
@@ -104,10 +105,7 @@ internal class LinkRow(
         titleLabel.handCursor()
         addKeyListener(object : KeyAdapter() {
             override fun keyPressed(e: KeyEvent) {
-                if (e.keyCode == KeyEvent.VK_ENTER || e.keyCode == KeyEvent.VK_SPACE) {
-                    activate()
-                    e.consume()
-                }
+                if (removableRowKeyAction(e.keyCode, ::activate, ::openEdit, onDelete)) e.consume()
             }
         })
         addFocusListener(object : FocusAdapter() {
@@ -145,6 +143,9 @@ internal class LinkRow(
         if (accessibleContext == null) {
             accessibleContext = object : AccessibleJPanel() {
                 override fun getAccessibleRole(): AccessibleRole = AccessibleRole.PUSH_BUTTON
+                override fun getAccessibleName(): String = link.title.ifBlank { link.url }
+                override fun getAccessibleDescription(): String =
+                    SpeqaBundle.message("linkRow.a11y", link.title.ifBlank { link.url })
             }
         }
         return accessibleContext

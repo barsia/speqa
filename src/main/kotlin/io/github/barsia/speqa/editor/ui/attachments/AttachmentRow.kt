@@ -20,6 +20,7 @@ import io.github.barsia.speqa.editor.ui.primitives.isKeyboardFocusCause
 import io.github.barsia.speqa.editor.ui.primitives.paintCompactFocusRing
 import io.github.barsia.speqa.editor.ui.primitives.installRemovableRowActionVisibility
 import io.github.barsia.speqa.editor.ui.primitives.installRowHover
+import io.github.barsia.speqa.editor.ui.primitives.removableRowKeyAction
 import io.github.barsia.speqa.model.Attachment
 import java.awt.BorderLayout
 import java.awt.Color
@@ -163,12 +164,7 @@ internal class AttachmentRow(
 
         addKeyListener(object : KeyAdapter() {
             override fun keyPressed(e: KeyEvent) {
-                when (e.keyCode) {
-                    KeyEvent.VK_ENTER, KeyEvent.VK_SPACE -> {
-                        activate()
-                        e.consume()
-                    }
-                }
+                if (removableRowKeyAction(e.keyCode, ::activate, null, onDelete)) e.consume()
             }
         })
         addFocusListener(object : FocusAdapter() {
@@ -211,6 +207,9 @@ internal class AttachmentRow(
         if (accessibleContext == null) {
             accessibleContext = object : AccessibleJPanel() {
                 override fun getAccessibleRole(): AccessibleRole = AccessibleRole.PUSH_BUTTON
+                override fun getAccessibleName(): String = attachment.path.substringAfterLast('/')
+                override fun getAccessibleDescription(): String =
+                    SpeqaBundle.message("attachmentRow.a11y", attachment.path.substringAfterLast('/'))
             }
         }
         return accessibleContext

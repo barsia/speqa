@@ -42,6 +42,7 @@ class RemovableRowActionSlot(
     init {
         isOpaque = false
         add(actionComponent)
+        actionComponent.isFocusable = false
         actionComponent.isVisible = false
         actionComponent.addFocusListener(object : FocusAdapter() {
             override fun focusGained(e: FocusEvent) {

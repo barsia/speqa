@@ -2,7 +2,6 @@ package io.github.barsia.speqa.editor.ui.links
 
 import com.intellij.icons.AllIcons
 import com.intellij.ide.BrowserUtil
-import com.intellij.ide.ui.laf.darcula.DarculaUIUtil
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
@@ -13,6 +12,8 @@ import io.github.barsia.speqa.SpeqaBundle
 import io.github.barsia.speqa.editor.ui.AddEditLinkDialog
 import io.github.barsia.speqa.editor.ui.primitives.RemovableRowActionSlot
 import io.github.barsia.speqa.editor.ui.primitives.handCursor
+import io.github.barsia.speqa.editor.ui.primitives.isKeyboardFocusCause
+import io.github.barsia.speqa.editor.ui.primitives.paintCompactFocusRing
 import io.github.barsia.speqa.editor.ui.primitives.installRemovableRowActionVisibility
 import io.github.barsia.speqa.editor.ui.primitives.installRowHover
 import io.github.barsia.speqa.editor.ui.primitives.speqaIconButton
@@ -111,7 +112,7 @@ internal class LinkRow(
         })
         addFocusListener(object : FocusAdapter() {
             override fun focusGained(e: FocusEvent) {
-                focusedRing = true
+                focusedRing = isKeyboardFocusCause(e.cause)
                 removeSlot?.setRowInteraction(focused = focusedRing)
                 repaint()
             }
@@ -174,7 +175,7 @@ internal class LinkRow(
             try {
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
                 val arc = JBUI.scale(4).toFloat()
-                DarculaUIUtil.paintFocusBorder(g2, width, height, arc, true)
+                paintCompactFocusRing(g2, width, height, arc)
             } finally {
                 g2.dispose()
             }

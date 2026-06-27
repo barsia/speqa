@@ -1,12 +1,13 @@
 package io.github.barsia.speqa.editor.ui.chips
 
-import com.intellij.ide.ui.laf.darcula.DarculaUIUtil
 import com.intellij.openapi.util.IconLoader
 import com.intellij.ui.components.JBLabel
 import com.intellij.util.ui.JBUI
 import io.github.barsia.speqa.SpeqaBundle
 import io.github.barsia.speqa.editor.ui.primitives.RemovableRowActionSlot
 import io.github.barsia.speqa.editor.ui.primitives.handCursor
+import io.github.barsia.speqa.editor.ui.primitives.isKeyboardFocusCause
+import io.github.barsia.speqa.editor.ui.primitives.paintCompactFocusRing
 import io.github.barsia.speqa.editor.ui.primitives.installRemovableRowActionVisibility
 import io.github.barsia.speqa.editor.ui.primitives.installRowHover
 import java.awt.BorderLayout
@@ -23,14 +24,6 @@ import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import javax.swing.JPanel
 import javax.swing.SwingUtilities
-
-private val KEYBOARD_FOCUS_CAUSES = setOf(
-    FocusEvent.Cause.TRAVERSAL,
-    FocusEvent.Cause.TRAVERSAL_FORWARD,
-    FocusEvent.Cause.TRAVERSAL_BACKWARD,
-    FocusEvent.Cause.TRAVERSAL_UP,
-    FocusEvent.Cause.TRAVERSAL_DOWN,
-)
 
 /**
  * Row representing one ticket reference. Visually mirrors `LinkRow`
@@ -113,7 +106,7 @@ class TicketChip(
                 // Only paint the ring for keyboard navigation. Mouse clicks
                 // also bring focus, but a mouse-driven ring around the chip
                 // after activation looks like a stuck selection.
-                focusedRing = e.cause in KEYBOARD_FOCUS_CAUSES
+                focusedRing = isKeyboardFocusCause(e.cause)
                 removeSlot?.setRowInteraction(focused = focusedRing)
                 repaint()
             }
@@ -148,7 +141,7 @@ class TicketChip(
             try {
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
                 val arc = JBUI.scale(4).toFloat()
-                DarculaUIUtil.paintFocusBorder(g2, width, height, arc, true)
+                paintCompactFocusRing(g2, width, height, arc)
             } finally {
                 g2.dispose()
             }

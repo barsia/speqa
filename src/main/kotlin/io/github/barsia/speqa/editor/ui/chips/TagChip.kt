@@ -2,11 +2,12 @@
 package io.github.barsia.speqa.editor.ui.chips
 
 import com.intellij.icons.AllIcons
-import com.intellij.ide.ui.laf.darcula.DarculaUIUtil
 import com.intellij.ui.JBColor
 import com.intellij.util.ui.JBUI
 import io.github.barsia.speqa.SpeqaBundle
 import io.github.barsia.speqa.editor.ui.primitives.handCursor
+import io.github.barsia.speqa.editor.ui.primitives.isKeyboardFocusCause
+import io.github.barsia.speqa.editor.ui.primitives.paintCompactFocusRing
 import io.github.barsia.speqa.editor.ui.primitives.replaceIconColor
 import io.github.barsia.speqa.editor.ui.primitives.speqaMutedIconColor
 import java.awt.Color
@@ -186,7 +187,7 @@ class TagChip(
             // focusGained that arrives is keyboard-initiated.
             addFocusListener(object : FocusAdapter() {
                 override fun focusGained(e: FocusEvent) {
-                    focusedRing = true
+                    focusedRing = isKeyboardFocusCause(e.cause)
                     updateDeleteButtonVisibility()
                     repaint()
                 }
@@ -311,7 +312,7 @@ class TagChip(
             if (focusedRing) {
                 val focusGraphics = g2.create(fillBounds.x, fillBounds.y, fillBounds.width, fillBounds.height) as Graphics2D
                 try {
-                    DarculaUIUtil.paintFocusBorder(focusGraphics, fillBounds.width, fillBounds.height, arc.toFloat(), true)
+                    paintCompactFocusRing(focusGraphics, fillBounds.width, fillBounds.height, arc.toFloat())
                 } finally {
                     focusGraphics.dispose()
                 }

@@ -2,6 +2,7 @@ package io.github.barsia.speqa.editor.ui.primitives
 
 import com.intellij.openapi.actionSystem.ActionManager
 import com.intellij.openapi.actionSystem.ActionPlaces
+import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.Presentation
 import com.intellij.openapi.actionSystem.impl.ActionButton
@@ -10,7 +11,12 @@ import com.intellij.openapi.util.NlsActions
 import com.intellij.ui.JBColor
 import com.intellij.util.ui.JBUI
 import java.awt.Color
+import java.awt.Dimension
+import java.awt.Graphics
+import java.awt.Graphics2D
 import java.awt.RenderingHints
+import java.awt.event.FocusAdapter
+import java.awt.event.FocusEvent
 import java.awt.image.BufferedImage
 import javax.swing.Icon
 import javax.swing.JComponent
@@ -107,7 +113,7 @@ fun speqaIconButton(
         this.icon = baseIcon
         description = tooltip
     }
-    val button = ActionButton(
+    val button = SpeqaActionButton(
         action,
         presentation,
         ActionPlaces.UNKNOWN,
@@ -130,6 +136,49 @@ fun speqaIconButton(
  *   (`Notifications.errorIcon`) resolved to colors that washed out under
  *   60% alpha in dark mode; this explicit pair avoids that.
  */
+/**
+ * [ActionButton] that paints the shared thin keyboard-focus ring. None of the stock
+ * toolbar-button looks draw a focus indicator, so icon-only buttons would otherwise show
+ * nothing when keyboard-focused. The ring appears only for keyboard-traversal focus
+ * ([isKeyboardFocusCause]), matching the chips and rows.
+ */
+private class SpeqaActionButton(
+    action: AnAction,
+    presentation: Presentation,
+    place: String,
+    minimumSize: Dimension,
+) : ActionButton(action, presentation, place, minimumSize) {
+
+    private var keyboardFocused = false
+
+    init {
+        isFocusable = true
+        addFocusListener(object : FocusAdapter() {
+            override fun focusGained(e: FocusEvent) {
+                keyboardFocused = isKeyboardFocusCause(e.cause)
+                repaint()
+            }
+
+            override fun focusLost(e: FocusEvent) {
+                keyboardFocused = false
+                repaint()
+            }
+        })
+    }
+
+    override fun paintComponent(g: Graphics) {
+        super.paintComponent(g)
+        if (keyboardFocused) {
+            val g2 = g.create() as Graphics2D
+            try {
+                paintCompactFocusRing(g2, width, height, JBUI.scale(4).toFloat())
+            } finally {
+                g2.dispose()
+            }
+        }
+    }
+}
+
 private fun dangerIconColor(): java.awt.Color {
     return JBColor(java.awt.Color(0xCC4646), java.awt.Color(0xFF7373))
 }

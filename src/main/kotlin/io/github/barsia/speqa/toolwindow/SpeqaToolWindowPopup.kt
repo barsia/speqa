@@ -16,6 +16,38 @@ import io.github.barsia.speqa.editor.ui.chips.MetadataScope
 /** Which kind of SpeQA node is currently selected in a tool-window tree. */
 internal enum class SpeqaPopupNodeKind { LEAF, FOLDER, NONE }
 
+/**
+ * The SpeQA-owned context-menu items (the reused platform Rename/Delete/Reveal actions are
+ * appended separately). [visibleFor] is the node selection the item is shown for. This is pure
+ * data so the per-tab menu composition and per-node-kind visibility can be unit-tested without
+ * the platform; the actions below and [speqaPopupItems] both derive from it.
+ */
+internal enum class SpeqaPopupItem(val visibleFor: Set<SpeqaPopupNodeKind>) {
+    OPEN_LEAF(setOf(SpeqaPopupNodeKind.LEAF)),
+    RUN_TEST_CASE(setOf(SpeqaPopupNodeKind.LEAF)),
+    NEW_TEST_CASE(setOf(SpeqaPopupNodeKind.FOLDER)),
+    CREATE_RUN_FROM_FOLDER(setOf(SpeqaPopupNodeKind.FOLDER)),
+    CREATE_RUN_IN_FOLDER(setOf(SpeqaPopupNodeKind.FOLDER)),
+}
+
+/**
+ * Ordered SpeQA-owned menu items for a tab. The TCs tab can create test cases and run/scope a
+ * run from its folders; the TRs tab only creates a run into the selected folder (no New Test
+ * Case, no Run Test Case). Pure function: the single source of truth for menu composition.
+ */
+internal fun speqaPopupItems(scope: MetadataScope): List<SpeqaPopupItem> = when (scope) {
+    MetadataScope.TEST_CASES -> listOf(
+        SpeqaPopupItem.OPEN_LEAF,
+        SpeqaPopupItem.RUN_TEST_CASE,
+        SpeqaPopupItem.NEW_TEST_CASE,
+        SpeqaPopupItem.CREATE_RUN_FROM_FOLDER,
+    )
+    MetadataScope.TEST_RUNS -> listOf(
+        SpeqaPopupItem.OPEN_LEAF,
+        SpeqaPopupItem.CREATE_RUN_IN_FOLDER,
+    )
+}
+
 internal fun selectedNodeKind(tree: Tree): SpeqaPopupNodeKind =
     when (TreeUtil.getLastUserObject(tree.selectionPath)) {
         is SpeqaLeafNode -> SpeqaPopupNodeKind.LEAF
@@ -35,7 +67,7 @@ internal class PopupOpenLeafAction(private val tree: Tree) : DumbAwareAction(
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
 
     override fun update(e: AnActionEvent) {
-        e.presentation.isEnabledAndVisible = selectedNodeKind(tree) == SpeqaPopupNodeKind.LEAF
+        e.presentation.isEnabledAndVisible = selectedNodeKind(tree) in SpeqaPopupItem.OPEN_LEAF.visibleFor
     }
 
     override fun actionPerformed(e: AnActionEvent) {
@@ -52,7 +84,7 @@ internal class PopupNewTestCaseAction(private val tree: Tree) : DumbAwareAction(
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
 
     override fun update(e: AnActionEvent) {
-        e.presentation.isEnabledAndVisible = selectedNodeKind(tree) == SpeqaPopupNodeKind.FOLDER
+        e.presentation.isEnabledAndVisible = selectedNodeKind(tree) in SpeqaPopupItem.NEW_TEST_CASE.visibleFor
     }
 
     override fun actionPerformed(e: AnActionEvent) {
@@ -120,17 +152,20 @@ private val PLATFORM_POPUP_ACTION_IDS = listOf(
     "RevealGroup",
 )
 
-/** Builds the context-menu group for a tab and installs it on [tree]. */
+/** Builds the context-menu group for a tab from [speqaPopupItems] and installs it on [tree]. */
 internal fun installToolWindowPopup(tree: Tree, scope: MetadataScope) {
     val group = DefaultActionGroup()
     val actionManager = ActionManager.getInstance()
-    group.add(PopupOpenLeafAction(tree))
-    if (scope == MetadataScope.TEST_CASES) {
-        actionManager.getAction("Speqa.RunTestCase")?.let { group.add(it) }
-        group.add(PopupNewTestCaseAction(tree))
-        group.add(PopupCreateRunFromFolderAction(tree))
-    } else {
-        group.add(PopupCreateRunInFolderAction(tree))
+    speqaPopupItems(scope).forEach { item ->
+        val action = when (item) {
+            SpeqaPopupItem.OPEN_LEAF -> PopupOpenLeafAction(tree)
+            // Reused platform action; manages its own visibility (enabled for a .tc.md leaf).
+            SpeqaPopupItem.RUN_TEST_CASE -> actionManager.getAction("Speqa.RunTestCase")
+            SpeqaPopupItem.NEW_TEST_CASE -> PopupNewTestCaseAction(tree)
+            SpeqaPopupItem.CREATE_RUN_FROM_FOLDER -> PopupCreateRunFromFolderAction(tree)
+            SpeqaPopupItem.CREATE_RUN_IN_FOLDER -> PopupCreateRunInFolderAction(tree)
+        }
+        if (action != null) group.add(action)
     }
     group.addSeparator()
     PLATFORM_POPUP_ACTION_IDS.forEach { id ->

@@ -91,7 +91,7 @@ class InlineEditableTitleRow(
         if (editing) commit() else enterEdit()
     }
 
-    private fun enterEdit() {
+    private fun enterEdit(caretTarget: Int? = null) {
         editing = true
         applyEditMode()
         if (field.text == displayText(title) && title.isBlank()) {
@@ -101,10 +101,9 @@ class InlineEditableTitleRow(
         }
         SwingUtilities.invokeLater {
             field.requestFocusInWindow()
-            // Caret to end (no select-all): typing extends the existing
-            // title rather than wiping it. Cmd/Ctrl+A still selects all
-            // when the user wants to replace the whole thing.
-            field.caretPosition = field.text.length
+            // Place the caret where the user clicked (caretTarget); fall back to the end for
+            // keyboard/pencil activation. No select-all, so typing extends rather than wipes.
+            field.caretPosition = (caretTarget ?: field.text.length).coerceIn(0, field.text.length)
         }
     }
 
@@ -200,7 +199,10 @@ class InlineEditableTitleRow(
 
         f.addMouseListener(object : MouseAdapter() {
             override fun mouseClicked(e: MouseEvent) {
-                if (SwingUtilities.isLeftMouseButton(e) && !editing) enterEdit()
+                if (SwingUtilities.isLeftMouseButton(e) && !editing) {
+                    // Enter edit with the caret at the clicked character, not forced to the end.
+                    enterEdit(caretTarget = f.viewToModel2D(e.point))
+                }
             }
         })
         f.addKeyListener(object : KeyAdapter() {

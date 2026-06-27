@@ -74,6 +74,10 @@ abstract class SpeqaEditorBase(
             viewport.isOpaque = true
             viewport.background = background
             horizontalScrollBarPolicy = JBScrollPane.HORIZONTAL_SCROLLBAR_NEVER
+            // Always reserve the (thin) vertical scrollbar gutter so the width-tracking content
+            // does not shift left the moment the scrollbar appears; the thumb still shows only
+            // when there is something to scroll.
+            verticalScrollBarPolicy = JBScrollPane.VERTICAL_SCROLLBAR_ALWAYS
             configureScrollPane(this)
         }
     }

@@ -154,6 +154,7 @@ class TagCloud(
                         restorer.onDeleted(index, sizeBefore)
                     },
                     tooltip = tooltipText,
+                    isEnvironment = metadataKind == MetadataKind.ENVIRONMENT,
                 )
                 chips.add(chip)
                 add(chip)

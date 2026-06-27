@@ -26,6 +26,8 @@ import java.awt.event.KeyEvent
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import java.lang.ref.WeakReference
+import javax.accessibility.AccessibleContext
+import javax.accessibility.AccessibleRole
 import javax.swing.BorderFactory
 import javax.swing.Icon
 import javax.swing.JComponent
@@ -91,13 +93,14 @@ fun tagChipCornerDeleteGeometry(
  * Delete/Backspace fires `onDelete`. Right-click does nothing.
  */
 class TagChip(
-    tag: String,
+    private val tag: String,
     colored: Boolean,
     onClick: (() -> Unit)? = null,
     onEdit: (() -> Unit)? = null,
     onDelete: (() -> Unit)? = null,
     tooltip: String? = null,
     private val alwaysShowDelete: Boolean = false,
+    private val isEnvironment: Boolean = false,
 ) : JPanel(null) {
 
     private val backgroundColor: Color =
@@ -140,13 +143,14 @@ class TagChip(
         if (onEdit != null) {
             editButton = HoverTintIconButton(
                 icon = AllIcons.Actions.Edit,
-                tooltip = SpeqaBundle.message("tagCloud.editTag"),
+                tooltip = SpeqaBundle.message("tagCloud.editTag.tooltip"),
                 onAction = onEdit,
-            ).also { add(it) }
+            ).apply { isFocusable = false }.also { add(it) }
         }
         if (onDelete != null) {
             deleteButton = CornerDeleteButton(onDelete).apply {
-                toolTipText = SpeqaBundle.message("tagCloud.removeTag")
+                toolTipText = SpeqaBundle.message("tagCloud.removeTag.tooltip")
+                isFocusable = false
                 isVisible = alwaysShowDelete
                 addFocusListener(object : FocusAdapter() {
                     override fun focusGained(e: FocusEvent) {
@@ -442,6 +446,21 @@ class TagChip(
             val y = (height - icon.iconHeight) / 2
             icon.paintIcon(this, g, x, y)
         }
+    }
+
+    override fun getAccessibleContext(): AccessibleContext {
+        if (accessibleContext == null) {
+            accessibleContext = object : AccessibleJPanel() {
+                override fun getAccessibleRole(): AccessibleRole = AccessibleRole.PUSH_BUTTON
+                override fun getAccessibleName(): String = tag
+                override fun getAccessibleDescription(): String =
+                    SpeqaBundle.message(
+                        if (isEnvironment) "tagChip.a11y.environment" else "tagChip.a11y.tag",
+                        tag,
+                    )
+            }
+        }
+        return accessibleContext
     }
 
     companion object {

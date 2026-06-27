@@ -149,7 +149,7 @@ internal class CreateTestRunDialog(
     }
     private val fileNameField = JBTextField(fileName)
 
-    private val importDescriptionCheckBox = JBCheckBox(SpeqaBundle.message("dialog.createRun.import.description"), true)
+    private val importDescriptionCheckBox = JBCheckBox(SpeqaBundle.message("dialog.createRun.import.description"), false)
     private val importTagsCheckBox = JBCheckBox(SpeqaBundle.message("dialog.createRun.import.tags"))
     private val importEnvironmentCheckBox = JBCheckBox(SpeqaBundle.message("dialog.createRun.import.environment"))
     private val importTicketsCheckBox = JBCheckBox(SpeqaBundle.message("dialog.createRun.import.tickets"), false)
@@ -186,8 +186,8 @@ internal class CreateTestRunDialog(
     private val fileNameErrorLabel = JBLabel().apply { foreground = JBColor.RED; isVisible = false }
 
     init {
-        configureImportCheckBox(importTagsCheckBox, present.tags, SpeqaBundle.message("dialog.createRun.import.tags.empty"), true)
-        configureImportCheckBox(importEnvironmentCheckBox, present.environments, SpeqaBundle.message("dialog.createRun.import.environment.empty"), true)
+        configureImportCheckBox(importTagsCheckBox, present.tags, SpeqaBundle.message("dialog.createRun.import.tags.empty"), false)
+        configureImportCheckBox(importEnvironmentCheckBox, present.environments, SpeqaBundle.message("dialog.createRun.import.environment.empty"), false)
         listOf(importDescriptionCheckBox, importTicketsCheckBox, importLinksCheckBox, importAttachmentsCheckBox).forEach { it.handCursor() }
         importTagsCheckBox.handCursor()
         importEnvironmentCheckBox.handCursor()

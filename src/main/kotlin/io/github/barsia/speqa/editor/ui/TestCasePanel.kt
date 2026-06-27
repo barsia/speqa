@@ -30,6 +30,7 @@ import io.github.barsia.speqa.editor.ui.primitives.headerAddIconButton
 import io.github.barsia.speqa.editor.ui.primitives.manualResultIndicator
 import io.github.barsia.speqa.editor.ui.primitives.sectionCaption
 import io.github.barsia.speqa.editor.ui.primitives.setSpeqaActionEnabled
+import io.github.barsia.speqa.editor.ui.primitives.setSpeqaDisabledIcon
 import io.github.barsia.speqa.editor.ui.primitives.singleLineInput
 import io.github.barsia.speqa.editor.ui.primitives.speqaIconButton
 import io.github.barsia.speqa.editor.ui.primitives.twoColumnRow
@@ -196,7 +197,11 @@ class TestCasePanel(
     /** Reset-results action next to the run result; disabled when the run has nothing to reset. */
     private val runResetButton: JComponent? = if (mode == PanelMode.RUN) {
         speqaIconButton(AllIcons.General.Reset, SpeqaBundle.message("panel.run.reset"), muted = false) { confirmAndReset() }
-            .apply { maximumSize = preferredSize; alignmentY = Component.CENTER_ALIGNMENT }
+            .apply {
+                maximumSize = preferredSize
+                alignmentY = Component.CENTER_ALIGNMENT
+                setSpeqaDisabledIcon(AllIcons.General.Reset)
+            }
     } else null
 
     private val runnerField: JBTextField? = if (mode == PanelMode.RUN) {

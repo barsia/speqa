@@ -43,6 +43,19 @@ fun JComponent.setSpeqaIcon(icon: Icon, muted: Boolean = true) {
     presentation.icon = if (muted) replaceIconColor(icon, speqaMutedIconColor()) else icon
 }
 
+/**
+ * Give a [speqaIconButton] a deliberately faint disabled icon (muted color at low [alpha]) so its
+ * inactive state reads as very subtle - fainter than the platform's default disabled rendering.
+ */
+fun JComponent.setSpeqaDisabledIcon(baseIcon: Icon, alpha: Float = 0.45f) {
+    if (this !is ActionButton) return
+    presentation.disabledIcon =
+        com.intellij.openapi.util.IconLoader.getTransparentIcon(
+            replaceIconColor(baseIcon, speqaMutedIconColor()),
+            alpha,
+        )
+}
+
 fun JComponent.setSpeqaTooltip(text: String) {
     toolTipText = text
     if (this is ActionButton) {

@@ -18,6 +18,7 @@ import io.github.barsia.speqa.editor.ui.InlineEditableTitleRow
 import io.github.barsia.speqa.editor.ui.primitives.handCursor
 import io.github.barsia.speqa.editor.ui.primitives.manualResultIndicator
 import io.github.barsia.speqa.editor.ui.primitives.setSpeqaActionEnabled
+import io.github.barsia.speqa.editor.ui.primitives.setSpeqaDisabledIcon
 import io.github.barsia.speqa.editor.ui.primitives.singleLineInput
 import io.github.barsia.speqa.editor.ui.primitives.speqaIconButton
 import io.github.barsia.speqa.editor.ui.primitives.twoColumnRow
@@ -107,7 +108,8 @@ class RunMultiCasePanel(
     private val progressLabel = JBLabel(progressText(initial))
 
     private val resetButton = squareIconButton(
-        speqaIconButton(AllIcons.General.Reset, SpeqaBundle.message("panel.run.reset"), muted = false) { confirmAndReset() },
+        speqaIconButton(AllIcons.General.Reset, SpeqaBundle.message("panel.run.reset"), muted = false) { confirmAndReset() }
+            .also { it.setSpeqaDisabledIcon(AllIcons.General.Reset) },
     )
     private val expandButton = squareIconButton(
         speqaIconButton(AllIcons.Actions.Expandall, SpeqaBundle.message("panel.run.expandAll"), muted = false) {

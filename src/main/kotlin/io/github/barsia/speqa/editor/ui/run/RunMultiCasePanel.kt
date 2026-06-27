@@ -15,6 +15,7 @@ import com.intellij.util.messages.MessageBusConnection
 import com.intellij.util.ui.JBUI
 import io.github.barsia.speqa.SpeqaBundle
 import io.github.barsia.speqa.editor.ui.InlineEditableTitleRow
+import io.github.barsia.speqa.editor.ui.primitives.SpeqaFocusTraversalPolicy
 import io.github.barsia.speqa.editor.ui.primitives.handCursor
 import io.github.barsia.speqa.editor.ui.primitives.manualResultIndicator
 import io.github.barsia.speqa.editor.ui.primitives.setSpeqaActionEnabled
@@ -30,6 +31,8 @@ import java.awt.BorderLayout
 import java.awt.Component
 import java.awt.Dimension
 import java.awt.Rectangle
+import java.awt.event.MouseAdapter
+import java.awt.event.MouseEvent
 import javax.swing.BoxLayout
 import javax.swing.DefaultListCellRenderer
 import javax.swing.JComponent
@@ -165,6 +168,14 @@ class RunMultiCasePanel(
         onHeaderStateChanged("TR-", initial.id?.toString() ?: "", initial.title)
         refreshResetEnabled()
         refreshExpandCollapse()
+        focusTraversalPolicy = SpeqaFocusTraversalPolicy()
+        isFocusCycleRoot = true
+        isFocusable = true
+        addMouseListener(object : MouseAdapter() {
+            override fun mousePressed(e: MouseEvent) {
+                requestFocusInWindow()
+            }
+        })
     }
 
     private fun buildLayout() {

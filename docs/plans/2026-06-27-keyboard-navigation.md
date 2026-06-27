@@ -454,6 +454,74 @@ git commit -m "docs: clarify chip/row glyphs are excluded from Tab by being non-
 
 ---
 
+### Task 8: Focus ring for `mutedActionLabel` (Add ticket ID / Add link / Attach file)
+
+Root cause: the step-level "Add ticket ID", "Add link", and "Attach file" affordances all use `mutedActionLabel`, which returns a raw `JBLabel` with no focus-ring painting (it is focusable and Enter/Space already activate it). One fix at the helper covers all three call sites.
+
+**Files:**
+- Modify: `src/main/kotlin/io/github/barsia/speqa/editor/ui/primitives/MutedActionLabel.kt`
+
+- [ ] **Step 1: Paint the keyboard focus ring on the label**
+
+Replace the plain `JBLabel(...)` instantiation with an anonymous subclass that paints `paintCompactFocusRing` when keyboard-focused, and add a `FocusAdapter` that gates on `isKeyboardFocusCause` (same pattern as `SpeqaActionButton` in `SpeqaIconButton.kt`):
+
+```kotlin
+var keyboardFocused = false
+val label = object : JBLabel(text, mutedIcon, JBLabel.LEFT) {
+    override fun paintComponent(g: Graphics) {
+        super.paintComponent(g)
+        if (keyboardFocused) {
+            val g2 = g.create() as Graphics2D
+            try {
+                paintCompactFocusRing(g2, width, height, JBUI.scale(4).toFloat())
+            } finally {
+                g2.dispose()
+            }
+        }
+    }
+}
+label.addFocusListener(object : FocusAdapter() {
+    override fun focusGained(e: FocusEvent) {
+        keyboardFocused = isKeyboardFocusCause(e.cause)
+        label.repaint()
+    }
+    override fun focusLost(e: FocusEvent) {
+        keyboardFocused = false
+        label.repaint()
+    }
+})
+```
+
+Add imports `paintCompactFocusRing`, `isKeyboardFocusCause` (same `primitives` package), `java.awt.Graphics`, `java.awt.Graphics2D`, `java.awt.event.FocusAdapter`, `java.awt.event.FocusEvent`, `com.intellij.util.ui.JBUI`. No call-site changes.
+
+- [ ] **Step 2: Compile** -> `./gradlew compileKotlin 2>&1 | grep -E "^e:|BUILD" | tail -5` expects `BUILD SUCCESSFUL`.
+- [ ] **Step 3: IDE verification** -> Tab to "Add ticket ID" / "Add link" / "Attach file": a thin focus ring appears; Enter/Space still activates.
+- [ ] **Step 4: Commit**
+
+```bash
+git add src/main/kotlin/io/github/barsia/speqa/editor/ui/primitives/MutedActionLabel.kt
+git commit -m "fix: keyboard focus ring on muted action labels (Add ticket/link/attachment)"
+```
+
+---
+
+### Task 9: Drag-reorder handle keyboard behavior (DECISION: Option i)
+
+The step drag handle (`StepCard.kt:227-267`, an anonymous focusable `JPanel`, tooltip `tooltip.dragToReorder`) is in the Tab chain but has no focus ring and no keyboard action (only right-click opens its Move Up / Move Down / Duplicate / Delete menu via `showHandleMenu`). So it is currently a dead Tab stop. CHOSEN: Option i (make it keyboard-operable).
+
+**Files:**
+- Modify: `src/main/kotlin/io/github/barsia/speqa/editor/ui/steps/StepCard.kt`
+- Check/modify if it is a Tab stop: `src/main/kotlin/io/github/barsia/speqa/editor/ui/run/RunCaseSection.kt` (its drag handle)
+
+- [ ] **Step 1: Paint the focus ring on keyboard focus.** Add a `keyboardFocused` field to the `dragHandle` anonymous `JPanel`; in its `paintComponent`, after the existing icon paint, if `keyboardFocused` call `paintCompactFocusRing(g2, width, height, JBUI.scale(4).toFloat())`. Add a `FocusAdapter` setting `keyboardFocused = isKeyboardFocusCause(e.cause)` on focusGained / `false` on focusLost, with `repaint()`. (Same pattern as `SpeqaActionButton`.)
+- [ ] **Step 2: Keyboard activation.** Add a `KeyAdapter` to the handle: on `VK_SPACE` or `VK_ENTER`, open the existing reorder menu. Read `showHandleMenu` first; it is currently wired to mouse popup-trigger events. Make it invokable without a `MouseEvent` (show the `JBPopup`/menu relative to the handle component, e.g. at the handle's bounds), and call that from the key handler. `e.consume()` when handled. Do not change the menu's actions (Move Up / Move Down / Duplicate / Delete with their existing enablement guards).
+- [ ] **Step 3:** If `RunCaseSection`'s drag handle is also a Tab stop (focusable and not excluded), apply the same ring + Space/Enter-to-menu treatment; if it is non-focusable (not a Tab stop), leave it.
+- [ ] **Step 4: Compile** -> `BUILD SUCCESSFUL`.
+- [ ] **Step 5: IDE verification** -> Tab to a step's drag handle: a focus ring shows; Space/Enter opens the Move menu; Move Up/Down reorders. Mouse drag still works.
+- [ ] **Step 6: Commit** -> `git commit -m "feat: keyboard-operable step drag handle (focus ring + Space/Enter reorder menu)"`.
+
+The same evaluation applies to the `RunCaseSection` drag handle if it is a Tab stop.
+
 ## Final verification
 
 - [ ] Run the full suite: `./gradlew test 2>&1 | grep -E "FAILED|BUILD" | tail` -> `BUILD SUCCESSFUL`.

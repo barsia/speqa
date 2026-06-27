@@ -1,51 +1,31 @@
 package io.github.barsia.speqa.editor.ui.run
 
 import com.intellij.icons.AllIcons
-import com.intellij.openapi.actionSystem.ActionUpdateThread
-import com.intellij.openapi.actionSystem.AnAction
-import com.intellij.openapi.actionSystem.AnActionEvent
-import com.intellij.openapi.actionSystem.DefaultActionGroup
-import com.intellij.openapi.actionSystem.impl.SimpleDataContext
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.ui.popup.JBPopupFactory
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.ui.JBColor
-import com.intellij.ui.awt.RelativePoint
 import com.intellij.ui.components.JBLabel
 import com.intellij.util.ui.JBUI
 import io.github.barsia.speqa.SpeqaBundle
 import io.github.barsia.speqa.editor.ui.primitives.handCursor
 import io.github.barsia.speqa.editor.ui.primitives.speqaIconButton
-import io.github.barsia.speqa.editor.ui.theme.SpeqaThemeColors
 import io.github.barsia.speqa.model.RunCase
-import io.github.barsia.speqa.model.RunResult
 import io.github.barsia.speqa.run.TestRunSupport
-import java.awt.Color
+import java.awt.BorderLayout
 import java.awt.Component
-import java.awt.Dimension
-import java.awt.Graphics
-import java.awt.Graphics2D
-import java.awt.Point
-import java.awt.RenderingHints
-import java.awt.event.MouseAdapter
-import java.awt.event.MouseEvent
 import javax.swing.Box
 import javax.swing.BoxLayout
 import javax.swing.JComponent
 import javax.swing.JPanel
-import javax.swing.KeyStroke
 
 /**
- * Renders a single [RunCase] as a collapsible section: a header row (collapse
- * toggle, `TC-<id> <title>` label, a result pill, and a drag-handle
- * placeholder) above a [RunCaseBody]. A multi-case run renders a vertical list
- * of these (Task 8); drag-to-reorder wiring lands in Task 10. The header result
- * pill is interactive: clicking it opens a chooser that overrides the case
- * result (or re-derives it from steps), and a manual indicator is shown while
- * the result is overridden.
+ * Renders a single [RunCase] as a collapsible section. The header is a [BorderLayout]: a square
+ * collapse chevron at the left, the `TC-<id> <title>` label in the middle (ellipsized when long),
+ * and a right-pinned cluster (manual indicator, result pill, drag handle) that stays visible
+ * regardless of title length. The result pill is interactive: clicking it overrides the case
+ * result (or re-derives it from steps); the manual indicator shows while the result is overridden.
  *
- * Every edit inside the body produces an updated [RunCase] reported through
- * [onCaseChange].
+ * Every edit inside the body produces an updated [RunCase] reported through [onCaseChange].
  */
 class RunCaseSection(
     project: Project,
@@ -63,6 +43,9 @@ class RunCaseSection(
 
     private val resultPill = ResultPill(
         initial = initial.result,
+        tooltipText = SpeqaBundle.message("runCase.result.tooltip"),
+        popupTitle = SpeqaBundle.message("runCase.result.popupTitle"),
+        autoLabel = SpeqaBundle.message("runCase.result.auto"),
         onPick = { picked -> onCaseChange(TestRunSupport.overrideCaseResult(case, picked)) },
         onAuto = { onCaseChange(TestRunSupport.clearCaseOverride(case)) },
         dataContextProject = project,
@@ -109,19 +92,26 @@ class RunCaseSection(
     }
 
     private fun buildHeader(): JComponent {
-        val header = Box.createHorizontalBox()
-        header.alignmentX = Component.LEFT_ALIGNMENT
-        header.add(collapseToggle)
-        header.add(Box.createHorizontalStrut(JBUI.scale(6)))
+        val header = JPanel(BorderLayout(JBUI.scale(6), 0)).apply {
+            isOpaque = false
+            alignmentX = Component.LEFT_ALIGNMENT
+        }
+        header.add(collapseToggle, BorderLayout.WEST)
+
+        // CENTER takes the remaining width and ellipsizes a long label instead of pushing the
+        // right-hand cluster off-screen.
         headerLabel.alignmentY = Component.CENTER_ALIGNMENT
-        header.add(headerLabel)
-        header.add(Box.createHorizontalStrut(JBUI.scale(8)))
+        header.add(headerLabel, BorderLayout.CENTER)
+
+        // EAST cluster stays at its preferred width, pinned to the right edge and always visible.
+        val right = Box.createHorizontalBox()
+        right.add(manualIndicator)
+        right.add(Box.createHorizontalStrut(JBUI.scale(6)))
         resultPill.alignmentY = Component.CENTER_ALIGNMENT
-        header.add(resultPill)
-        header.add(Box.createHorizontalStrut(JBUI.scale(6)))
-        header.add(manualIndicator)
-        header.add(Box.createHorizontalGlue())
-        header.add(dragHandle)
+        right.add(resultPill)
+        right.add(Box.createHorizontalStrut(JBUI.scale(6)))
+        right.add(dragHandle)
+        header.add(right, BorderLayout.EAST)
         return header
     }
 
@@ -152,127 +142,6 @@ class RunCaseSection(
             button.presentation.icon = icon
             button.presentation.description = tooltip
             button.toolTipText = tooltip
-        }
-    }
-
-    /**
-     * Small rounded pill displaying the case [RunResult]. Clicking it (or
-     * activating it from the keyboard) opens a chooser that overrides the result
-     * via [onPick] or re-derives it from steps via [onAuto].
-     */
-    private class ResultPill(
-        initial: RunResult,
-        private val onPick: (RunResult) -> Unit,
-        private val onAuto: () -> Unit,
-        private val dataContextProject: Project,
-    ) : JPanel() {
-        private var result: RunResult = initial
-        private val label = JBLabel()
-
-        init {
-            isOpaque = false
-            layout = BoxLayout(this, BoxLayout.X_AXIS)
-            border = JBUI.Borders.empty(2, 8)
-            label.foreground = SpeqaThemeColors.verdictSelectedForeground
-            add(label)
-            applyResult()
-            handCursor()
-            isFocusable = true
-            addMouseListener(object : MouseAdapter() {
-                override fun mousePressed(e: MouseEvent) {
-                    requestFocusInWindow()
-                    showChooser(Point(e.x, e.y))
-                }
-            })
-            getInputMap(WHEN_FOCUSED).apply {
-                put(KeyStroke.getKeyStroke("SPACE"), ACTIVATE_KEY)
-                put(KeyStroke.getKeyStroke("ENTER"), ACTIVATE_KEY)
-            }
-            actionMap.put(ACTIVATE_KEY, object : javax.swing.AbstractAction() {
-                override fun actionPerformed(e: java.awt.event.ActionEvent?) {
-                    showChooser(Point(0, height))
-                }
-            })
-        }
-
-        fun setResult(value: RunResult) {
-            if (result == value) return
-            result = value
-            applyResult()
-            revalidate()
-            repaint()
-        }
-
-        private fun humanize(value: RunResult): String =
-            value.label.replace('_', ' ').replaceFirstChar { it.uppercase() }
-
-        private fun applyResult() {
-            label.text = humanize(result)
-            toolTipText = SpeqaBundle.message("runCase.result.tooltip")
-        }
-
-        private fun showChooser(at: Point) {
-            val group = DefaultActionGroup()
-            for (option in CHOOSABLE_RESULTS) {
-                group.add(object : AnAction(humanize(option)) {
-                    override fun getActionUpdateThread() = ActionUpdateThread.EDT
-                    override fun actionPerformed(e: AnActionEvent) = onPick(option)
-                })
-            }
-            group.addSeparator()
-            group.add(object : AnAction(
-                SpeqaBundle.message("runCase.result.auto"),
-                null,
-                AllIcons.General.InspectionsEye,
-            ) {
-                override fun getActionUpdateThread() = ActionUpdateThread.EDT
-                override fun actionPerformed(e: AnActionEvent) = onAuto()
-            })
-            JBPopupFactory.getInstance()
-                .createActionGroupPopup(
-                    SpeqaBundle.message("runCase.result.popupTitle"),
-                    group,
-                    SimpleDataContext.getProjectContext(dataContextProject),
-                    JBPopupFactory.ActionSelectionAid.SPEEDSEARCH,
-                    false,
-                )
-                .show(RelativePoint(this, at))
-        }
-
-        private fun backgroundColor(): Color = when (result) {
-            RunResult.PASSED -> SpeqaThemeColors.verdictPassedBackground
-            RunResult.FAILED -> SpeqaThemeColors.verdictFailedBackground
-            RunResult.BLOCKED -> SpeqaThemeColors.verdictBlockedBackground
-            RunResult.IN_PROGRESS -> JBColor.namedColor("Link.activeForeground", JBColor.BLUE)
-            RunResult.NOT_STARTED -> SpeqaThemeColors.verdictSkippedBackground
-        }
-
-        override fun getMaximumSize(): Dimension = preferredSize
-
-        override fun paintComponent(g: Graphics) {
-            val g2 = g.create() as Graphics2D
-            try {
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
-                g2.color = backgroundColor()
-                val arc = JBUI.scale(10)
-                g2.fillRoundRect(0, 0, width, height, arc, arc)
-            } finally {
-                g2.dispose()
-            }
-            super.paintComponent(g)
-        }
-
-        private companion object {
-            const val ACTIVATE_KEY = "speqa.runCase.result.activate"
-
-            /** Result options offered in the override chooser, in user-facing order. */
-            val CHOOSABLE_RESULTS = listOf(
-                RunResult.PASSED,
-                RunResult.FAILED,
-                RunResult.BLOCKED,
-                RunResult.IN_PROGRESS,
-                RunResult.NOT_STARTED,
-            )
         }
     }
 }

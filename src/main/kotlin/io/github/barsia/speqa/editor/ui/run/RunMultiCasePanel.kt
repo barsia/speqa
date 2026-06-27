@@ -14,7 +14,6 @@ import io.github.barsia.speqa.SpeqaBundle
 import io.github.barsia.speqa.editor.ui.InlineEditableTitleRow
 import io.github.barsia.speqa.editor.ui.primitives.singleLineInput
 import io.github.barsia.speqa.editor.ui.primitives.twoColumnRow
-import io.github.barsia.speqa.model.RunResult
 import io.github.barsia.speqa.model.TestRun
 import io.github.barsia.speqa.run.RunProgressText
 import io.github.barsia.speqa.run.TestRunSupport
@@ -60,7 +59,29 @@ class RunMultiCasePanel(
         },
     )
 
-    private val resultLabel = JBLabel(resultText(TestRunSupport.aggregateResult(initial.cases)))
+    // Settable overall-result pill: defaults to the computed aggregate, but the user can pin a
+    // manual run result that holds regardless of the per-case results and never touches the
+    // per-case pills. "Auto (from cases)" clears the override back to the aggregate.
+    private val resultPill = ResultPill(
+        initial = TestRunSupport.effectiveRunResult(initial),
+        tooltipText = SpeqaBundle.message("runResult.override.tooltip"),
+        popupTitle = SpeqaBundle.message("runResult.override.popupTitle"),
+        autoLabel = SpeqaBundle.message("runResult.override.auto"),
+        onPick = { picked -> emitRun(TestRunSupport.overrideRunResult(current, picked)) },
+        onAuto = { emitRun(TestRunSupport.clearRunOverride(current)) },
+        dataContextProject = project,
+    )
+
+    /** Muted marker shown only while the overall run result is manually overridden. */
+    private val runManualIndicator = JBLabel(
+        SpeqaBundle.message("runResult.manual.label"),
+        com.intellij.icons.AllIcons.General.Note,
+        JBLabel.LEFT,
+    ).apply {
+        toolTipText = SpeqaBundle.message("runResult.manual.tooltip")
+        foreground = com.intellij.ui.JBColor.namedColor("Label.infoForeground", com.intellij.ui.JBColor.GRAY)
+        isVisible = initial.manualResult
+    }
 
     private val progressLabel = JBLabel(progressText(initial)).apply {
         foreground = UIManager.getColor("Label.disabledForeground")
@@ -68,7 +89,8 @@ class RunMultiCasePanel(
 
     private val resultBody = JPanel(FlowLayout(FlowLayout.LEFT, JBUI.scale(8), 0)).apply {
         isOpaque = false
-        add(resultLabel)
+        add(resultPill)
+        add(runManualIndicator)
         add(progressLabel)
     }
 
@@ -112,8 +134,11 @@ class RunMultiCasePanel(
     }
 
     private fun emitRun(updated: TestRun) {
-        current = updated
-        onRunChange(updated)
+        // Keep the stored run result aligned with the aggregate unless the user pinned a manual
+        // override; an override is preserved across case edits.
+        val normalized = TestRunSupport.syncAggregateResult(updated)
+        current = normalized
+        onRunChange(normalized)
     }
 
     /** Refresh header fields and delegate per-case refresh to the container. */
@@ -131,7 +156,8 @@ class RunMultiCasePanel(
             }
         }
 
-        resultLabel.text = resultText(TestRunSupport.aggregateResult(run.cases))
+        resultPill.setResult(TestRunSupport.effectiveRunResult(run))
+        runManualIndicator.isVisible = run.manualResult
         progressLabel.text = progressText(run)
 
         container.update(run)
@@ -149,9 +175,6 @@ class RunMultiCasePanel(
         revalidate()
         repaint()
     }
-
-    private fun resultText(result: RunResult): String =
-        result.label.replace('_', ' ').replaceFirstChar { it.uppercase() }
 
     private fun progressText(run: TestRun): String {
         val (done, total) = RunProgressText.caseProgress(run.cases)

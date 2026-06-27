@@ -198,6 +198,22 @@ internal object TestRunSupport {
     fun clearCaseOverride(case: RunCase): RunCase =
         case.copy(result = deriveRunResult(case.stepResults), manualResult = false)
 
+    /** The run result to display: the manual override when set, otherwise the computed aggregate. */
+    fun effectiveRunResult(run: TestRun): RunResult =
+        if (run.manualResult) run.result else aggregateResult(run.cases)
+
+    /** Force the whole-run result and mark it manual; per-case results are left untouched. */
+    fun overrideRunResult(run: TestRun, result: RunResult): TestRun =
+        run.copy(result = result, manualResult = true)
+
+    /** Drop the run-level manual override and re-derive the result from the per-case aggregate. */
+    fun clearRunOverride(run: TestRun): TestRun =
+        run.copy(result = aggregateResult(run.cases), manualResult = false)
+
+    /** Keep [TestRun.result] aligned with the aggregate while not manually overridden. */
+    fun syncAggregateResult(run: TestRun): TestRun =
+        if (run.manualResult) run else run.copy(result = aggregateResult(run.cases))
+
     fun moveCase(run: TestRun, fromIndex: Int, toIndex: Int): TestRun {
         if (fromIndex == toIndex || fromIndex !in run.cases.indices || toIndex !in run.cases.indices) return run
         val next = run.cases.toMutableList()

@@ -20,6 +20,8 @@
     <resource-bundle>messages.SpeqaBundle</resource-bundle>
 
     <extensions defaultExtensionNs="com.intellij">
+        <applicationService serviceImplementation="io.github.barsia.speqa.editor.ui.primitives.SpeqaInputModalityTracker"/>
+
         <iconProvider implementation="io.github.barsia.speqa.filetype.SpeqaIconProvider"/>
 
         <fileEditorProvider implementation="io.github.barsia.speqa.editor.SpeqaEditorProvider"/>

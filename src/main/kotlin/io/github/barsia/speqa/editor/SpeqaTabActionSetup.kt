@@ -2,7 +2,9 @@ package io.github.barsia.speqa.editor
 
 import com.intellij.ide.AppLifecycleListener
 import com.intellij.openapi.actionSystem.IdeActions
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.editor.actionSystem.EditorActionManager
+import io.github.barsia.speqa.editor.ui.primitives.SpeqaInputModalityTracker
 
 /**
  * Registers [SpeqaTabActionHandler] at application startup, wrapping the
@@ -10,9 +12,15 @@ import com.intellij.openapi.editor.actionSystem.EditorActionManager
  * before the bundled IntelliJ Markdown plugin's Tab indent for `.tc.md` /
  * `.tr.md` files, so indenting a step does not insert spaces inside its
  * expected-result blockquote.
+ *
+ * Also eagerly loads [SpeqaInputModalityTracker] so keyboard/mouse modality
+ * is tracked from the very first user interaction.
  */
 class SpeqaTabActionSetup : AppLifecycleListener {
     override fun appFrameCreated(commandLineArgs: List<String>) {
+        // Eagerly instantiate the modality tracker so it starts listening from startup.
+        ApplicationManager.getApplication().getService(SpeqaInputModalityTracker::class.java)
+
         val manager = EditorActionManager.getInstance()
 
         val tab = manager.getActionHandler(IdeActions.ACTION_EDITOR_TAB)

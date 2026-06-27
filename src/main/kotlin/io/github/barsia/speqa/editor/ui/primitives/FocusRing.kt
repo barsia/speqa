@@ -10,11 +10,17 @@ import java.awt.geom.RoundRectangle2D
 /**
  * Focus-ring helpers shared by the focusable preview widgets (tag/ticket chips,
  * link and attachment rows). Centralizes two contracts:
- *  - the ring (and the progressive-disclosure remove action) appears only for
- *    genuine keyboard-traversal focus, never for mouse-click or programmatic
- *    focus such as the focus restored onto a neighbour after a delete;
+ *  - the ring (and the progressive-disclosure remove action) appears for keyboard
+ *    interaction: direct traversal (Tab/arrows) OR programmatic focus restored
+ *    after a keyboard action (Esc, Delete, reorder) when the last user interaction
+ *    was the keyboard. Mouse-driven focus never shows the ring.
  *  - the ring is a thin, theme-colored outline rather than the heavy platform glow.
  */
+
+/** Process-wide flag set by [SpeqaInputModalityTracker] via the IDE event queue. */
+internal object SpeqaInputModality {
+    @Volatile var lastInteractionWasKeyboard: Boolean = false
+}
 
 private val KEYBOARD_FOCUS_CAUSES = setOf(
     FocusEvent.Cause.TRAVERSAL,
@@ -25,11 +31,24 @@ private val KEYBOARD_FOCUS_CAUSES = setOf(
 )
 
 /**
- * True only when [cause] is a keyboard traversal (Tab / arrow navigation). Mouse
- * focus and programmatic `requestFocusInWindow()` (cause `UNKNOWN`) return false,
- * so the focus ring and remove affordance stay hidden for those.
+ * Pure `:focus-visible` decision: true when the ring should show.
+ * - A direct keyboard traversal cause always shows it.
+ * - A non-mouse cause (UNKNOWN / programmatic) shows it when the last user
+ *   interaction was the keyboard, allowing restored focus after keyboard
+ *   actions (Esc, Delete, reorder menu close) to ring correctly.
+ * - A MOUSE_EVENT cause never shows it, regardless of modality.
  */
-fun isKeyboardFocusCause(cause: FocusEvent.Cause?): Boolean = cause in KEYBOARD_FOCUS_CAUSES
+internal fun keyboardFocusRingVisible(cause: FocusEvent.Cause?, lastInteractionWasKeyboard: Boolean): Boolean =
+    cause in KEYBOARD_FOCUS_CAUSES || (cause != FocusEvent.Cause.MOUSE_EVENT && lastInteractionWasKeyboard)
+
+/**
+ * True when the focus ring should be visible for the given focus-gained [cause].
+ * Implements the `:focus-visible` model: direct keyboard traversal always rings;
+ * programmatic refocus rings when [SpeqaInputModality.lastInteractionWasKeyboard]
+ * is true (set by [SpeqaInputModalityTracker]); mouse focus never rings.
+ */
+fun isKeyboardFocusCause(cause: FocusEvent.Cause?): Boolean =
+    keyboardFocusRingVisible(cause, SpeqaInputModality.lastInteractionWasKeyboard)
 
 /**
  * Paints a thin (1 px, theme-scaled) rounded focus outline in the IDE theme focus

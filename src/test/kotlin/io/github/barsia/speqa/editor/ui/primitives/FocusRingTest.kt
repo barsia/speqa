@@ -17,10 +17,10 @@ class FocusRingTest {
     }
 
     @Test
-    fun `mouse and programmatic focus do not paint the ring`() {
-        // The regression we are guarding: focus restored onto a neighbour after a
-        // delete arrives as a programmatic request (cause UNKNOWN) and must NOT light up,
-        // and a plain mouse click on a chip must not leave a stuck ring either.
+    fun `mouse and programmatic focus do not paint the ring when no keyboard interaction preceded`() {
+        // SpeqaInputModality.lastInteractionWasKeyboard defaults to false (no AWT events
+        // fired in a unit test), so UNKNOWN / null / MOUSE_EVENT / ACTIVATION all return
+        // false — the same result as the old implementation for the default-off case.
         assertFalse(isKeyboardFocusCause(FocusEvent.Cause.UNKNOWN))
         assertFalse(isKeyboardFocusCause(FocusEvent.Cause.MOUSE_EVENT))
         assertFalse(isKeyboardFocusCause(FocusEvent.Cause.ACTIVATION))

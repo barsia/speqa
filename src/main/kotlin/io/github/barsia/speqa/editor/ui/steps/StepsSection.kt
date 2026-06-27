@@ -560,11 +560,21 @@ class StepsSection(
             override fun paintComponent(g: Graphics) {
                 super.paintComponent(g)
                 if (addStepFocused) {
-                    val g2 = g.create() as Graphics2D
-                    try {
-                        paintCompactFocusRing(g2, width, height, JBUI.scale(4).toFloat())
-                    } finally {
-                        g2.dispose()
+                    // Ring only around the "Add step" label content - the panel is stretched
+                    // to the full row width by the enclosing BoxLayout, so ringing the panel
+                    // bounds would be far too wide.
+                    val pad = JBUI.scale(2)
+                    val rx = (label.x - pad).coerceAtLeast(0)
+                    val ry = (label.y - pad).coerceAtLeast(0)
+                    val rw = (label.width + pad * 2).coerceAtMost(width - rx)
+                    val rh = (label.height + pad * 2).coerceAtMost(height - ry)
+                    if (rw > 0 && rh > 0) {
+                        val g2 = g.create(rx, ry, rw, rh) as Graphics2D
+                        try {
+                            paintCompactFocusRing(g2, rw, rh, JBUI.scale(4).toFloat())
+                        } finally {
+                            g2.dispose()
+                        }
                     }
                 }
             }

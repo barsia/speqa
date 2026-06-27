@@ -29,6 +29,7 @@ import io.github.barsia.speqa.editor.ui.primitives.handCursor
 import io.github.barsia.speqa.editor.ui.primitives.headerAddIconButton
 import io.github.barsia.speqa.editor.ui.primitives.manualResultIndicator
 import io.github.barsia.speqa.editor.ui.primitives.sectionCaption
+import io.github.barsia.speqa.editor.ui.primitives.setSpeqaActionEnabled
 import io.github.barsia.speqa.editor.ui.primitives.singleLineInput
 import io.github.barsia.speqa.editor.ui.primitives.speqaIconButton
 import io.github.barsia.speqa.editor.ui.primitives.twoColumnRow
@@ -190,6 +191,11 @@ class TestCasePanel(
     /** Icon-only marker next to the run-result combo, shown while the run result was set manually. */
     private val runManualIndicator: JBLabel? = if (mode == PanelMode.RUN) {
         manualResultIndicator(SpeqaBundle.message("runResult.manual.tooltip")).apply { isVisible = false }
+    } else null
+
+    /** Reset-results action next to the run result; disabled when the run has nothing to reset. */
+    private val runResetButton: JComponent? = if (mode == PanelMode.RUN) {
+        speqaIconButton(AllIcons.General.Reset, SpeqaBundle.message("panel.run.reset")) { confirmAndReset() }
     } else null
 
     private val runnerField: JBTextField? = if (mode == PanelMode.RUN) {
@@ -444,14 +450,12 @@ class TestCasePanel(
         })
     }
 
-    /** Right-aligned run-action row (RUN mode): currently the Reset-results button. */
-    private fun buildRunActionsRow(): JPanel = JPanel(BorderLayout()).apply {
-        isOpaque = false
-        alignmentX = Component.LEFT_ALIGNMENT
-        val actions = javax.swing.Box.createHorizontalBox().apply {
-            add(speqaIconButton(AllIcons.General.Reset, SpeqaBundle.message("panel.run.reset")) { confirmAndReset() })
-        }
-        add(actions, BorderLayout.EAST)
+    private fun refreshRunResetEnabled() {
+        runResetButton?.setSpeqaActionEnabled(
+            enabled = !TestRunSupport.isPristine(currentRun),
+            enabledTooltip = SpeqaBundle.message("panel.run.reset"),
+            disabledTooltip = SpeqaBundle.message("panel.run.reset.disabled"),
+        )
     }
 
     private fun confirmAndReset() {
@@ -478,12 +482,17 @@ class TestCasePanel(
         if (mode == PanelMode.RUN) {
             val combo = requireNotNull(runResultCombo) { "runResultCombo must be non-null in RUN mode" }
             val indicator = requireNotNull(runManualIndicator) { "runManualIndicator must be non-null in RUN mode" }
-            // BorderLayout keeps the combo filling the column width (CENTER) with the manual
-            // indicator pinned to its right (EAST).
+            // BorderLayout keeps the combo filling the column width (CENTER); the manual indicator
+            // and the Reset-results action sit to its right (EAST), next to the result.
             val resultBody = JPanel(BorderLayout()).apply {
                 isOpaque = false
                 add(combo, BorderLayout.CENTER)
-                add(indicator.apply { border = JBUI.Borders.emptyLeft(JBUI.scale(6)) }, BorderLayout.EAST)
+                val east = javax.swing.Box.createHorizontalBox().apply {
+                    add(indicator.apply { border = JBUI.Borders.emptyLeft(JBUI.scale(6)) })
+                    add(javax.swing.Box.createHorizontalStrut(JBUI.scale(2)))
+                    add(requireNotNull(runResetButton) { "runResetButton must be non-null in RUN mode" })
+                }
+                add(east, BorderLayout.EAST)
             }
             // Field order: Result | Progress, then Runner | Priority.
             val resultProgressRow = twoColumnRow(
@@ -504,9 +513,6 @@ class TestCasePanel(
             )
             runnerPriorityRow.alignmentX = Component.LEFT_ALIGNMENT
             add(runnerPriorityRow)
-            add(javax.swing.Box.createVerticalStrut(sectionGap))
-
-            add(buildRunActionsRow())
             add(javax.swing.Box.createVerticalStrut(sectionGap))
         } else {
             val priStatRow = twoColumnRow(
@@ -706,6 +712,7 @@ class TestCasePanel(
             }
         }
         runManualIndicator?.isVisible = run.manualResult
+        refreshRunResetEnabled()
         if (previous.runner != run.runner) {
             runnerField?.let { field ->
                 syncProgrammaticUiChange {

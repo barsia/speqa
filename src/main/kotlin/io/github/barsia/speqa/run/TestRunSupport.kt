@@ -215,6 +215,22 @@ internal object TestRunSupport {
         if (run.manualResult) run else run.copy(result = aggregateResult(run.cases))
 
     /**
+     * True when the run has nothing to reset: no manual overrides, every result NOT_STARTED, no
+     * timestamps, and every step verdict NONE. Used to disable the Reset action. Step comments and
+     * metadata are not considered (resetResults preserves them).
+     */
+    fun isPristine(run: TestRun): Boolean =
+        !run.manualResult &&
+            run.result == RunResult.NOT_STARTED &&
+            run.startedAt == null &&
+            run.finishedAt == null &&
+            run.cases.all { case ->
+                !case.manualResult &&
+                    case.result == RunResult.NOT_STARTED &&
+                    case.stepResults.all { it.verdict == StepVerdict.NONE }
+            }
+
+    /**
      * Clear every result in the run back to "not started": all step verdicts to NONE, every case
      * result and the run result to NOT_STARTED, all manual overrides dropped, and the run's
      * start/finish timestamps reset. Step actions/expected, comments, and metadata are preserved.

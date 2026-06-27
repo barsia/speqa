@@ -33,6 +33,7 @@ class RunCaseSection(
     file: VirtualFile?,
     initial: RunCase,
     private val onCaseChange: (RunCase) -> Unit,
+    private val onExpandedChanged: () -> Unit = {},
 ) : JPanel() {
 
     private var case: RunCase = initial
@@ -123,6 +124,8 @@ class RunCaseSection(
         body.update(newCase)
     }
 
+    fun isExpanded(): Boolean = expanded
+
     fun setExpanded(value: Boolean) {
         if (expanded == value) return
         expanded = value
@@ -130,6 +133,7 @@ class RunCaseSection(
         updateToggleIcon()
         revalidate()
         repaint()
+        onExpandedChanged()
     }
 
     private fun updateToggleIcon() {

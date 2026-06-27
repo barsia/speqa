@@ -42,6 +42,7 @@ class RunCasesContainer(
     private val file: VirtualFile?,
     initial: TestRun,
     private val onRunChange: (TestRun) -> Unit,
+    private val onExpandedChanged: () -> Unit = {},
 ) : JPanel() {
 
     companion object {
@@ -71,7 +72,14 @@ class RunCasesContainer(
     /** Expand or collapse every case section at once. */
     fun setAllExpanded(expanded: Boolean) {
         sections.forEach { it.setExpanded(expanded) }
+        onExpandedChanged()
     }
+
+    /** True when at least one section is currently collapsed (so "Expand all" can do something). */
+    fun hasCollapsed(): Boolean = sections.any { !it.isExpanded() }
+
+    /** True when at least one section is currently expanded (so "Collapse all" can do something). */
+    fun hasExpanded(): Boolean = sections.any { it.isExpanded() }
 
     /** Refresh from [run]; update sections in place when the count is unchanged, else rebuild. */
     fun update(run: TestRun) {
@@ -138,13 +146,19 @@ class RunCasesContainer(
         sectionWrappers.clear()
         val built = ArrayList<RunCaseSection>(run.cases.size)
         run.cases.forEachIndexed { index, case ->
-            val section = RunCaseSection(project, file, case) { updatedCase ->
-                val updatedRun = current.copy(
-                    cases = current.cases.mapIndexed { idx, c -> if (idx == index) updatedCase else c },
-                )
-                current = updatedRun
-                onRunChange(updatedRun)
-            }
+            val section = RunCaseSection(
+                project = project,
+                file = file,
+                initial = case,
+                onCaseChange = { updatedCase ->
+                    val updatedRun = current.copy(
+                        cases = current.cases.mapIndexed { idx, c -> if (idx == index) updatedCase else c },
+                    )
+                    current = updatedRun
+                    onRunChange(updatedRun)
+                },
+                onExpandedChanged = onExpandedChanged,
+            )
             section.alignmentX = Component.LEFT_ALIGNMENT
             built.add(section)
         }
@@ -160,6 +174,8 @@ class RunCasesContainer(
         attachReorderHandles()
         revalidate()
         repaint()
+        // New sections are expanded by default; let the host refresh its expand/collapse actions.
+        onExpandedChanged()
     }
 
     /**

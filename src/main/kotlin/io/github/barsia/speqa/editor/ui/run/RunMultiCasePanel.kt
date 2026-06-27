@@ -17,6 +17,7 @@ import io.github.barsia.speqa.SpeqaBundle
 import io.github.barsia.speqa.editor.ui.InlineEditableTitleRow
 import io.github.barsia.speqa.editor.ui.primitives.handCursor
 import io.github.barsia.speqa.editor.ui.primitives.manualResultIndicator
+import io.github.barsia.speqa.editor.ui.primitives.setSpeqaActionEnabled
 import io.github.barsia.speqa.editor.ui.primitives.singleLineInput
 import io.github.barsia.speqa.editor.ui.primitives.speqaIconButton
 import io.github.barsia.speqa.editor.ui.primitives.twoColumnRow
@@ -104,12 +105,28 @@ class RunMultiCasePanel(
     // Default foreground to match the single-case run's Progress value (no muted/disabled tint).
     private val progressLabel = JBLabel(progressText(initial))
 
-    // Same shape as the single-case run's result body: the combo fills the column (CENTER) with
-    // the manual indicator pinned to its right (EAST).
+    private val resetButton =
+        speqaIconButton(AllIcons.General.Reset, SpeqaBundle.message("panel.run.reset")) { confirmAndReset() }
+    private val expandButton =
+        speqaIconButton(AllIcons.Actions.Expandall, SpeqaBundle.message("panel.run.expandAll")) {
+            container.setAllExpanded(true)
+        }
+    private val collapseButton =
+        speqaIconButton(AllIcons.Actions.Collapseall, SpeqaBundle.message("panel.run.collapseAll")) {
+            container.setAllExpanded(false)
+        }
+
+    // Same shape as the single-case run's result body: the combo fills the column (CENTER); the
+    // manual indicator and the Reset-results action sit to its right (EAST), next to the result.
     private val resultBody = JPanel(BorderLayout()).apply {
         isOpaque = false
         add(resultCombo, BorderLayout.CENTER)
-        add(runManualIndicator.apply { border = JBUI.Borders.emptyLeft(JBUI.scale(6)) }, BorderLayout.EAST)
+        val east = javax.swing.Box.createHorizontalBox().apply {
+            add(runManualIndicator.apply { border = JBUI.Borders.emptyLeft(JBUI.scale(6)) })
+            add(javax.swing.Box.createHorizontalStrut(JBUI.scale(2)))
+            add(resetButton)
+        }
+        add(east, BorderLayout.EAST)
     }
 
     private val runnerField: JBTextField = singleLineInput(
@@ -120,7 +137,13 @@ class RunMultiCasePanel(
         },
     ).apply { text = initial.runner }
 
-    private val container = RunCasesContainer(project, file, initial) { updated -> emitRun(updated) }
+    private val container = RunCasesContainer(
+        project = project,
+        file = file,
+        initial = initial,
+        onRunChange = { updated -> emitRun(updated) },
+        onExpandedChanged = { SwingUtilities.invokeLater { refreshExpandCollapse() } },
+    )
 
     init {
         layout = BoxLayout(this, BoxLayout.Y_AXIS)
@@ -128,6 +151,8 @@ class RunMultiCasePanel(
         applyBackground()
         buildLayout()
         onHeaderStateChanged("TR-", initial.id?.toString() ?: "", initial.title)
+        refreshResetEnabled()
+        refreshExpandCollapse()
     }
 
     private fun buildLayout() {
@@ -149,37 +174,45 @@ class RunMultiCasePanel(
         add(resultProgressRow)
         add(javax.swing.Box.createVerticalStrut(sectionGap))
 
+        // The Priority slot has no run-level priority in a multi-case run, so it hosts the
+        // Expand all / Collapse all actions instead.
+        val expandCollapse = javax.swing.Box.createHorizontalBox().apply {
+            add(expandButton)
+            add(collapseButton)
+        }
         val runnerRow = twoColumnRow(
             leftCaption = SpeqaBundle.message("panel.run.runner"),
             rightCaption = "",
             leftBody = runnerField,
-            rightBody = JPanel().apply { isOpaque = false },
+            rightBody = expandCollapse,
         )
         runnerRow.alignmentX = Component.LEFT_ALIGNMENT
         add(runnerRow)
-        add(javax.swing.Box.createVerticalStrut(sectionGap))
-
-        add(buildActionsRow())
         add(javax.swing.Box.createVerticalStrut(JBUI.scale(16)))
 
         container.alignmentX = Component.LEFT_ALIGNMENT
         add(container)
     }
 
-    /** Right-aligned row of run actions: expand/collapse all case sections, and reset all results. */
-    private fun buildActionsRow(): JPanel = JPanel(BorderLayout()).apply {
-        isOpaque = false
-        alignmentX = Component.LEFT_ALIGNMENT
-        val actions = javax.swing.Box.createHorizontalBox().apply {
-            add(speqaIconButton(AllIcons.Actions.Expandall, SpeqaBundle.message("panel.run.expandAll")) {
-                container.setAllExpanded(true)
-            })
-            add(speqaIconButton(AllIcons.Actions.Collapseall, SpeqaBundle.message("panel.run.collapseAll")) {
-                container.setAllExpanded(false)
-            })
-            add(speqaIconButton(AllIcons.General.Reset, SpeqaBundle.message("panel.run.reset")) { confirmAndReset() })
-        }
-        add(actions, BorderLayout.EAST)
+    private fun refreshResetEnabled() {
+        resetButton.setSpeqaActionEnabled(
+            enabled = !TestRunSupport.isPristine(current),
+            enabledTooltip = SpeqaBundle.message("panel.run.reset"),
+            disabledTooltip = SpeqaBundle.message("panel.run.reset.disabled"),
+        )
+    }
+
+    private fun refreshExpandCollapse() {
+        expandButton.setSpeqaActionEnabled(
+            enabled = container.hasCollapsed(),
+            enabledTooltip = SpeqaBundle.message("panel.run.expandAll"),
+            disabledTooltip = SpeqaBundle.message("panel.run.expandAll.disabled"),
+        )
+        collapseButton.setSpeqaActionEnabled(
+            enabled = container.hasExpanded(),
+            enabledTooltip = SpeqaBundle.message("panel.run.collapseAll"),
+            disabledTooltip = SpeqaBundle.message("panel.run.collapseAll.disabled"),
+        )
     }
 
     private fun confirmAndReset() {
@@ -223,6 +256,8 @@ class RunMultiCasePanel(
         progressLabel.text = progressText(run)
 
         container.update(run)
+        refreshResetEnabled()
+        refreshExpandCollapse()
     }
 
     /** Y of the header bottom (runner/result row), used by the floating-header host. */

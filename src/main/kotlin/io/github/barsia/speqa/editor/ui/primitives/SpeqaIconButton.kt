@@ -23,6 +23,20 @@ import javax.swing.JComponent
  * but NOT the IDE-rendered one. Always go through this helper instead of
  * touching `toolTipText` directly when changing a Speqa icon-button tooltip.
  */
+/**
+ * Enable/disable a [speqaIconButton] and swap its tooltip accordingly. A disabled `ActionButton`
+ * ignores clicks and paints greyed; the tooltip explains why it is disabled. No-op for other
+ * component types.
+ */
+fun JComponent.setSpeqaActionEnabled(enabled: Boolean, enabledTooltip: String, disabledTooltip: String) {
+    if (this !is ActionButton) return
+    presentation.isEnabled = enabled
+    val tip = if (enabled) enabledTooltip else disabledTooltip
+    presentation.text = tip
+    presentation.description = tip
+    toolTipText = tip
+}
+
 fun JComponent.setSpeqaTooltip(text: String) {
     toolTipText = text
     if (this is ActionButton) {

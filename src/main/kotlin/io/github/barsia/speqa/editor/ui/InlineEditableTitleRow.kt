@@ -143,7 +143,9 @@ class InlineEditableTitleRow(
         justCommitted = true
         SwingUtilities.invokeLater { justCommitted = false }
         updatePencilAffordance()
-        val next = field.text.trim()
+        // A run/case title is required: a blank edit reverts to the previous title rather than
+        // persisting an empty value.
+        val next = field.text.trim().ifBlank { title }
         applyReadMode()
         setFieldTextSilently(displayText(next))
         field.caretPosition = 0
@@ -169,6 +171,11 @@ class InlineEditableTitleRow(
         field.border = null
         field.margin = Insets(0, 0, 0, 0)
         field.handCursor()
+        // Render the placeholder (shown when the title is blank) in a muted hint color so it reads
+        // as a placeholder, not a real saved title.
+        field.foreground =
+            if (title.isBlank()) com.intellij.util.ui.UIUtil.getContextHelpForeground()
+            else com.intellij.util.ui.UIUtil.getLabelForeground()
     }
 
     private fun applyEditMode() {
@@ -178,6 +185,7 @@ class InlineEditableTitleRow(
         field.border = editableBorder
         field.margin = Insets(0, 0, 0, 0)
         field.cursor = java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.TEXT_CURSOR)
+        field.foreground = com.intellij.util.ui.UIUtil.getLabelForeground()
     }
 
     private fun buildField(): JBTextArea {
@@ -227,7 +235,10 @@ class InlineEditableTitleRow(
         if (liveCommit) {
             f.document.addDocumentListener(object : javax.swing.event.DocumentListener {
                 private fun fire() {
-                    if (!suppressDocEvents && editing && f.isFocusOwner) onCommit(f.text.trim())
+                    // Skip blank edits so live typing never persists an empty title (commit
+                    // reverts blank to the previous value).
+                    val text = f.text.trim()
+                    if (!suppressDocEvents && editing && f.isFocusOwner && text.isNotBlank()) onCommit(text)
                 }
                 override fun insertUpdate(e: javax.swing.event.DocumentEvent?) = fire()
                 override fun removeUpdate(e: javax.swing.event.DocumentEvent?) = fire()

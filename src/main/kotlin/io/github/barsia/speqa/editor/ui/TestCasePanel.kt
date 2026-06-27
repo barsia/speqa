@@ -195,7 +195,8 @@ class TestCasePanel(
 
     /** Reset-results action next to the run result; disabled when the run has nothing to reset. */
     private val runResetButton: JComponent? = if (mode == PanelMode.RUN) {
-        speqaIconButton(AllIcons.General.Reset, SpeqaBundle.message("panel.run.reset")) { confirmAndReset() }
+        speqaIconButton(AllIcons.General.Reset, SpeqaBundle.message("panel.run.reset"), muted = false) { confirmAndReset() }
+            .apply { maximumSize = preferredSize; alignmentY = Component.CENTER_ALIGNMENT }
     } else null
 
     private val runnerField: JBTextField? = if (mode == PanelMode.RUN) {

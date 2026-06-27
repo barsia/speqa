@@ -31,6 +31,7 @@ import java.awt.Dimension
 import java.awt.Rectangle
 import javax.swing.BoxLayout
 import javax.swing.DefaultListCellRenderer
+import javax.swing.JComponent
 import javax.swing.JList
 import javax.swing.JPanel
 import javax.swing.Scrollable
@@ -105,16 +106,25 @@ class RunMultiCasePanel(
     // Default foreground to match the single-case run's Progress value (no muted/disabled tint).
     private val progressLabel = JBLabel(progressText(initial))
 
-    private val resetButton =
-        speqaIconButton(AllIcons.General.Reset, SpeqaBundle.message("panel.run.reset")) { confirmAndReset() }
-    private val expandButton =
-        speqaIconButton(AllIcons.Actions.Expandall, SpeqaBundle.message("panel.run.expandAll")) {
+    private val resetButton = squareIconButton(
+        speqaIconButton(AllIcons.General.Reset, SpeqaBundle.message("panel.run.reset"), muted = false) { confirmAndReset() },
+    )
+    private val expandButton = squareIconButton(
+        speqaIconButton(AllIcons.Actions.Expandall, SpeqaBundle.message("panel.run.expandAll"), muted = false) {
             container.setAllExpanded(true)
-        }
-    private val collapseButton =
-        speqaIconButton(AllIcons.Actions.Collapseall, SpeqaBundle.message("panel.run.collapseAll")) {
+        },
+    )
+    private val collapseButton = squareIconButton(
+        speqaIconButton(AllIcons.Actions.Collapseall, SpeqaBundle.message("panel.run.collapseAll"), muted = false) {
             container.setAllExpanded(false)
-        }
+        },
+    )
+
+    /** Pin an icon button to its square preferred size so a horizontal box does not stretch it. */
+    private fun squareIconButton(button: JComponent): JComponent = button.apply {
+        maximumSize = preferredSize
+        alignmentY = Component.CENTER_ALIGNMENT
+    }
 
     // Same shape as the single-case run's result body: the combo fills the column (CENTER); the
     // manual indicator and the Reset-results action sit to its right (EAST), next to the result.
@@ -175,10 +185,15 @@ class RunMultiCasePanel(
         add(javax.swing.Box.createVerticalStrut(sectionGap))
 
         // The Priority slot has no run-level priority in a multi-case run, so it hosts the
-        // Expand all / Collapse all actions instead.
-        val expandCollapse = javax.swing.Box.createHorizontalBox().apply {
-            add(expandButton)
-            add(collapseButton)
+        // Expand all / Collapse all actions instead, right-aligned within the column.
+        val expandCollapse = JPanel(BorderLayout()).apply {
+            isOpaque = false
+            val buttons = javax.swing.Box.createHorizontalBox().apply {
+                add(expandButton)
+                add(javax.swing.Box.createHorizontalStrut(JBUI.scale(2)))
+                add(collapseButton)
+            }
+            add(buttons, BorderLayout.EAST)
         }
         val runnerRow = twoColumnRow(
             leftCaption = SpeqaBundle.message("panel.run.runner"),

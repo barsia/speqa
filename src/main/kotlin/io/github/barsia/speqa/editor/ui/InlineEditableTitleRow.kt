@@ -9,14 +9,11 @@ import io.github.barsia.speqa.SpeqaBundle
 import io.github.barsia.speqa.editor.ui.primitives.CommitFlash
 import io.github.barsia.speqa.editor.ui.primitives.handCursor
 import io.github.barsia.speqa.editor.ui.primitives.speqaIconButton
-import java.awt.AWTEvent
 import java.awt.BorderLayout
 import java.awt.Component
 import java.awt.Dimension
 import java.awt.Font
 import java.awt.Insets
-import java.awt.Toolkit
-import java.awt.event.AWTEventListener
 import java.awt.event.FocusAdapter
 import java.awt.event.FocusEvent
 import java.awt.event.KeyAdapter
@@ -96,7 +93,6 @@ class InlineEditableTitleRow(
 
     private fun enterEdit() {
         editing = true
-        installOutsideClickCommit()
         applyEditMode()
         if (field.text == displayText(title) && title.isBlank()) {
             field.text = ""
@@ -115,7 +111,6 @@ class InlineEditableTitleRow(
     private fun commit() {
         if (!editing) return
         editing = false
-        removeOutsideClickCommit()
         val next = field.text.trim()
         applyReadMode()
         field.text = displayText(next)
@@ -129,41 +124,9 @@ class InlineEditableTitleRow(
     private fun cancel() {
         if (!editing) return
         editing = false
-        removeOutsideClickCommit()
         applyReadMode()
         field.text = displayText(title)
         field.caretPosition = 0
-    }
-
-    private var outsideClickListener: AWTEventListener? = null
-
-    /**
-     * Commit the title when the user presses the mouse anywhere outside the field while editing.
-     * Clicking a non-focusable area (a label, an empty panel) does not move focus, so `focusLost`
-     * never fires and the title would otherwise stay stuck in edit mode. A global mouse-press
-     * listener (active only while editing) closes that gap; clicks back inside the field are ignored.
-     */
-    private fun installOutsideClickCommit() {
-        if (outsideClickListener != null) return
-        val listener = AWTEventListener { event ->
-            if (event !is MouseEvent || event.id != MouseEvent.MOUSE_PRESSED || !editing) return@AWTEventListener
-            val source = event.source
-            val onField = source === field ||
-                (source is Component && SwingUtilities.isDescendingFrom(source, field))
-            if (!onField) SwingUtilities.invokeLater { if (editing) commit() }
-        }
-        Toolkit.getDefaultToolkit().addAWTEventListener(listener, AWTEvent.MOUSE_EVENT_MASK)
-        outsideClickListener = listener
-    }
-
-    private fun removeOutsideClickCommit() {
-        outsideClickListener?.let { Toolkit.getDefaultToolkit().removeAWTEventListener(it) }
-        outsideClickListener = null
-    }
-
-    override fun removeNotify() {
-        removeOutsideClickCommit()
-        super.removeNotify()
     }
 
     private fun applyReadMode() {

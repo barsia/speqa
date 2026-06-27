@@ -29,17 +29,25 @@ import javax.swing.ToolTipManager
  * Every edit inside the body produces an updated [RunCase] reported through [onCaseChange].
  */
 class RunCaseSection(
-    project: Project,
-    file: VirtualFile?,
+    private val project: Project,
+    private val file: VirtualFile?,
     initial: RunCase,
     private val onCaseChange: (RunCase) -> Unit,
     private val onExpandedChanged: () -> Unit = {},
 ) : JPanel() {
 
     private var case: RunCase = initial
-    private var expanded: Boolean = true
 
-    private val body = RunCaseBody(project, file, initial, onCaseChange)
+    // Sections start collapsed and build their (expensive, editor-heavy) body lazily on first
+    // expand. This keeps opening / switching to a multi-case run fast even with many cases.
+    private var expanded: Boolean = false
+    private var body: RunCaseBody? = null
+    private val bodyHost = JPanel().apply {
+        layout = BoxLayout(this, BoxLayout.Y_AXIS)
+        isOpaque = false
+        alignmentX = Component.LEFT_ALIGNMENT
+        isVisible = false
+    }
 
     // Shows the full `TC-<id> <title>` in a tooltip only while the label is truncated to fit.
     // Registered with ToolTipManager explicitly: setToolTipText would skip registration here
@@ -85,10 +93,20 @@ class RunCaseSection(
         isOpaque = false
         alignmentX = Component.LEFT_ALIGNMENT
         add(buildHeader())
-        add(Box.createVerticalStrut(JBUI.scale(8)))
-        body.alignmentX = Component.LEFT_ALIGNMENT
-        add(body)
+        add(bodyHost)
         updateToggleIcon()
+    }
+
+    /** Build the case body on first expand (it is the expensive part of a section). */
+    private fun ensureBody(): RunCaseBody {
+        body?.let { return it }
+        val built = RunCaseBody(project, file, case, onCaseChange).apply {
+            alignmentX = Component.LEFT_ALIGNMENT
+        }
+        bodyHost.add(Box.createVerticalStrut(JBUI.scale(8)))
+        bodyHost.add(built)
+        body = built
+        return built
     }
 
     private fun buildHeader(): JComponent {
@@ -115,13 +133,13 @@ class RunCaseSection(
         return header
     }
 
-    /** Refresh the section from [newCase]. */
+    /** Refresh the section from [newCase]. Updates the body only when it has been built. */
     fun update(newCase: RunCase) {
         case = newCase
         headerLabel.text = RunCaseSectionState.headerLabel(newCase)
         resultPill.setResult(newCase.result)
         manualIndicator.isVisible = RunCaseSectionState.isManual(newCase)
-        body.update(newCase)
+        body?.update(newCase)
     }
 
     fun isExpanded(): Boolean = expanded
@@ -129,7 +147,8 @@ class RunCaseSection(
     fun setExpanded(value: Boolean) {
         if (expanded == value) return
         expanded = value
-        body.isVisible = value
+        if (value) ensureBody()
+        bodyHost.isVisible = value
         updateToggleIcon()
         revalidate()
         repaint()

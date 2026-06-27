@@ -93,7 +93,18 @@ class SpeqaPreviewEditor(
                     documentText = documentText,
                     lastMutationOffset = lastEditorMutationOffset,
                 )
-            ) return
+            ) {
+                // The shrink guard defers a transient empty tail step while the user is
+                // typing a new one. But undoing "Add step" is a PERMANENT shrink that would
+                // otherwise bail here forever (the snapshot stays at N+1 while the document is
+                // N, desyncing the preview). Clear the mutation offset and re-run once: with no
+                // offset, isMutationNearDocumentEnd is false so the retry refreshes correctly.
+                // If the user is actually typing, the next keystroke restores the offset and
+                // restarts the timer, so the original defer-while-typing behavior is preserved.
+                lastEditorMutationOffset = null
+                if (!refreshTimer.isRunning) refreshTimer.restart()
+                return
+            }
             scrollSync.suppressBothDirections()
             parsed = nextParsed
             idState.refresh()

@@ -65,12 +65,37 @@ class RunCaseBody(
         if (picked != case.priority) emit { it.copy(priority = picked) }
     }
 
+    // Section-header `+` buttons. Declared before the clouds/lists so each can
+    // be handed to its section as the external add-button target for
+    // `DeleteFocusRestorer`: the sections hide their internal add button
+    // (`hideAddButton = true`), so deleting the last item must restore focus to
+    // the header `+` (which is in the component tree) rather than a non-showing
+    // internal button. The onClick lambdas reference the later-declared
+    // clouds/lists, which is safe since they only run on click.
+    private val tagHeaderAdd: JComponent = headerAddIconButton(
+        tooltip = SpeqaBundle.message("panel.header.addTag"),
+        onClick = { tagCloud.startAdd() },
+    )
+    private val environmentHeaderAdd: JComponent = headerAddIconButton(
+        tooltip = SpeqaBundle.message("panel.header.addEnvironment"),
+        onClick = { environmentCloud.startAdd() },
+    )
+    private val linkHeaderAdd: JComponent = headerAddIconButton(
+        tooltip = SpeqaBundle.message("panel.header.addLink"),
+        onClick = { linkList.startAdd() },
+    )
+    private val attachmentHeaderAdd: JComponent = headerAddIconButton(
+        tooltip = SpeqaBundle.message("panel.header.addAttachment"),
+        onClick = { attachmentList?.startAdd() },
+    )
+
     private val tagCloud = TagCloud(
         coloredChips = false,
         metadataScope = MetadataScope.TEST_RUNS,
         metadataKind = MetadataKind.TAG,
         metadataProject = project,
         hideAddButton = true,
+        externalAddButton = tagHeaderAdd,
         onAdd = { tag -> emit { it.copy(tags = it.tags + tag) } },
         onRemove = { tag -> emit { it.copy(tags = it.tags - tag) } },
         onEditValue = { oldTag -> editTag(oldTag) },
@@ -86,6 +111,7 @@ class RunCaseBody(
         metadataKind = MetadataKind.ENVIRONMENT,
         metadataProject = project,
         hideAddButton = true,
+        externalAddButton = environmentHeaderAdd,
         onAdd = { env -> emit { it.copy(environment = it.environment + env) } },
         onRemove = { env -> emit { it.copy(environment = it.environment - env) } },
         onEditValue = { oldEnv -> editEnvironment(oldEnv) },
@@ -95,12 +121,12 @@ class RunCaseBody(
         }
     }
 
-    private val linkList = LinkList(project, hideAddButton = true, showEmptyPlaceholder = true) { next ->
+    private val linkList = LinkList(project, hideAddButton = true, showEmptyPlaceholder = true, externalAddButton = linkHeaderAdd) { next ->
         emit { it.copy(links = next) }
     }
 
     private val attachmentList: AttachmentList? = if (file != null) {
-        AttachmentList(project, file, hideAddButton = true, showEmptyPlaceholder = true) { next ->
+        AttachmentList(project, file, hideAddButton = true, showEmptyPlaceholder = true, externalAddButton = attachmentHeaderAdd) { next ->
             emit { it.copy(attachments = next) }
         }
     } else null
@@ -192,14 +218,8 @@ class RunCaseBody(
                 rightCaption = SpeqaBundle.message("label.tags"),
                 leftBody = environmentCloud,
                 rightBody = tagCloud,
-                leftHeaderAction = headerAddIconButton(
-                    tooltip = SpeqaBundle.message("panel.header.addEnvironment"),
-                    onClick = { environmentCloud.startAdd() },
-                ),
-                rightHeaderAction = headerAddIconButton(
-                    tooltip = SpeqaBundle.message("panel.header.addTag"),
-                    onClick = { tagCloud.startAdd() },
-                ),
+                leftHeaderAction = environmentHeaderAdd,
+                rightHeaderAction = tagHeaderAdd,
             ),
         )
         add(strut(sectionGap))
@@ -211,14 +231,8 @@ class RunCaseBody(
                 rightCaption = SpeqaBundle.message("label.attachments"),
                 leftBody = linkList,
                 rightBody = attachmentsBody,
-                leftHeaderAction = headerAddIconButton(
-                    tooltip = SpeqaBundle.message("panel.header.addLink"),
-                    onClick = { linkList.startAdd() },
-                ),
-                rightHeaderAction = if (attachmentList != null) headerAddIconButton(
-                    tooltip = SpeqaBundle.message("panel.header.addAttachment"),
-                    onClick = { attachmentList.startAdd() },
-                ) else null,
+                leftHeaderAction = linkHeaderAdd,
+                rightHeaderAction = if (attachmentList != null) attachmentHeaderAdd else null,
             ),
         )
         add(strut(sectionGap))

@@ -38,6 +38,7 @@ internal class AttachmentList(
     private val hideAddButton: Boolean = false,
     private val showEmptyPlaceholder: Boolean = false,
     private val readOnly: Boolean = false,
+    private val externalAddButton: JComponent? = null,
     private val onAttachmentsChange: (List<Attachment>) -> Unit,
 ) : JPanel() {
 
@@ -52,7 +53,7 @@ internal class AttachmentList(
     private val addButton: JComponent = buildAddButton()
     private val restorer = DeleteFocusRestorer(
         itemProvider = { rows.getOrNull(it) },
-        addButton = addButton,
+        addButton = externalAddButton ?: addButton,
     )
 
     init {
@@ -62,6 +63,7 @@ internal class AttachmentList(
     }
 
     fun setAttachments(newAttachments: List<Attachment>) {
+        if (newAttachments == attachments) return
         attachments = newAttachments.toList()
         rebuild()
     }
@@ -125,6 +127,7 @@ internal class AttachmentList(
             else -> false
         }
         if (removed) {
+            setAttachments(attachments - attachment)  // synchronous view rebuild; async refresh is now a no-op
             restorer.onDeleted(index, sizeBefore)
         }
     }

@@ -24,6 +24,7 @@ internal class LinkList(
     private val hideAddButton: Boolean = false,
     private val showEmptyPlaceholder: Boolean = false,
     private val readOnly: Boolean = false,
+    private val externalAddButton: JComponent? = null,
     private val onLinksChange: (List<Link>) -> Unit,
 ) : JPanel() {
 
@@ -37,7 +38,7 @@ internal class LinkList(
     private val addButton: JComponent = buildAddButton()
     private val restorer = DeleteFocusRestorer(
         itemProvider = { rows.getOrNull(it) },
-        addButton = addButton,
+        addButton = externalAddButton ?: addButton,
     )
 
     init {
@@ -47,6 +48,7 @@ internal class LinkList(
     }
 
     fun setLinks(newLinks: List<Link>) {
+        if (newLinks == links) return
         links = newLinks.toList()
         rebuild()
     }
@@ -67,7 +69,9 @@ internal class LinkList(
                         onLinksChange(links.toMutableList().apply { set(index, updated) })
                     },
                     onDelete = {
-                        onLinksChange(links - link)
+                        val remaining = links - link
+                        onLinksChange(remaining)   // persists to the document (async round-trip)
+                        setLinks(remaining)        // synchronous view rebuild; async refresh is now a no-op
                         restorer.onDeleted(index, sizeBefore)
                     },
                 )

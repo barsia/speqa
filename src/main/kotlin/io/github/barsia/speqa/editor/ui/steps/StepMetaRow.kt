@@ -130,6 +130,7 @@ class StepMetaRow(
         }
 
         fun setTickets(next: List<String>) {
+            if (next == tickets) return
             tickets = next.toList()
             editing = false
             rebuild()
@@ -146,7 +147,9 @@ class StepMetaRow(
                     readOnly = runMode,
                     onActivate = { openTicketInBrowser(ticket) },
                     onDelete = {
-                        onTicketsChange(tickets.toMutableList().also { it.removeAt(index) })
+                        val remaining = tickets.toMutableList().also { it.removeAt(index) }
+                        onTicketsChange(remaining)   // persists to the document (async round-trip)
+                        setTickets(remaining)        // synchronous view rebuild; async refresh is now a no-op
                         restorer.onDeleted(index, sizeBefore)
                     },
                 )

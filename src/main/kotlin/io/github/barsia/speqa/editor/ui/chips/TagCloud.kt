@@ -33,6 +33,7 @@ class TagCloud(
     private val metadataKind: MetadataKind = MetadataKind.TAG,
     private val metadataProject: Project? = null,
     private val hideAddButton: Boolean = false,
+    private val externalAddButton: JComponent? = null,
 ) : JPanel(WrapLayout(FlowLayout.LEFT, JBUI.scale(4), JBUI.scale(2), gapAround = false)) {
 
     private var tags: List<String> = emptyList()
@@ -45,7 +46,7 @@ class TagCloud(
     )
     private val restorer = DeleteFocusRestorer(
         itemProvider = { chips.getOrNull(it) },
-        addButton = addButton,
+        addButton = externalAddButton ?: addButton,
     )
 
     private var lastWidthForRelayout: Int = -1
@@ -114,6 +115,7 @@ class TagCloud(
     }
 
     fun setTags(newTags: List<String>) {
+        if (newTags == tags) return
         tags = newTags.toList()
         rebuild()
     }
@@ -150,7 +152,9 @@ class TagCloud(
                     onClick = clickCallback,
                     onEdit = { onEditValue(tag) },
                     onDelete = {
-                        onRemove(tag)
+                        val remaining = tags.filterNot { it == tag }
+                        onRemove(tag)            // persists to the document (async round-trip)
+                        setTags(remaining)       // synchronous view rebuild; async refresh is now a no-op
                         restorer.onDeleted(index, sizeBefore)
                     },
                     tooltip = tooltipText,

@@ -28,7 +28,9 @@ import java.awt.Dimension
 import java.awt.FlowLayout
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
+import java.awt.Point
 import javax.swing.DefaultListCellRenderer
+import javax.swing.JCheckBox
 import javax.swing.JComponent
 import javax.swing.JLabel
 import javax.swing.JList
@@ -157,7 +159,20 @@ internal class CreateTestRunDialog(
     private val footerLabel = JBLabel()
     // Native CheckBoxList (a JBList): clipped case titles are revealed by the platform's
     // expandable-item hover popup, matching the tool-window TCs/TRs trees instead of a tooltip.
-    private val casesList = CheckBoxList<CandidateCase>().apply {
+    // The overrides make a click anywhere on a row (the title text included) toggle the checkbox,
+    // not only a click on the box glyph: CheckBoxList delivers the click to the box at the point
+    // these methods return, so we map any valid in-row point onto the glyph.
+    private val casesList = object : CheckBoxList<CandidateCase>() {
+        override fun findPointRelativeToCheckBox(x: Int, y: Int, checkBox: JCheckBox, width: Int): Point? {
+            val base = super.findPointRelativeToCheckBox(x, y, checkBox, width) ?: return null
+            return Point(checkBox.preferredSize.height / 2, base.y)
+        }
+
+        override fun findPointRelativeToCheckBoxWithAdjustedRendering(x: Int, y: Int, checkBox: JCheckBox, width: Int): Point? {
+            val base = super.findPointRelativeToCheckBoxWithAdjustedRendering(x, y, checkBox, width) ?: return null
+            return Point(checkBox.preferredSize.height / 2, base.y)
+        }
+    }.apply {
         emptyText.text = SpeqaBundle.message("dialog.createRun.noMatches")
         setCheckBoxListListener { index, value ->
             val item = getItemAt(index) ?: return@setCheckBoxListListener

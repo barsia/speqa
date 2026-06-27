@@ -29,7 +29,7 @@ internal object SpeqaProjectScaffold {
         VfsUtil.saveText(skillFile, skillContent)
     }
 
-    private val SAMPLE_TEST_CASE = """
+    internal val SAMPLE_TEST_CASE = """
         |---
         |id: 1
         |title: "Login with valid credentials"

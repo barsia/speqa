@@ -17,6 +17,7 @@ import javax.swing.Box
 import javax.swing.BoxLayout
 import javax.swing.JComponent
 import javax.swing.JPanel
+import javax.swing.ToolTipManager
 
 /**
  * Renders a single [RunCase] as a collapsible section. The header is a [BorderLayout]: a square
@@ -40,9 +41,11 @@ class RunCaseSection(
     private val body = RunCaseBody(project, file, initial, onCaseChange)
 
     // Shows the full `TC-<id> <title>` in a tooltip only while the label is truncated to fit.
+    // Registered with ToolTipManager explicitly: setToolTipText would skip registration here
+    // because the overridden getToolTipText returns non-null at construction (width == 0).
     private val headerLabel = object : JBLabel(RunCaseSectionState.headerLabel(initial)) {
         override fun getToolTipText(): String? = if (preferredSize.width > width) text else null
-    }.apply { toolTipText = "" }
+    }.also { ToolTipManager.sharedInstance().registerComponent(it) }
 
     private val resultPill = ResultPill(
         initial = initial.result,

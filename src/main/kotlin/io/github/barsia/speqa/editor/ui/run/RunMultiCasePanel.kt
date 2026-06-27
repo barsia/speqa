@@ -4,8 +4,10 @@ import com.intellij.ide.ui.LafManagerListener
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.editor.colors.EditorColorsListener
 import com.intellij.openapi.editor.colors.EditorColorsManager
+import com.intellij.icons.AllIcons
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.ComboBox
+import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBTextField
@@ -16,6 +18,7 @@ import io.github.barsia.speqa.editor.ui.InlineEditableTitleRow
 import io.github.barsia.speqa.editor.ui.primitives.handCursor
 import io.github.barsia.speqa.editor.ui.primitives.manualResultIndicator
 import io.github.barsia.speqa.editor.ui.primitives.singleLineInput
+import io.github.barsia.speqa.editor.ui.primitives.speqaIconButton
 import io.github.barsia.speqa.editor.ui.primitives.twoColumnRow
 import io.github.barsia.speqa.model.RunResult
 import io.github.barsia.speqa.model.TestRun
@@ -29,7 +32,6 @@ import javax.swing.BoxLayout
 import javax.swing.DefaultListCellRenderer
 import javax.swing.JList
 import javax.swing.JPanel
-import javax.swing.UIManager
 import javax.swing.Scrollable
 import javax.swing.SwingConstants
 import javax.swing.SwingUtilities
@@ -99,9 +101,8 @@ class RunMultiCasePanel(
         SpeqaBundle.message("runResult.manual.tooltip"),
     ).apply { isVisible = initial.manualResult }
 
-    private val progressLabel = JBLabel(progressText(initial)).apply {
-        foreground = UIManager.getColor("Label.disabledForeground")
-    }
+    // Default foreground to match the single-case run's Progress value (no muted/disabled tint).
+    private val progressLabel = JBLabel(progressText(initial))
 
     // Same shape as the single-case run's result body: the combo fills the column (CENTER) with
     // the manual indicator pinned to its right (EAST).
@@ -136,30 +137,59 @@ class RunMultiCasePanel(
         add(titleRow)
         add(javax.swing.Box.createVerticalStrut(sectionGap))
 
-        // Mirror the single-case run header: Progress | Runner, then a row whose left column is
-        // empty (a multi-case run has no run-level priority) and whose right column is the Result.
-        val progressRunnerRow = twoColumnRow(
-            leftCaption = SpeqaBundle.message("panel.run.progress"),
-            rightCaption = SpeqaBundle.message("panel.run.runner"),
-            leftBody = progressLabel,
-            rightBody = runnerField,
+        // Mirror the single-case run header field order: Result | Progress, then Runner | (empty;
+        // a multi-case run has no run-level priority).
+        val resultProgressRow = twoColumnRow(
+            leftCaption = SpeqaBundle.message("label.runResult"),
+            rightCaption = SpeqaBundle.message("panel.run.progress"),
+            leftBody = resultBody,
+            rightBody = progressLabel,
         )
-        progressRunnerRow.alignmentX = Component.LEFT_ALIGNMENT
-        add(progressRunnerRow)
+        resultProgressRow.alignmentX = Component.LEFT_ALIGNMENT
+        add(resultProgressRow)
         add(javax.swing.Box.createVerticalStrut(sectionGap))
 
-        val resultRow = twoColumnRow(
-            leftCaption = "",
-            rightCaption = SpeqaBundle.message("label.runResult"),
-            leftBody = JPanel().apply { isOpaque = false },
-            rightBody = resultBody,
+        val runnerRow = twoColumnRow(
+            leftCaption = SpeqaBundle.message("panel.run.runner"),
+            rightCaption = "",
+            leftBody = runnerField,
+            rightBody = JPanel().apply { isOpaque = false },
         )
-        resultRow.alignmentX = Component.LEFT_ALIGNMENT
-        add(resultRow)
+        runnerRow.alignmentX = Component.LEFT_ALIGNMENT
+        add(runnerRow)
+        add(javax.swing.Box.createVerticalStrut(sectionGap))
+
+        add(buildActionsRow())
         add(javax.swing.Box.createVerticalStrut(JBUI.scale(16)))
 
         container.alignmentX = Component.LEFT_ALIGNMENT
         add(container)
+    }
+
+    /** Right-aligned row of run actions: expand/collapse all case sections, and reset all results. */
+    private fun buildActionsRow(): JPanel = JPanel(BorderLayout()).apply {
+        isOpaque = false
+        alignmentX = Component.LEFT_ALIGNMENT
+        val actions = javax.swing.Box.createHorizontalBox().apply {
+            add(speqaIconButton(AllIcons.Actions.Expandall, SpeqaBundle.message("panel.run.expandAll")) {
+                container.setAllExpanded(true)
+            })
+            add(speqaIconButton(AllIcons.Actions.Collapseall, SpeqaBundle.message("panel.run.collapseAll")) {
+                container.setAllExpanded(false)
+            })
+            add(speqaIconButton(AllIcons.General.Reset, SpeqaBundle.message("panel.run.reset")) { confirmAndReset() })
+        }
+        add(actions, BorderLayout.EAST)
+    }
+
+    private fun confirmAndReset() {
+        val confirmed = Messages.showYesNoDialog(
+            project,
+            SpeqaBundle.message("panel.run.reset.confirm.message"),
+            SpeqaBundle.message("panel.run.reset.confirm.title"),
+            Messages.getQuestionIcon(),
+        ) == Messages.YES
+        if (confirmed) emitRun(TestRunSupport.resetResults(current))
     }
 
     private fun emitRun(updated: TestRun) {

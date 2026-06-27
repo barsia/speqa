@@ -1,5 +1,6 @@
 package io.github.barsia.speqa.editor.ui
 
+import com.intellij.icons.AllIcons
 import com.intellij.ide.ui.LafManagerListener
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.editor.colors.EditorColorsListener
@@ -29,8 +30,10 @@ import io.github.barsia.speqa.editor.ui.primitives.headerAddIconButton
 import io.github.barsia.speqa.editor.ui.primitives.manualResultIndicator
 import io.github.barsia.speqa.editor.ui.primitives.sectionCaption
 import io.github.barsia.speqa.editor.ui.primitives.singleLineInput
+import io.github.barsia.speqa.editor.ui.primitives.speqaIconButton
 import io.github.barsia.speqa.editor.ui.primitives.twoColumnRow
 import io.github.barsia.speqa.run.RunAutoTimestamps
+import io.github.barsia.speqa.run.TestRunSupport
 import io.github.barsia.speqa.editor.ui.steps.EditableBodyBlockSection
 import io.github.barsia.speqa.editor.ui.steps.StepsSection
 import io.github.barsia.speqa.editor.ui.steps.mergeBodyBlocks
@@ -441,6 +444,26 @@ class TestCasePanel(
         })
     }
 
+    /** Right-aligned run-action row (RUN mode): currently the Reset-results button. */
+    private fun buildRunActionsRow(): JPanel = JPanel(BorderLayout()).apply {
+        isOpaque = false
+        alignmentX = Component.LEFT_ALIGNMENT
+        val actions = javax.swing.Box.createHorizontalBox().apply {
+            add(speqaIconButton(AllIcons.General.Reset, SpeqaBundle.message("panel.run.reset")) { confirmAndReset() })
+        }
+        add(actions, BorderLayout.EAST)
+    }
+
+    private fun confirmAndReset() {
+        val confirmed = Messages.showYesNoDialog(
+            project,
+            SpeqaBundle.message("panel.run.reset.confirm.message"),
+            SpeqaBundle.message("panel.run.reset.confirm.title"),
+            Messages.getQuestionIcon(),
+        ) == Messages.YES
+        if (confirmed) emitRun(TestRunSupport.resetResults(currentRun))
+    }
+
     private fun buildLayout() {
         val sectionGap = JBUI.scale(10)
 
@@ -453,44 +476,49 @@ class TestCasePanel(
         add(javax.swing.Box.createVerticalStrut(sectionGap))
 
         if (mode == PanelMode.RUN) {
-            val progressRunnerRow = twoColumnRow(
-                leftCaption = SpeqaBundle.message("panel.run.progress"),
-                rightCaption = SpeqaBundle.message("panel.run.runner"),
-                leftBody = requireNotNull(progressLabel) { "progressLabel must be non-null in RUN mode" },
-                rightBody = requireNotNull(runnerField) { "runnerField must be non-null in RUN mode" },
-            )
-            progressRunnerRow.alignmentX = Component.LEFT_ALIGNMENT
-            add(progressRunnerRow)
-            add(javax.swing.Box.createVerticalStrut(sectionGap))
-        }
-
-        val rightCaption: String = if (mode == PanelMode.RUN) {
-            SpeqaBundle.message("label.runResult")
-        } else {
-            SpeqaBundle.message("label.status")
-        }
-        val rightBody: JComponent = if (mode == PanelMode.RUN) {
             val combo = requireNotNull(runResultCombo) { "runResultCombo must be non-null in RUN mode" }
             val indicator = requireNotNull(runManualIndicator) { "runManualIndicator must be non-null in RUN mode" }
-            // BorderLayout keeps the combo filling the column width (CENTER) exactly as the bare
-            // combo did before, with the manual indicator pinned to its right (EAST).
-            JPanel(BorderLayout()).apply {
+            // BorderLayout keeps the combo filling the column width (CENTER) with the manual
+            // indicator pinned to its right (EAST).
+            val resultBody = JPanel(BorderLayout()).apply {
                 isOpaque = false
                 add(combo, BorderLayout.CENTER)
                 add(indicator.apply { border = JBUI.Borders.emptyLeft(JBUI.scale(6)) }, BorderLayout.EAST)
             }
+            // Field order: Result | Progress, then Runner | Priority.
+            val resultProgressRow = twoColumnRow(
+                leftCaption = SpeqaBundle.message("label.runResult"),
+                rightCaption = SpeqaBundle.message("panel.run.progress"),
+                leftBody = resultBody,
+                rightBody = requireNotNull(progressLabel) { "progressLabel must be non-null in RUN mode" },
+            )
+            resultProgressRow.alignmentX = Component.LEFT_ALIGNMENT
+            add(resultProgressRow)
+            add(javax.swing.Box.createVerticalStrut(sectionGap))
+
+            val runnerPriorityRow = twoColumnRow(
+                leftCaption = SpeqaBundle.message("panel.run.runner"),
+                rightCaption = SpeqaBundle.message("label.priority"),
+                leftBody = requireNotNull(runnerField) { "runnerField must be non-null in RUN mode" },
+                rightBody = priorityCombo,
+            )
+            runnerPriorityRow.alignmentX = Component.LEFT_ALIGNMENT
+            add(runnerPriorityRow)
+            add(javax.swing.Box.createVerticalStrut(sectionGap))
+
+            add(buildRunActionsRow())
+            add(javax.swing.Box.createVerticalStrut(sectionGap))
         } else {
-            requireNotNull(statusCombo) { "statusCombo must be non-null in CASE mode" }
+            val priStatRow = twoColumnRow(
+                leftCaption = SpeqaBundle.message("label.priority"),
+                rightCaption = SpeqaBundle.message("label.status"),
+                leftBody = priorityCombo,
+                rightBody = requireNotNull(statusCombo) { "statusCombo must be non-null in CASE mode" },
+            )
+            priStatRow.alignmentX = Component.LEFT_ALIGNMENT
+            add(priStatRow)
+            add(javax.swing.Box.createVerticalStrut(sectionGap))
         }
-        val priStatRow = twoColumnRow(
-            leftCaption = SpeqaBundle.message("label.priority"),
-            rightCaption = rightCaption,
-            leftBody = priorityCombo,
-            rightBody = rightBody,
-        )
-        priStatRow.alignmentX = Component.LEFT_ALIGNMENT
-        add(priStatRow)
-        add(javax.swing.Box.createVerticalStrut(sectionGap))
 
         val envTagRow = twoColumnRow(
             leftCaption = SpeqaBundle.message("label.environment"),

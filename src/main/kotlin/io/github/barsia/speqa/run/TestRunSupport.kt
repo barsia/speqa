@@ -214,6 +214,26 @@ internal object TestRunSupport {
     fun syncAggregateResult(run: TestRun): TestRun =
         if (run.manualResult) run else run.copy(result = aggregateResult(run.cases))
 
+    /**
+     * Clear every result in the run back to "not started": all step verdicts to NONE, every case
+     * result and the run result to NOT_STARTED, all manual overrides dropped, and the run's
+     * start/finish timestamps reset. Step actions/expected, comments, and metadata are preserved.
+     */
+    fun resetResults(run: TestRun): TestRun =
+        run.copy(
+            result = RunResult.NOT_STARTED,
+            manualResult = false,
+            startedAt = null,
+            finishedAt = null,
+            cases = run.cases.map { case ->
+                case.copy(
+                    result = RunResult.NOT_STARTED,
+                    manualResult = false,
+                    stepResults = case.stepResults.map { it.copy(verdict = StepVerdict.NONE) },
+                )
+            },
+        )
+
     fun moveCase(run: TestRun, fromIndex: Int, toIndex: Int): TestRun {
         if (fromIndex == toIndex || fromIndex !in run.cases.indices || toIndex !in run.cases.indices) return run
         val next = run.cases.toMutableList()

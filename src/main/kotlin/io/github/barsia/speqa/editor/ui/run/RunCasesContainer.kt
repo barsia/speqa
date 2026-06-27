@@ -68,6 +68,11 @@ class RunCasesContainer(
         rebuild(initial)
     }
 
+    /** Expand or collapse every case section at once. */
+    fun setAllExpanded(expanded: Boolean) {
+        sections.forEach { it.setExpanded(expanded) }
+    }
+
     /** Refresh from [run]; update sections in place when the count is unchanged, else rebuild. */
     fun update(run: TestRun) {
         current = run

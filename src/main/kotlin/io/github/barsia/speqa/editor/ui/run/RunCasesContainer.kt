@@ -84,8 +84,12 @@ class RunCasesContainer(
             val scrollPane = SwingUtilities.getAncestorOfClass(JBScrollPane::class.java, this) as? JBScrollPane
             if (scrollPane != null) {
                 reorder = createReorder(scrollPane)
-                // Re-run the build now that DnD can be wired onto the handles.
-                rebuild(current)
+                // Sections built in init/rebuild persist across tab switches (Swing keeps the
+                // component tree; removeNotify only detaches DnD). So on (re)show, just re-wire the
+                // drag handles onto the existing sections instead of rebuilding the whole editor
+                // tree - rebuilding recreates every case body and its EditorFactory markdown
+                // editors synchronously on the EDT, which is what made tab switching slow.
+                if (sections.isEmpty()) rebuild(current) else attachReorderHandles()
             }
         }
     }
@@ -95,7 +99,8 @@ class RunCasesContainer(
         // Null it so a later addNotify (e.g. switching editor tabs away and back)
         // re-resolves the scroll pane, recreates the support, and re-attaches the
         // handles; otherwise drag-to-reorder would stay dead after the first detach.
-        // The re-add rebuild resets collapse state to expanded, an acceptable trade.
+        // The sections themselves are kept (not rebuilt) on re-show, so collapse state and
+        // the per-case editors survive the tab switch.
         reorder = null
         super.removeNotify()
     }
@@ -140,33 +145,41 @@ class RunCasesContainer(
         }
         sections = built
 
-        val activeReorder = reorder
         val wrappers = livePreview.install(built)
         wrappers.forEachIndexed { index, wrapper ->
             wrapper.alignmentX = Component.LEFT_ALIGNMENT
             if (index > 0) add(Box.createVerticalStrut(JBUI.scale(16)))
             add(wrapper)
             sectionWrappers.add(wrapper)
-            // Drag-to-reorder only makes sense with at least two sections.
-            if (activeReorder != null && built.size >= 2) {
-                val section = built[index]
-                activeReorder.attachHandle(
-                    card = section,
-                    dragHandle = section.dragHandle,
-                    index = { sections.indexOf(section) },
-                    slotProvider = {
-                        stepSlotsFromComponents(
-                            components = components,
-                            originalIndexOf = { component ->
-                                sectionWrappers.indexOf(component).takeIf { it >= 0 }
-                            },
-                        )
-                    },
-                )
-            }
         }
+        attachReorderHandles()
         revalidate()
         repaint()
+    }
+
+    /**
+     * Wire the drag-to-reorder gesture onto the existing sections' handles. Idempotent enough for
+     * re-show: [removeNotify] detaches first, so a later [addNotify] re-attaches a single gesture
+     * without recreating any section. Drag-to-reorder only makes sense with two or more sections.
+     */
+    private fun attachReorderHandles() {
+        val activeReorder = reorder ?: return
+        if (sections.size < 2) return
+        sections.forEach { section ->
+            activeReorder.attachHandle(
+                card = section,
+                dragHandle = section.dragHandle,
+                index = { sections.indexOf(section) },
+                slotProvider = {
+                    stepSlotsFromComponents(
+                        components = components,
+                        originalIndexOf = { component ->
+                            sectionWrappers.indexOf(component).takeIf { it >= 0 }
+                        },
+                    )
+                },
+            )
+        }
     }
 
     override fun paintChildren(g: Graphics) {

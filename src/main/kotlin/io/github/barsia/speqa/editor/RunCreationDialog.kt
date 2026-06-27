@@ -112,9 +112,9 @@ internal class RunCreationDialog(
         }
     }
     private val fileNameField = JBTextField(fileName)
-    private val importDescriptionCheckBox = JBCheckBox(SpeqaBundle.message("dialog.createRun.import.description"), true)
-    private val importTagsCheckBox = JBCheckBox(SpeqaBundle.message("dialog.createRun.import.tags"), true)
-    private val importEnvironmentCheckBox = JBCheckBox(SpeqaBundle.message("dialog.createRun.import.environment"), true)
+    private val importDescriptionCheckBox = JBCheckBox(SpeqaBundle.message("dialog.createRun.import.description"), false)
+    private val importTagsCheckBox = JBCheckBox(SpeqaBundle.message("dialog.createRun.import.tags"), false)
+    private val importEnvironmentCheckBox = JBCheckBox(SpeqaBundle.message("dialog.createRun.import.environment"), false)
     private val importTicketsCheckBox = JBCheckBox(SpeqaBundle.message("dialog.createRun.import.tickets"), false)
     private val importLinksCheckBox = JBCheckBox(SpeqaBundle.message("dialog.createRun.import.links"), false)
     private val importAttachmentsCheckBox = JBCheckBox(SpeqaBundle.message("dialog.createRun.import.attachments"), false)

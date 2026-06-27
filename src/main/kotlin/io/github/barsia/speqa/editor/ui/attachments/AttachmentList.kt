@@ -24,6 +24,7 @@ import java.awt.event.MouseEvent
 import javax.swing.BoxLayout
 import javax.swing.JComponent
 import javax.swing.JPanel
+import javax.swing.SwingUtilities
 
 /**
  * Vertical list of attachment rows plus a trailing "+ attach" button.
@@ -159,16 +160,19 @@ internal class AttachmentList(
     }
 
     private fun openChooser() {
+        val returnTo = externalAddButton ?: addButton
         ApplicationManager.getApplication().invokeLater {
             val descriptor = FileChooserDescriptorFactory.createAllButJarContentsDescriptor()
             FileChooser.chooseFiles(descriptor, project, null) { chosen ->
-                if (chosen.isEmpty()) return@chooseFiles
-                val newAttachment = runWriteAction {
-                    AttachmentSupport.copyFileToAttachments(project, tcFile, chosen.first())
+                if (chosen.isNotEmpty()) {
+                    val newAttachment = runWriteAction {
+                        AttachmentSupport.copyFileToAttachments(project, tcFile, chosen.first())
+                    }
+                    if (newAttachment != null) {
+                        onAttachmentsChange(attachments + newAttachment)
+                    }
                 }
-                if (newAttachment != null) {
-                    onAttachmentsChange(attachments + newAttachment)
-                }
+                SwingUtilities.invokeLater { returnTo.requestFocusInWindow() }
             }
         }
     }

@@ -161,11 +161,13 @@ internal class LinkRow(
     }
 
     private fun openEdit() {
+        val returnTo = this
         ApplicationManager.getApplication().invokeLater {
             val edited = AddEditLinkDialog.show(project, editLink = link)
             if (edited != null) {
                 onEdited(edited)
             }
+            SwingUtilities.invokeLater { returnTo.requestFocusInWindow() }
         }
     }
 

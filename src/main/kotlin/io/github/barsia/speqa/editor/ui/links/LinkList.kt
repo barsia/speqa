@@ -14,6 +14,7 @@ import java.awt.Component
 import javax.swing.BoxLayout
 import javax.swing.JComponent
 import javax.swing.JPanel
+import javax.swing.SwingUtilities
 
 /**
  * Vertical list of [LinkRow]s plus a trailing "+ link" button. Uses
@@ -98,11 +99,13 @@ internal class LinkList(
     }
 
     private fun openAddDialog() {
+        val returnTo = externalAddButton ?: addButton
         ApplicationManager.getApplication().invokeLater {
             val newLink = AddEditLinkDialog.show(project)
             if (newLink != null) {
                 onLinksChange(links + newLink)
             }
+            SwingUtilities.invokeLater { returnTo.requestFocusInWindow() }
         }
     }
 }

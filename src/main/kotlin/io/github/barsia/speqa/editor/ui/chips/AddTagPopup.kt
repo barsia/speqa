@@ -3,6 +3,8 @@ package io.github.barsia.speqa.editor.ui.chips
 
 import com.intellij.openapi.ui.popup.JBPopup
 import com.intellij.openapi.ui.popup.JBPopupFactory
+import com.intellij.openapi.ui.popup.JBPopupListener
+import com.intellij.openapi.ui.popup.LightweightWindowEvent
 import com.intellij.ui.DocumentAdapter
 import com.intellij.ui.JBColor
 import com.intellij.ui.awt.RelativePoint
@@ -15,11 +17,13 @@ import java.awt.BorderLayout
 import java.awt.Component
 import java.awt.Dimension
 import java.awt.Font
+import java.awt.KeyboardFocusManager
 import java.awt.Point
 import java.awt.event.KeyAdapter
 import java.awt.event.KeyEvent
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
+import javax.swing.SwingUtilities
 import javax.swing.DefaultListCellRenderer
 import javax.swing.DefaultListModel
 import javax.swing.JList
@@ -58,6 +62,10 @@ internal class AddTagPopup(
     }
 
     private var popup: JBPopup? = null
+    /** True when the popup was dismissed by a keyboard action (ESC/Enter/Tab).
+     *  False for click-outside and mouse item selection — the onClosed listener
+     *  handles focus restoration for those paths. */
+    private var dismissedByKeyboard = false
 
     private sealed interface Row {
         data class Existing(val value: String) : Row
@@ -97,6 +105,16 @@ internal class AddTagPopup(
             .setCancelOnOtherWindowOpen(true)
             .setMinSize(Dimension(JBUI.scale(260), JBUI.scale(260)))
         popup = builder.createPopup()
+        // Return focus to the anchor on any non-keyboard dismissal (click-outside,
+        // mouse item selection). Keyboard paths (ESC/Enter/Tab) set dismissedByKeyboard=true
+        // and handle focus themselves to also drive Tab traversal where needed.
+        popup?.addListener(object : JBPopupListener {
+            override fun onClosed(event: LightweightWindowEvent) {
+                if (!dismissedByKeyboard) {
+                    SwingUtilities.invokeLater { anchor.requestFocusInWindow() }
+                }
+            }
+        })
 
         wireKeyboard()
         wireMouse()
@@ -135,11 +153,26 @@ internal class AddTagPopup(
                         e.consume()
                     }
                     KeyEvent.VK_ENTER -> {
+                        dismissedByKeyboard = true
                         commitSelection()
+                        SwingUtilities.invokeLater { anchor.requestFocusInWindow() }
                         e.consume()
                     }
                     KeyEvent.VK_ESCAPE -> {
+                        dismissedByKeyboard = true
                         popup?.cancel()
+                        SwingUtilities.invokeLater { anchor.requestFocusInWindow() }
+                        e.consume()
+                    }
+                    KeyEvent.VK_TAB -> {
+                        dismissedByKeyboard = true
+                        popup?.cancel()
+                        SwingUtilities.invokeLater {
+                            anchor.requestFocusInWindow()
+                            val km = KeyboardFocusManager.getCurrentKeyboardFocusManager()
+                            if (e.isShiftDown) km.focusPreviousComponent(anchor)
+                            else km.focusNextComponent(anchor)
+                        }
                         e.consume()
                     }
                 }

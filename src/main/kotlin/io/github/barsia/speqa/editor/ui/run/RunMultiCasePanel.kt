@@ -67,6 +67,7 @@ class RunMultiCasePanel(
         onCommit = { newTitle ->
             if (newTitle != current.title) emitRun(current.copy(title = newTitle))
         },
+        liveCommit = true,
     )
 
     // Overall-result dropdown, same control as the single-case run. It shows the effective result

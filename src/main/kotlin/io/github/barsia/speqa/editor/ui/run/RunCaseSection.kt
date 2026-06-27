@@ -8,6 +8,8 @@ import com.intellij.util.ui.JBUI
 import io.github.barsia.speqa.SpeqaBundle
 import io.github.barsia.speqa.editor.ui.primitives.handCursor
 import io.github.barsia.speqa.editor.ui.primitives.manualResultIndicator
+import io.github.barsia.speqa.editor.ui.primitives.setSpeqaIcon
+import io.github.barsia.speqa.editor.ui.primitives.setSpeqaTooltip
 import io.github.barsia.speqa.editor.ui.primitives.speqaIconButton
 import io.github.barsia.speqa.model.RunCase
 import io.github.barsia.speqa.run.TestRunSupport
@@ -156,14 +158,13 @@ class RunCaseSection(
     }
 
     private fun updateToggleIcon() {
-        val icon = if (expanded) AllIcons.General.ChevronDown else AllIcons.General.ChevronRight
-        val tooltip = SpeqaBundle.message(
-            if (expanded) "runCase.collapse.tooltip" else "runCase.expand.tooltip",
+        collapseToggle.setSpeqaIcon(
+            if (expanded) AllIcons.General.ChevronDown else AllIcons.General.ChevronRight,
         )
-        (collapseToggle as? com.intellij.openapi.actionSystem.impl.ActionButton)?.let { button ->
-            button.presentation.icon = icon
-            button.presentation.description = tooltip
-            button.toolTipText = tooltip
-        }
+        // setSpeqaTooltip updates presentation.text too; the IDE tooltip reads that, so updating
+        // only description/toolTipText left a stale "Collapse..." label from creation.
+        collapseToggle.setSpeqaTooltip(
+            SpeqaBundle.message(if (expanded) "runCase.collapse.tooltip" else "runCase.expand.tooltip"),
+        )
     }
 }

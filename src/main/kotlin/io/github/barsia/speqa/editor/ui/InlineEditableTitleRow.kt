@@ -42,6 +42,8 @@ class InlineEditableTitleRow(
     initialTitle: String,
     private val placeholder: String,
     private val onCommit: (String) -> Unit,
+    /** When true, propagate edits live on every keystroke (like the runner field), not only on commit. */
+    private val liveCommit: Boolean = false,
 ) : JPanel(BorderLayout()) {
 
     private var title: String = initialTitle
@@ -196,6 +198,21 @@ class InlineEditableTitleRow(
         // holds the CommandProcessor undo stack) rather than the per-field
         // SwingUndoManagerWrapper that knows nothing about document-level ops.
         ClientProperty.put(f, UndoRedoAction.IGNORE_SWING_UNDO_MANAGER, true)
+
+        // Live-commit on each keystroke (when enabled), matching the runner field. Guarded by
+        // editing + focus so programmatic text changes (enterEdit/commit/cancel/setTitle) do not
+        // fire: enterEdit sets the text before focus is requested, the others run after editing
+        // is cleared or while unfocused.
+        if (liveCommit) {
+            f.document.addDocumentListener(object : javax.swing.event.DocumentListener {
+                private fun fire() {
+                    if (editing && f.isFocusOwner) onCommit(f.text.trim())
+                }
+                override fun insertUpdate(e: javax.swing.event.DocumentEvent?) = fire()
+                override fun removeUpdate(e: javax.swing.event.DocumentEvent?) = fire()
+                override fun changedUpdate(e: javax.swing.event.DocumentEvent?) = fire()
+            })
+        }
 
         // Recompute height whenever width changes so wrap-line count updates.
         var lastWidth = 0

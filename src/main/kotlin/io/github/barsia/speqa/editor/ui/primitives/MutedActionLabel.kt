@@ -63,6 +63,9 @@ fun mutedActionLabel(
     label.iconTextGap = JBUI.scale(4)
     label.foreground = mutedFg
     label.alignmentX = Component.LEFT_ALIGNMENT
+    // Small horizontal inner pad so the keyboard focus ring sits a little off the text
+    // (the ring is painted at the component's bounds).
+    label.border = JBUI.Borders.empty(0, 4)
     label.preferredSize = Dimension(label.preferredSize.width, rowHeight)
     label.minimumSize = Dimension(0, rowHeight)
     label.maximumSize = Dimension(label.preferredSize.width, rowHeight)

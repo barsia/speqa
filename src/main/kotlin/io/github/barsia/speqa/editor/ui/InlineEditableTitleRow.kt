@@ -88,6 +88,7 @@ class InlineEditableTitleRow(
         title = newTitle
         if (!field.hasFocus()) {
             setFieldTextSilently(displayText(newTitle))
+            refreshReadForeground()
             field.caretPosition = 0
             if (flash) CommitFlash.flash(field)
         }
@@ -146,13 +147,14 @@ class InlineEditableTitleRow(
         // A run/case title is required: a blank edit reverts to the previous title rather than
         // persisting an empty value.
         val next = field.text.trim().ifBlank { title }
+        val changed = next != title
+        title = next
         applyReadMode()
         setFieldTextSilently(displayText(next))
-        field.caretPosition = 0
-        if (next != title) {
-            title = next
-            onCommit(next)
-        }
+        // Do not force the caret to the start on save: keep it where the user was editing so the
+        // view does not jump start<->end on pencil/disk clicks. Start-anchoring is only applied
+        // for initial / external title display (setTitle).
+        if (changed) onCommit(next)
     }
 
     private fun cancel() {
@@ -171,8 +173,14 @@ class InlineEditableTitleRow(
         field.border = null
         field.margin = Insets(0, 0, 0, 0)
         field.handCursor()
-        // Render the placeholder (shown when the title is blank) in a muted hint color so it reads
-        // as a placeholder, not a real saved title.
+        refreshReadForeground()
+    }
+
+    /**
+     * Read-mode text color: a muted hint color when showing the placeholder (blank title) so it
+     * reads as a placeholder, and the normal label color for a real saved title.
+     */
+    private fun refreshReadForeground() {
         field.foreground =
             if (title.isBlank()) com.intellij.util.ui.UIUtil.getContextHelpForeground()
             else com.intellij.util.ui.UIUtil.getLabelForeground()

@@ -153,8 +153,6 @@ class TestCasePanel(
                 }
             }
         },
-        // Match the runner field: a run's title saves live. Case-mode keeps commit-on-blur.
-        liveCommit = (mode == PanelMode.RUN),
     )
 
     // RUN-mode-only widgets created before they are referenced by the header

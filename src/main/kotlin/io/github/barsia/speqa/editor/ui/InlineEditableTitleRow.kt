@@ -42,16 +42,10 @@ class InlineEditableTitleRow(
     initialTitle: String,
     private val placeholder: String,
     private val onCommit: (String) -> Unit,
-    /** When true, propagate edits live on every keystroke (like the runner field), not only on commit. */
-    private val liveCommit: Boolean = false,
 ) : JPanel(BorderLayout()) {
 
     private var title: String = initialTitle
     private var editing: Boolean = false
-    // Suppresses the live-commit document listener during programmatic text changes (enterEdit,
-    // commit, cancel, setTitle). Without it, setText's intermediate empty state fires a live
-    // onCommit("") that wipes the title.
-    private var suppressDocEvents: Boolean = false
     private val editableBorder: Border
     private val field: JBTextArea = buildField()
     private val pencil: JComponent = speqaIconButton(
@@ -87,21 +81,15 @@ class InlineEditableTitleRow(
         if (title == newTitle) return
         title = newTitle
         if (!field.hasFocus()) {
-            setFieldTextSilently(displayText(newTitle))
+            setFieldText(displayText(newTitle))
             refreshReadForeground()
             field.caretPosition = 0
             if (flash) CommitFlash.flash(field)
         }
     }
 
-    /** Set the field text without triggering the live-commit document listener. */
-    private fun setFieldTextSilently(text: String) {
-        suppressDocEvents = true
-        try {
-            field.text = text
-        } finally {
-            suppressDocEvents = false
-        }
+    private fun setFieldText(text: String) {
+        field.text = text
     }
 
     fun flashTarget(): JComponent = field
@@ -129,7 +117,7 @@ class InlineEditableTitleRow(
         editing = true
         updatePencilAffordance()
         applyEditMode()
-        setFieldTextSilently(if (title.isBlank()) "" else title)
+        setFieldText(if (title.isBlank()) "" else title)
         SwingUtilities.invokeLater {
             field.requestFocusInWindow()
             // Place the caret where the user clicked (caretTarget); fall back to the end for
@@ -150,7 +138,10 @@ class InlineEditableTitleRow(
         val changed = next != title
         title = next
         applyReadMode()
-        setFieldTextSilently(displayText(next))
+        setFieldText(displayText(next))
+        // Move focus off the field so saving (e.g. via the disk button) actually exits the edit
+        // state instead of leaving the field focused-but-read-only with no caret.
+        if (field.isFocusOwner) pencil.requestFocusInWindow()
         // Do not force the caret to the start on save: keep it where the user was editing so the
         // view does not jump start<->end on pencil/disk clicks. Start-anchoring is only applied
         // for initial / external title display (setTitle).
@@ -162,7 +153,7 @@ class InlineEditableTitleRow(
         editing = false
         updatePencilAffordance()
         applyReadMode()
-        setFieldTextSilently(displayText(title))
+        setFieldText(displayText(title))
         field.caretPosition = 0
     }
 
@@ -235,24 +226,6 @@ class InlineEditableTitleRow(
         // holds the CommandProcessor undo stack) rather than the per-field
         // SwingUndoManagerWrapper that knows nothing about document-level ops.
         ClientProperty.put(f, UndoRedoAction.IGNORE_SWING_UNDO_MANAGER, true)
-
-        // Live-commit on each keystroke (when enabled), matching the runner field. Guarded by
-        // editing + focus so programmatic text changes (enterEdit/commit/cancel/setTitle) do not
-        // fire: enterEdit sets the text before focus is requested, the others run after editing
-        // is cleared or while unfocused.
-        if (liveCommit) {
-            f.document.addDocumentListener(object : javax.swing.event.DocumentListener {
-                private fun fire() {
-                    // Skip blank edits so live typing never persists an empty title (commit
-                    // reverts blank to the previous value).
-                    val text = f.text.trim()
-                    if (!suppressDocEvents && editing && f.isFocusOwner && text.isNotBlank()) onCommit(text)
-                }
-                override fun insertUpdate(e: javax.swing.event.DocumentEvent?) = fire()
-                override fun removeUpdate(e: javax.swing.event.DocumentEvent?) = fire()
-                override fun changedUpdate(e: javax.swing.event.DocumentEvent?) = fire()
-            })
-        }
 
         // Recompute height whenever width changes so wrap-line count updates.
         var lastWidth = 0

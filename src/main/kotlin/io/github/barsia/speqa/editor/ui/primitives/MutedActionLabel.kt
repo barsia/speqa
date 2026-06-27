@@ -5,6 +5,10 @@ import com.intellij.ui.components.JBLabel
 import com.intellij.util.ui.JBUI
 import java.awt.Component
 import java.awt.Dimension
+import java.awt.Graphics
+import java.awt.Graphics2D
+import java.awt.event.FocusAdapter
+import java.awt.event.FocusEvent
 import java.awt.event.KeyAdapter
 import java.awt.event.KeyEvent
 import java.awt.event.MouseAdapter
@@ -41,7 +45,20 @@ fun mutedActionLabel(
     val mutedIcon = icon?.let { replaceIconColor(it, mutedFg) }
     val accentIcon = icon?.let { replaceIconColor(it, accentFg) }
 
-    val label = JBLabel(text, mutedIcon, JBLabel.LEFT)
+    var keyboardFocused = false
+    val label = object : JBLabel(text, mutedIcon, JBLabel.LEFT) {
+        override fun paintComponent(g: Graphics) {
+            super.paintComponent(g)
+            if (keyboardFocused) {
+                val g2 = g.create() as Graphics2D
+                try {
+                    paintCompactFocusRing(g2, width, height, JBUI.scale(4).toFloat())
+                } finally {
+                    g2.dispose()
+                }
+            }
+        }
+    }
     val rowHeight = inlineMetadataRowHeight()
     label.iconTextGap = JBUI.scale(4)
     label.foreground = mutedFg
@@ -83,6 +100,16 @@ fun mutedActionLabel(
                 onClick()
                 e.consume()
             }
+        }
+    })
+    label.addFocusListener(object : FocusAdapter() {
+        override fun focusGained(e: FocusEvent) {
+            keyboardFocused = isKeyboardFocusCause(e.cause)
+            label.repaint()
+        }
+        override fun focusLost(e: FocusEvent) {
+            keyboardFocused = false
+            label.repaint()
         }
     })
     return label

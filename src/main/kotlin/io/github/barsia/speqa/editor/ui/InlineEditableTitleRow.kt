@@ -48,6 +48,10 @@ class InlineEditableTitleRow(
 
     private var title: String = initialTitle
     private var editing: Boolean = false
+    // Suppresses the live-commit document listener during programmatic text changes (enterEdit,
+    // commit, cancel, setTitle). Without it, setText's intermediate empty state fires a live
+    // onCommit("") that wipes the title.
+    private var suppressDocEvents: Boolean = false
     private val editableBorder: Border
     private val field: JBTextArea = buildField()
     private val pencil: JComponent = speqaIconButton(
@@ -83,9 +87,19 @@ class InlineEditableTitleRow(
         if (title == newTitle) return
         title = newTitle
         if (!field.hasFocus()) {
-            field.text = displayText(newTitle)
+            setFieldTextSilently(displayText(newTitle))
             field.caretPosition = 0
             if (flash) CommitFlash.flash(field)
+        }
+    }
+
+    /** Set the field text without triggering the live-commit document listener. */
+    private fun setFieldTextSilently(text: String) {
+        suppressDocEvents = true
+        try {
+            field.text = text
+        } finally {
+            suppressDocEvents = false
         }
     }
 
@@ -114,11 +128,7 @@ class InlineEditableTitleRow(
         editing = true
         updatePencilAffordance()
         applyEditMode()
-        if (field.text == displayText(title) && title.isBlank()) {
-            field.text = ""
-        } else {
-            field.text = title
-        }
+        setFieldTextSilently(if (title.isBlank()) "" else title)
         SwingUtilities.invokeLater {
             field.requestFocusInWindow()
             // Place the caret where the user clicked (caretTarget); fall back to the end for
@@ -135,7 +145,7 @@ class InlineEditableTitleRow(
         updatePencilAffordance()
         val next = field.text.trim()
         applyReadMode()
-        field.text = displayText(next)
+        setFieldTextSilently(displayText(next))
         field.caretPosition = 0
         if (next != title) {
             title = next
@@ -148,7 +158,7 @@ class InlineEditableTitleRow(
         editing = false
         updatePencilAffordance()
         applyReadMode()
-        field.text = displayText(title)
+        setFieldTextSilently(displayText(title))
         field.caretPosition = 0
     }
 
@@ -217,7 +227,7 @@ class InlineEditableTitleRow(
         if (liveCommit) {
             f.document.addDocumentListener(object : javax.swing.event.DocumentListener {
                 private fun fire() {
-                    if (editing && f.isFocusOwner) onCommit(f.text.trim())
+                    if (!suppressDocEvents && editing && f.isFocusOwner) onCommit(f.text.trim())
                 }
                 override fun insertUpdate(e: javax.swing.event.DocumentEvent?) = fire()
                 override fun removeUpdate(e: javax.swing.event.DocumentEvent?) = fire()

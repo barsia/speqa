@@ -9,6 +9,8 @@ import com.intellij.util.ui.JBUI
 import io.github.barsia.speqa.SpeqaBundle
 import io.github.barsia.speqa.editor.ui.primitives.DeleteFocusRestorer
 import io.github.barsia.speqa.editor.ui.primitives.handCursor
+import io.github.barsia.speqa.editor.ui.primitives.isKeyboardFocusCause
+import io.github.barsia.speqa.editor.ui.primitives.paintCompactFocusRing
 import io.github.barsia.speqa.model.StepResult
 import io.github.barsia.speqa.model.StepVerdict
 import io.github.barsia.speqa.model.TestStep
@@ -18,6 +20,8 @@ import java.awt.Dimension
 import java.awt.Graphics
 import java.awt.Graphics2D
 import java.awt.RenderingHints
+import java.awt.event.FocusAdapter
+import java.awt.event.FocusEvent
 import java.awt.event.KeyAdapter
 import java.awt.event.KeyEvent
 import java.awt.event.MouseAdapter
@@ -551,11 +555,34 @@ class StepsSection(
             foreground = mutedFg
         }
 
-        val panel = JPanel(java.awt.FlowLayout(java.awt.FlowLayout.LEFT, JBUI.scale(4), 0))
+        var addStepFocused = false
+        val panel = object : JPanel(java.awt.FlowLayout(java.awt.FlowLayout.LEFT, JBUI.scale(4), 0)) {
+            override fun paintComponent(g: Graphics) {
+                super.paintComponent(g)
+                if (addStepFocused) {
+                    val g2 = g.create() as Graphics2D
+                    try {
+                        paintCompactFocusRing(g2, width, height, JBUI.scale(4).toFloat())
+                    } finally {
+                        g2.dispose()
+                    }
+                }
+            }
+        }
         panel.isOpaque = false
         panel.handCursor()
         panel.isFocusable = true
         panel.add(label)
+        panel.addFocusListener(object : FocusAdapter() {
+            override fun focusGained(e: FocusEvent) {
+                addStepFocused = isKeyboardFocusCause(e.cause)
+                panel.repaint()
+            }
+            override fun focusLost(e: FocusEvent) {
+                addStepFocused = false
+                panel.repaint()
+            }
+        })
 
         val clickAction: () -> Unit = {
             panel.requestFocusInWindow()

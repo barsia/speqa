@@ -77,15 +77,17 @@ class InlineEditableTitleRow(
     }
 
     fun setTitle(newTitle: String, flash: Boolean = true) {
+        // Don't clobber an in-progress edit; but otherwise always reflect external/document
+        // changes (e.g. a text-editor undo) in the visible field. The previous `!field.hasFocus()`
+        // guard updated only the internal title and left the shown text stale, desyncing the
+        // preview from the editor on undo.
         if (editing) return
         if (title == newTitle) return
         title = newTitle
-        if (!field.hasFocus()) {
-            setFieldText(displayText(newTitle))
-            refreshReadForeground()
-            field.caretPosition = 0
-            if (flash) CommitFlash.flash(field)
-        }
+        setFieldText(displayText(newTitle))
+        refreshReadForeground()
+        field.caretPosition = 0
+        if (flash) CommitFlash.flash(field)
     }
 
     private fun setFieldText(text: String) {

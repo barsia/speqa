@@ -129,6 +129,7 @@ class MarkdownEditablePane(
             installUndoDelegation(editor)
             installFormattingToolbar(editor)
             installListContinuation(editor)
+            installTabFocusTraversal(editor)
             installCodeBlockEnter(editor)
             installHiddenCodeBlockEditGuard(editor)
             installCodeBlockCopyButton(editor)
@@ -471,6 +472,21 @@ class MarkdownEditablePane(
             }
         }
         action.registerCustomShortcutSet(CustomShortcutSet.fromString("ENTER"), editor.contentComponent)
+    }
+
+    private fun installTabFocusTraversal(editor: EditorEx) {
+        val forward = object : AnAction() {
+            override fun actionPerformed(e: AnActionEvent) {
+                editor.contentComponent.transferFocus()
+            }
+        }
+        forward.registerCustomShortcutSet(CustomShortcutSet.fromString("TAB"), editor.contentComponent)
+        val backward = object : AnAction() {
+            override fun actionPerformed(e: AnActionEvent) {
+                editor.contentComponent.transferFocusBackward()
+            }
+        }
+        backward.registerCustomShortcutSet(CustomShortcutSet.fromString("shift TAB"), editor.contentComponent)
     }
 
     private fun installCodeBlockEnter(editor: EditorEx) {

@@ -91,8 +91,17 @@ class InlineEditableTitleRow(
 
     fun flashTarget(): JComponent = field
 
+    // True only within the event cycle in which a commit just happened, so the pencil-button
+    // action does not re-enter edit mode after `focusLost` already committed on the same click
+    // (that race is what made the caret jump start/end on repeated icon clicks).
+    private var justCommitted = false
+
     private fun toggleEdit() {
-        if (editing) commit() else enterEdit()
+        when {
+            editing -> commit()
+            justCommitted -> Unit
+            else -> enterEdit()
+        }
     }
 
     /** Pencil in read mode, checkmark while editing (clicking it then commits the title). */
@@ -121,6 +130,8 @@ class InlineEditableTitleRow(
     private fun commit() {
         if (!editing) return
         editing = false
+        justCommitted = true
+        SwingUtilities.invokeLater { justCommitted = false }
         updatePencilAffordance()
         val next = field.text.trim()
         applyReadMode()
@@ -247,10 +258,9 @@ class InlineEditableTitleRow(
         })
         f.addFocusListener(object : FocusAdapter() {
             override fun focusLost(e: FocusEvent) {
-                // When focus moves to the pencil/checkmark button, let its own toggle handle the
-                // commit; committing here too would then re-enter edit mode (button sees editing
-                // already false) and make the caret jump.
-                if (editing && !e.isTemporary && e.oppositeComponent !== pencil) commit()
+                // Commit on real focus loss. If focus went to the pencil button, the button's
+                // toggle then sees justCommitted and does not re-enter edit mode.
+                if (editing && !e.isTemporary) commit()
             }
         })
         return f

@@ -21,10 +21,10 @@ import io.github.barsia.speqa.model.RunResult
 import io.github.barsia.speqa.model.TestRun
 import io.github.barsia.speqa.run.RunProgressText
 import io.github.barsia.speqa.run.TestRunSupport
+import java.awt.BorderLayout
 import java.awt.Component
 import java.awt.Dimension
 import java.awt.Rectangle
-import java.awt.FlowLayout
 import javax.swing.BoxLayout
 import javax.swing.DefaultListCellRenderer
 import javax.swing.JList
@@ -103,11 +103,12 @@ class RunMultiCasePanel(
         foreground = UIManager.getColor("Label.disabledForeground")
     }
 
-    private val resultBody = JPanel(FlowLayout(FlowLayout.LEFT, JBUI.scale(8), 0)).apply {
+    // Same shape as the single-case run's result body: the combo fills the column (CENTER) with
+    // the manual indicator pinned to its right (EAST).
+    private val resultBody = JPanel(BorderLayout()).apply {
         isOpaque = false
-        add(resultCombo)
-        add(runManualIndicator)
-        add(progressLabel)
+        add(resultCombo, BorderLayout.CENTER)
+        add(runManualIndicator.apply { border = JBUI.Borders.emptyLeft(JBUI.scale(6)) }, BorderLayout.EAST)
     }
 
     private val runnerField: JBTextField = singleLineInput(
@@ -135,14 +136,26 @@ class RunMultiCasePanel(
         add(titleRow)
         add(javax.swing.Box.createVerticalStrut(sectionGap))
 
-        val headerRow = twoColumnRow(
-            leftCaption = SpeqaBundle.message("label.runResult"),
+        // Mirror the single-case run header: Progress | Runner, then a row whose left column is
+        // empty (a multi-case run has no run-level priority) and whose right column is the Result.
+        val progressRunnerRow = twoColumnRow(
+            leftCaption = SpeqaBundle.message("panel.run.progress"),
             rightCaption = SpeqaBundle.message("panel.run.runner"),
-            leftBody = resultBody,
+            leftBody = progressLabel,
             rightBody = runnerField,
         )
-        headerRow.alignmentX = Component.LEFT_ALIGNMENT
-        add(headerRow)
+        progressRunnerRow.alignmentX = Component.LEFT_ALIGNMENT
+        add(progressRunnerRow)
+        add(javax.swing.Box.createVerticalStrut(sectionGap))
+
+        val resultRow = twoColumnRow(
+            leftCaption = "",
+            rightCaption = SpeqaBundle.message("label.runResult"),
+            leftBody = JPanel().apply { isOpaque = false },
+            rightBody = resultBody,
+        )
+        resultRow.alignmentX = Component.LEFT_ALIGNMENT
+        add(resultRow)
         add(javax.swing.Box.createVerticalStrut(JBUI.scale(16)))
 
         container.alignmentX = Component.LEFT_ALIGNMENT

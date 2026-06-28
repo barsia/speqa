@@ -45,26 +45,25 @@ object TestRunSerializer {
         if (case.tags.isNotEmpty()) appendLine("tags: ${case.tags.joinToString(", ")}")
         if (case.environment.isNotEmpty()) appendLine("environment: ${case.environment.joinToString(", ")}")
         if (case.manualResult) appendLine("manual_result: true")
-        appendCaseBodyBlocks(case.bodyBlocks)
+        appendCaseDescription(case.bodyBlocks)
         appendCaseLinks(case.links)
         appendCaseAttachments(case.attachments)
+        appendCasePreconditions(case.bodyBlocks)
         appendCaseScenario(case.stepResults)
         appendCaseResult(case.result)
     }
 
-    private fun StringBuilder.appendCaseBodyBlocks(blocks: List<TestCaseBodyBlock>) {
-        if (blocks.isEmpty()) return
-        val orderedBlocks = blocks.sortedBy { block ->
-            when (block) {
-                is DescriptionBlock -> 0
-                is PreconditionsBlock -> 1
-            }
-        }
+    private fun StringBuilder.appendCaseDescription(blocks: List<TestCaseBodyBlock>) {
+        val description = blocks.filterIsInstance<DescriptionBlock>().firstOrNull() ?: return
+        if (description.markdown.isBlank()) return
         appendLine()
-        orderedBlocks.forEachIndexed { index, block ->
-            appendBodyBlock(block)
-            if (index != orderedBlocks.lastIndex) appendLine()
-        }
+        appendBodyBlock(description)
+    }
+
+    private fun StringBuilder.appendCasePreconditions(blocks: List<TestCaseBodyBlock>) {
+        val preconditions = blocks.filterIsInstance<PreconditionsBlock>().firstOrNull() ?: return
+        appendLine()
+        appendBodyBlock(preconditions)
     }
 
     private fun StringBuilder.appendCaseLinks(links: List<Link>) {

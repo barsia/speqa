@@ -332,19 +332,32 @@ object DocumentPatcher {
         }
 
         if (markerRange == null && markdown.isNotBlank()) {
-            // Insert preconditions before steps/attachments. Mirror the description
-            // insertion logic: drop the trailing blank line when one is already
-            // present (or we're at EOF) so the section is separated by exactly one
-            // blank line on each side.
+            // Insert preconditions before steps/attachments. The leading prefix
+            // ensures exactly one blank line between the preceding content and the
+            // Preconditions marker. At EOF we must look at how the text ends because
+            // there is no character at the insert position to check.
             val insertOffset = findPreconditionsInsertOffset(text, layout)
             val marker = markerStyle.ifBlank { "Preconditions:" }
-            val followedByBlankLine = insertOffset < text.length && text[insertOffset] == '\n'
-            val tail = if (followedByBlankLine || insertOffset >= text.length) "" else "\n"
+            val prefix: String
+            val tail: String
+            if (insertOffset >= text.length) {
+                prefix = when {
+                    text.isEmpty() -> ""
+                    text.endsWith("\n\n") -> ""
+                    text.endsWith("\n") -> "\n"
+                    else -> "\n\n"
+                }
+                tail = ""
+            } else {
+                val followedByBlankLine = text[insertOffset] == '\n'
+                prefix = "\n"
+                tail = if (followedByBlankLine) "" else "\n"
+            }
             return listOf(
                 DocumentEdit(
                     offset = insertOffset,
                     length = 0,
-                    replacement = "\n" + marker + "\n\n" + ensureTrailingNewline(markdown) + tail,
+                    replacement = prefix + marker + "\n\n" + ensureTrailingNewline(markdown) + tail,
                 )
             )
         }
@@ -378,23 +391,25 @@ object DocumentPatcher {
 
     /**
      * Returns the offset where preconditions should be inserted.
-     * This is after the description (if any), or after frontmatter,
-     * and before steps/attachments.
+     * In the canonical order Preconditions sits just before Scenario,
+     * after Links and Attachments.
      */
     private fun findPreconditionsInsertOffset(text: String, layout: DocumentLayout): Int {
+        if (layout.stepsMarkerRange != null) {
+            return findBlankLinesBefore(text, layout.stepsMarkerRange.start)
+        }
+        // No Scenario: fall after the last of attachments/links
+        if (layout.attachmentsMarkerRange != null) {
+            return layout.attachmentsBodyRange?.end ?: layout.attachmentsMarkerRange.end
+        }
+        if (layout.linksMarkerRange != null) {
+            return layout.linksBodyRange?.end ?: layout.linksMarkerRange.end
+        }
         if (layout.descriptionRange != null) {
             return layout.descriptionRange.end
         }
         if (layout.frontmatter != null) {
             return layout.frontmatter.closeDelimiter.end
-        }
-        val firstSection = listOfNotNull(
-            layout.attachmentsMarkerRange,
-            layout.linksMarkerRange,
-            layout.stepsMarkerRange,
-        ).minByOrNull { it.start }
-        if (firstSection != null) {
-            return findBlankLinesBefore(text, firstSection.start)
         }
         return text.length
     }
@@ -900,7 +915,8 @@ object DocumentPatcher {
     }
 
     private fun findAttachmentsInsertOffset(text: String, layout: DocumentLayout): Int {
-        val targetStart = layout.linksMarkerRange?.start
+        // New order: Attachments inserts before Preconditions/Scenario
+        val targetStart = layout.preconditionsMarkerRange?.start
             ?: layout.stepsMarkerRange?.start
         if (targetStart != null) {
             return findBlankLinesBefore(text, targetStart)
@@ -1028,8 +1044,20 @@ object DocumentPatcher {
     }
 
     private fun findLinksInsertOffset(text: String, layout: DocumentLayout): Int {
-        if (layout.stepsMarkerRange != null) {
-            return findBlankLinesBefore(text, layout.stepsMarkerRange.start)
+        // New order: Links inserts after description (or frontmatter), before Attachments/Preconditions/Scenario
+        if (layout.descriptionRange != null) {
+            return layout.descriptionRange.end
+        }
+        if (layout.frontmatter != null) {
+            return layout.frontmatter.closeDelimiter.end
+        }
+        val firstSection = listOfNotNull(
+            layout.attachmentsMarkerRange,
+            layout.preconditionsMarkerRange,
+            layout.stepsMarkerRange,
+        ).minByOrNull { it.start }
+        if (firstSection != null) {
+            return findBlankLinesBefore(text, firstSection.start)
         }
         return text.length
     }

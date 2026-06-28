@@ -127,7 +127,7 @@ For `.tc.md` and `.tr.md` files, the three-dot menu (`EditorTabsEntryPoint`) con
 | File format | `.tc.md` (test cases), `.tr.md` (test runs) — Markdown + YAML frontmatter, custom `SpeqaLanguage` with Markdown-delegating syntax highlighter |
 | Storage | Files in project directory, versioned via Git |
 | Configurable root path | User sets root directory for test cases in plugin settings |
-| Test case fields | Title, Priority, Status, Environment, Tags, Body Blocks (Description + Preconditions), Attachments, Links, Scenario steps (action + optional expected per step) |
+| Test case fields | Title, Priority, Status, Environment, Tags, Body Blocks (Description + Preconditions), Links, Attachments, Scenario steps (action + optional expected per step) |
 | Test case editor | Speqa split editor: native text editor (left) + interactive test-case panel (right) |
 | Test run editor | Speqa split editor: native text editor (left) + interactive test-run panel (right) |
 | Native Markdown default | Regular `.md` stays fully native IntelliJ Markdown |
@@ -158,6 +158,15 @@ tags:
 
 This case verifies the standard login flow for active users.
 
+Links:
+
+[Jira ticket](https://jira.example.com/TC-123)
+[Design doc](https://figma.com/file/abc123)
+
+Attachments:
+
+[attachments/login/screenshot.png]
+
 Preconditions:
 
 1. User account exists in the system
@@ -168,15 +177,6 @@ Extra context for the tester.
 Pre-conditions:
 
 * Feature flag `new-login-flow` is enabled
-
-Attachments:
-
-[attachments/login/screenshot.png]
-
-Links:
-
-[Jira ticket](https://jira.example.com/TC-123)
-[Design doc](https://figma.com/file/abc123)
 
 Scenario:
 
@@ -242,7 +242,7 @@ Scenario:
 - **Field presence rule:** only `title` is required. All other frontmatter fields (id, priority, status, environment, tags) are optional. If a field key is absent from frontmatter, it is treated as "not set" (`null` in the data model). If a field key is present — even with an empty or default value — it is treated as "set"
 - **Serializer rule:** only non-null fields are written to frontmatter. A `TestCase` with `id = null` produces no `id:` line; with `priority = null` produces no `priority:` line
 - **Preview visibility rule (refined):** Title is always shown. For all other fields: if the value is `null` (absent from frontmatter), the section is hidden in preview. If the value is non-null (present in frontmatter, even if empty/default), the section is shown
-- The Markdown body before the steps marker is an ordered sequence of blocks. That order must be preserved in the form editor, preview, and serializer.
+- The Markdown body before the steps marker is an ordered sequence of blocks. That order must be preserved in the form editor, preview, and serializer. The canonical serialized order is: Description - Links - Attachments - Preconditions - Scenario.
 - A `Preconditions` block starts only with a paragraph-opening marker line: `Preconditions:` or `Pre-conditions:`
 - Everything before the steps marker that does not start with one of those markers is a `Description` block
 - Preconditions content includes everything from the marker line until the next body block marker or the `Scenario:` marker — including numbered lists, bulleted lists, free text, multiple paragraphs separated by blank lines, and mixed content. A paragraph after a preconditions list still belongs to the same preconditions block, not a new description block
@@ -259,15 +259,15 @@ Scenario:
 - **Run attachment rebase contract:** `TestRunSupport.createInitialRun` rebases every copied attachment path from the source `.tc.md` directory to the target `.tr.md` directory before serializing the run. If a case at `test-cases/mcp/sample-login.tc.md` stores `attachments/sample-login/screenshot.png` and the run is created under `test-runs/`, the run stores `../test-cases/mcp/attachments/sample-login/screenshot.png`. This applies equally to top-level attachments and to per-step action/expected attachments.
 - **Attachment parsing — general (case-level):** An optional `Attachments:` section (case-insensitive marker `^[Aa]ttachments:\s*$`, may appear between body blocks and `Scenario:`) lists case-level attachments. The parser recognises two line formats: Markdown image/link syntax `![alt](path)` or `[text](path)` matched by `^!?\[([^\]]*)\]\(([^)]+)\)$` (path is extracted from group 2), and bare bracket syntax `[path]` matched by `^\[([^\]]+)\]$` (path extracted from group 1). Lines that do not match either format are ignored. The section ends at `Scenario:` or end of body. `bodyBeforeScenarioMarker` stops at `Attachments:` in addition to `Scenario:` so that attachment lines are not fed into body block parsing.
 - **Attachment parsing — per-step:** Within the scenario section, attachment lines (matching the same two formats) that appear anywhere inside a step block are collected into that step's shared `attachments` list. Attachment lines are never appended to the action or expected text. The attachment list is flushed onto the current step when a new step starts or at end of the scenario section.
-- **Attachment serialization — general (case-level):** `TestCaseSerializer` writes an `Attachments:` section if `testCase.attachments` is non-empty. The section is inserted after all body blocks (and their trailing blank line) and before the `Scenario:` section. Each attachment is written using bare bracket syntax: `[path]`. The section ends with a blank line before `Scenario:`. A private `StringBuilder.appendAttachment(attachment: Attachment, indent: String = "")` helper emits `$indent[${attachment.path}]` followed by a newline.
+- **Attachment serialization -- general (case-level):** `TestCaseSerializer` writes an `Attachments:` section if `testCase.attachments` is non-empty. The section is inserted after the `Links:` section (or after the description if no links are present), and before `Preconditions:` and `Scenario:`. Each attachment is written using bare bracket syntax: `[path]`. The section ends with a blank line before `Preconditions:` or `Scenario:`. A private `StringBuilder.appendAttachment(attachment: Attachment, indent: String = "")` helper emits `$indent[${attachment.path}]` followed by a newline.
 - **Attachment serialization — per-step:** For each step, `appendStep` writes attachment lines after the expected-result blockquote. Step attachments are rendered as normal Markdown links/images on their own indented lines. The serializer does not interleave attachments before the expected block in the canonical format.
 - **Attachment UI - panel integration:** The test-case panel receives `project` and `file` from `SpeqaPreviewEditor` so attachment paths can be resolved relative to the `.tc.md` file. A general "Attachments" section (label `label.attachments`) is rendered between the Preconditions block and the steps section. Adding/removing attachments updates `testCase.attachments`. Clicking an attachment opens it via `FileEditorManager`. The section header is always shown so the section is discoverable even when empty.
 - **Attachment UI — StepCard integration:** `StepCard` accepts optional `attachments: List<Attachment>`, `onAttachmentsChange: (List<Attachment>) -> Unit`, `project: Project?`, `tcFile: VirtualFile?`, and `onOpenFile: (Attachment) -> Unit` parameters (all with safe defaults). A single shared attachment block is rendered in the step metadata row; the UI does not expose separate "attach to action" or "attach to expected" affordances. Attachments are only rendered when both `project` and `tcFile` are non-null (guarded by `if` check).
 - **Attachment UI — StepsSection integration:** `StepsSection` accepts optional `project: Project?` and `tcFile: VirtualFile?` parameters (after `onTestCaseChange`), forwarded to each `StepCard`. Attachment change callbacks update the step's `attachments` via `testCase.copy(steps = testCase.steps.updated(index, step.copy(...)))`. The `onOpenFile` callback resolves the attachment strictly relative to the current markdown file via `AttachmentSupport.resolveFile` and opens it with `FileEditorManager`. `TestCasePreview` passes its `project` and `file` parameters to `StepsSection` as `project` and `tcFile`.
 - **Link data model:** `data class Link(val title: String, val url: String)` defined in `TestCase.kt` immediately after the `Attachment` data class. `TestCase` carries a top-level `links: List<Link> = emptyList()` field (declared after `attachments`, before `bodyBlocks`). The link list defaults to empty so existing files without links parse without changes.
-- **Link file format:** An optional `Links:` section (case-insensitive marker `^[Ll]inks:\s*$`) appears in the document body after `Attachments:` and before `Scenario:`. Each link line uses standard Markdown link syntax: `[title](url)` matched by `LINK_PATTERN` (`^\[([^\]]+)\]\(([^)]+)\)$`). Lines that do not match are ignored. The section ends at the next section marker (`Scenario:`, `Attachments:`) or end of body.
+- **Link file format:** An optional `Links:` section (case-insensitive marker `^[Ll]inks:\s*$`) appears in the document body before `Attachments:`, `Preconditions:`, and `Scenario:` in the canonical serialized order. Each link line uses standard Markdown link syntax: `[title](url)` matched by `LINK_PATTERN` (`^\[([^\]]+)\]\(([^)]+)\)$`). Lines that do not match are ignored. The section ends at the next section marker (`Scenario:`, `Attachments:`) or end of body.
 - **Link parsing (TestCaseParser):** `parseLinks(body)` scans for `LINKS_MARKER` (`^[Ll]inks:\s*$`) and collects `Link(title, url)` entries from lines matching `LINK_PATTERN` (`^\[([^\]]+)\]\(([^)]+)\)$`). Blank lines are skipped; the section ends at `SCENARIO_MARKER` or end of body. `bodyBeforeScenarioMarker` stops at `LINKS_MARKER` in addition to `ATTACHMENTS_MARKER` and `SCENARIO_MARKER` so link lines are not fed into body block parsing. `parseGeneralAttachments` stops at `LINKS_MARKER` (in addition to `SCENARIO_MARKER`). The `parse()` return includes `links = parseLinks(body)`.
-- **Link serialization (TestCaseSerializer):** If `testCase.links` is non-empty, writes `Links:\n\n` then each link as `[title](url)\n` via `appendLink(link: Link)`, followed by a trailing blank line. Section placed after Attachments and before Scenario. Body blocks trailing-blank-line condition includes `testCase.links.isNotEmpty()`. The Attachments trailing blank line condition also considers `testCase.links.isNotEmpty()` so there is a blank line between Attachments and Links when both are present. The `appendLink(link: Link)` private helper emits `[title](url)` followed by a newline, matching the same pattern as `appendAttachment`.
+- **Link serialization (TestCaseSerializer):** If `testCase.links` is non-empty, writes `Links:\n\n` then each link as `[title](url)\n` via `appendLink(link: Link)`. Section placed after Description and before Attachments, Preconditions, and Scenario. The `appendLink(link: Link)` private helper emits `[title](url)` followed by a newline, matching the same pattern as `appendAttachment`.
 - **Link test coverage:** Parser tests verify: parsing links section with multiple links. Serializer tests verify: links round-trip preservation (serialize then parse preserves Link title and URL), section ordering between Attachments and Scenario. Locator tests verify: links marker and body ranges detected correctly. Patcher tests verify: replacing links, deleting links section, inserting links into document without links section.
 - **DocumentRangeLocator — Links:** `DocumentLayout` gains `linksMarkerRange: TextRange?` and `linksBodyRange: TextRange?` (placed after `attachmentsBodyRange`, before `stepsMarkerRange`). The locator adds a `LINKS_MARKER` regex (`^[Ll]inks:\s*$`) and recognizes it as a section marker during the scanning loop. The `"links"` case in the section parsing `when` block uses the same `findBodyRange` helper as other sections. Section ordering for scanning: preconditions, attachments, links, steps. The description-area marker detection also checks `LINKS_MARKER` to avoid mistaking link markers for description text. The `DocumentLayout` return includes `linksMarkerRange` and `linksBodyRange`. Implementation: the scanning loop, section parsing `when` block, description marker check, and return statement are all updated together.
 - **DocumentPatcher — Links:** `PatchOperation` gains `SetLinks(links: List<Link>)`. Import `io.github.barsia.speqa.model.Link`. When the section exists and links are non-empty, replaces `linksBodyRange` with `[title](url)\n` lines; if body is null but marker exists, inserts after marker. When the section exists and links are empty, deletes the entire section (marker + body + surrounding blank lines). When no section exists and links are non-empty, inserts `Links:\n\n[title1](url1)\n[title2](url2)\n\n` before the Scenario marker (or at EOF). When no section and empty list, no-op. `formatDocumentLinks` formats each link as `[title](url)\n`. `findLinksInsertOffset` determines the insert position by looking for the Scenario marker. `buildSetLinksEdits`, `formatDocumentLinks`, `findLinksInsertOffset` follow the same pattern as `buildSetAttachmentsEdits`.

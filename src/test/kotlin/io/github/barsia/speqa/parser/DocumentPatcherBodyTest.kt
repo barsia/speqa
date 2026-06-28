@@ -94,7 +94,7 @@ class DocumentPatcherBodyTest {
     }
 
     @Test
-    fun `add preconditions does not duplicate blank line before next section`() {
+    fun `add preconditions inserts after links section`() {
         val doc = """
             |---
             |title: "Has links"
@@ -112,8 +112,8 @@ class DocumentPatcherBodyTest {
 
         val result = applyEdits(doc, edits)
 
-        assertFalse("must not contain triple newline before Links", result.contains("1\n\n\nLinks:"))
-        assertTrue("preconditions and Links must be separated by exactly one blank line", result.contains("1\n\nLinks:"))
+        assertTrue("Preconditions should come after links content", result.contains("[example](https://example.com)\n\nPreconditions:"))
+        assertFalse("No triple newline between links and preconditions", result.contains("[example](https://example.com)\n\n\nPreconditions:"))
     }
 
     // ── 3. Clear description (set to blank) ──────────────────────

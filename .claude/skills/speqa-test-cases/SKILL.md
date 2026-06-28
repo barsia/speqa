@@ -56,14 +56,14 @@ tags:
 
 Optional one-line description if the title is not self-explanatory.
 
+Links:
+
+[Ticket key or short title](https://...)
+
 Preconditions:
 
 1. First precondition
 2. Second precondition
-
-Links:
-
-[Ticket key or short title](https://...)
 
 Scenario:
 
@@ -76,7 +76,7 @@ Scenario:
    > 2. Second expected result
 ```
 
-Section markers appear in this order when present: `Preconditions:` (optional), `Links:` (optional), `Scenario:` (required).
+Section markers appear in this order when present: `Links:` (optional), `Attachments:` (optional), `Preconditions:` (optional), `Scenario:` (required).
 
 ## File Naming
 
@@ -116,7 +116,7 @@ Marker line: exactly `Preconditions:`, followed by a blank line, then items numb
 
 ## Links
 
-Marker line: exactly `Links:`, followed by a blank line, then one link per line: `[title](url)`. Placed between `Preconditions:` and `Scenario:`. URLs must start with `http://` or `https://`. Use the ticket key as the link title for ticket URLs (`[ABC-1234](https://youtrack.jetbrains.com/issue/ABC-1234)`). Use a short descriptive title for other links (`[Figma — MCP add dialog](https://...)`). When updating a case, append new links; do not replace existing ones. Do not fabricate URLs — omit the section if none exist.
+Marker line: exactly `Links:`, followed by a blank line, then one link per line: `[title](url)`. Placed before `Preconditions:` and `Scenario:`. URLs must start with `http://` or `https://`. Use the ticket key as the link title for ticket URLs (`[ABC-1234](https://youtrack.jetbrains.com/issue/ABC-1234)`). Use a short descriptive title for other links (`[Figma — MCP add dialog](https://...)`). When updating a case, append new links; do not replace existing ones. Do not fabricate URLs — omit the section if none exist.
 
 ## Scenario Steps
 

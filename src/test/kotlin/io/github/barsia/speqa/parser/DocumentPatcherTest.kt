@@ -1,6 +1,7 @@
 package io.github.barsia.speqa.parser
 
 import io.github.barsia.speqa.model.Link
+import io.github.barsia.speqa.model.PreconditionsMarkerStyle
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -485,5 +486,63 @@ class DocumentPatcherTest {
 
         val edits = DocumentPatcher.patch(doc, PatchOperation.SetLinks(emptyList()))
         assertTrue("Should produce no edits", edits.isEmpty())
+    }
+
+    // ── 15. SetLinks inserts before existing Preconditions ───────
+
+    @Test
+    fun `SetLinks inserts Links before existing Preconditions`() {
+        val doc = """
+            |---
+            |title: "Test"
+            |---
+            |
+            |Preconditions:
+            |
+            |- Must be logged in
+            |
+            |Scenario:
+            |
+            |1. Do something
+        """.trimMargin()
+
+        val links = listOf(Link("Jira", "https://jira.example.com/TC-1"))
+        val edits = DocumentPatcher.patch(doc, PatchOperation.SetLinks(links))
+        val result = applyEdits(doc, edits)
+
+        assertTrue(result.contains("Links:"))
+        val linksIdx = result.indexOf("Links:")
+        val precIdx = result.indexOf("Preconditions:")
+        assertTrue("Links should be before Preconditions", linksIdx < precIdx)
+    }
+
+    // ── 16. SetPreconditions inserts after existing Links ────────
+
+    @Test
+    fun `SetPreconditions inserts Preconditions after existing Links`() {
+        val doc = """
+            |---
+            |title: "Test"
+            |---
+            |
+            |Links:
+            |
+            |[Jira](https://jira.example.com/TC-1)
+            |
+            |Scenario:
+            |
+            |1. Do something
+        """.trimMargin()
+
+        val edits = DocumentPatcher.patch(
+            doc,
+            PatchOperation.SetPreconditions(PreconditionsMarkerStyle.PRECONDITIONS, "- Must be logged in"),
+        )
+        val result = applyEdits(doc, edits)
+
+        assertTrue(result.contains("Preconditions:"))
+        val linksIdx = result.indexOf("Links:")
+        val precIdx = result.indexOf("Preconditions:")
+        assertTrue("Preconditions should be after Links", precIdx > linksIdx)
     }
 }

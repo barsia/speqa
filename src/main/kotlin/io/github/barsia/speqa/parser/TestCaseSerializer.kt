@@ -20,44 +20,40 @@ object TestCaseSerializer {
             testCase.tags?.let { appendListField("tags", it) }
             appendLine("---")
             appendLine()
-            val orderedBlocks = testCase.bodyBlocks.sortedBy { block ->
-                when (block) {
-                    is DescriptionBlock -> 0
-                    is PreconditionsBlock -> 1
-                }
-            }
-            if (orderedBlocks.isNotEmpty()) {
-                orderedBlocks.forEachIndexed { index, block ->
-                    appendBodyBlock(block)
-                    if (index != orderedBlocks.lastIndex || testCase.attachments.isNotEmpty() || testCase.links.isNotEmpty() || testCase.steps.isNotEmpty()) {
-                        appendLine()
-                    }
-                }
-            }
-            if (testCase.attachments.isNotEmpty()) {
-                appendLine("Attachments:")
-                appendLine()
-                testCase.attachments.forEach { appendAttachment(it) }
-                if (testCase.links.isNotEmpty() || testCase.steps.isNotEmpty()) {
-                    appendLine()
-                }
+            val description = testCase.bodyBlocks.filterIsInstance<DescriptionBlock>().firstOrNull()
+            val preconditions = testCase.bodyBlocks.filterIsInstance<PreconditionsBlock>().firstOrNull()
+            var needsBlankLine = false
+
+            if (description != null && description.markdown.isNotBlank()) {
+                appendBodyBlock(description)
+                needsBlankLine = true
             }
             if (testCase.links.isNotEmpty()) {
+                if (needsBlankLine) appendLine()
                 appendLine("Links:")
                 appendLine()
                 testCase.links.forEach { link -> appendLink(link) }
-                if (testCase.steps.isNotEmpty()) {
-                    appendLine()
-                }
+                needsBlankLine = true
+            }
+            if (testCase.attachments.isNotEmpty()) {
+                if (needsBlankLine) appendLine()
+                appendLine("Attachments:")
+                appendLine()
+                testCase.attachments.forEach { appendAttachment(it) }
+                needsBlankLine = true
+            }
+            if (preconditions != null) {
+                if (needsBlankLine) appendLine()
+                appendBodyBlock(preconditions)
+                needsBlankLine = true
             }
             if (testCase.steps.isNotEmpty()) {
+                if (needsBlankLine) appendLine()
                 appendLine("Scenario:")
                 appendLine()
                 testCase.steps.forEachIndexed { index, step ->
                     appendStep(index + 1, step)
-                    if (index != testCase.steps.lastIndex) {
-                        appendLine()
-                    }
+                    if (index != testCase.steps.lastIndex) appendLine()
                 }
             }
         }.trimEnd() + "\n"

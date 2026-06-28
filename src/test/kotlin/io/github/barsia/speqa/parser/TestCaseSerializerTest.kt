@@ -353,7 +353,7 @@ class TestCaseSerializerTest {
         assertEquals(original.links[1].title, parsed.links[1].title)
         assertEquals(original.links[1].url, parsed.links[1].url)
 
-        // Verify section ordering: Links appears between Attachments and Steps
+        // Verify section ordering: Links appears before Scenario
         assertTrue(serialized.contains("Links:"))
         val linksIdx = serialized.indexOf("Links:")
         val stepsIdx = serialized.indexOf("Scenario:")
@@ -380,12 +380,12 @@ class TestCaseSerializerTest {
         assertEquals(1, parsed.links.size)
         assertEquals("Jira", parsed.links[0].title)
 
-        // Verify ordering: Attachments < Links < Steps
-        val attIdx = serialized.indexOf("Attachments:")
+        // Verify ordering: Links < Attachments < Scenario
         val linksIdx = serialized.indexOf("Links:")
+        val attIdx = serialized.indexOf("Attachments:")
         val stepsIdx = serialized.indexOf("Scenario:")
-        assertTrue(attIdx < linksIdx)
-        assertTrue(linksIdx < stepsIdx)
+        assertTrue(linksIdx < attIdx)
+        assertTrue(attIdx < stepsIdx)
     }
 
     @Test
@@ -418,15 +418,15 @@ class TestCaseSerializerTest {
     }
 
     @Test
-    fun `blank line between attachments and links sections`() {
+    fun `blank line between links and attachments sections`() {
         val testCase = TestCase(
             attachments = listOf(Attachment("file.pdf")),
             links = listOf(Link("test", "http://tttt.com")),
         )
         val result = TestCaseSerializer.serialize(testCase)
         assertTrue(
-            "Expected blank line between Attachments and Links, got:\n$result",
-            result.contains("[file.pdf]\n\nLinks:"),
+            "Expected blank line between Links and Attachments, got:\n$result",
+            result.contains("(http://tttt.com)\n\nAttachments:"),
         )
     }
 
@@ -560,5 +560,23 @@ class TestCaseSerializerTest {
         val serialized = TestCaseSerializer.serialize(original)
         val parsed = TestCaseParser.parse(serialized)
         assertEquals(original.steps.single().links, parsed.steps.single().links)
+    }
+
+    @Test
+    fun `links serialize before preconditions`() {
+        val tc = TestCase(
+            title = "Order test",
+            links = listOf(Link("Jira", "https://jira.example.com/TC-1")),
+            bodyBlocks = listOf(PreconditionsBlock(markdown = "- Must be logged in")),
+            steps = listOf(TestStep("Do thing", "Thing done")),
+        )
+        val serialized = TestCaseSerializer.serialize(tc)
+        val linksIdx = serialized.indexOf("Links:")
+        val precIdx = serialized.indexOf("Preconditions:")
+        assertTrue("Links: must appear before Preconditions:", linksIdx < precIdx)
+        // Idempotent round-trip
+        val reparsed = TestCaseParser.parse(serialized)
+        val reserialized = TestCaseSerializer.serialize(reparsed)
+        assertEquals("serialize-parse-serialize must be idempotent", serialized, reserialized)
     }
 }

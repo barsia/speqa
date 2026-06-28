@@ -40,11 +40,7 @@ class ResolveDuplicateIdsDialog(
             override fun isCellEditable(row: Int, column: Int): Boolean = false
         }
         for (row in review) {
-            val newCell = if (row.keepsId) {
-                SpeqaBundle.message("resolveDuplicateIds.kept")
-            } else {
-                "TC-${row.newId}"
-            }
+            val newCell = if (row.keepsId) "" else "TC-${row.newId}"
             model.addRow(arrayOf(displayPath(row.path), "TC-${row.oldId}", newCell))
         }
         val table = JBTable(model)

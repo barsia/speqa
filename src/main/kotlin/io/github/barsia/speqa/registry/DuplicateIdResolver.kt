@@ -50,3 +50,32 @@ fun computeDuplicateIdRenumberPlan(entries: List<TestCaseIdEntry>): List<IdRenum
     }
     return plan
 }
+
+/** One row of the duplicate-id review: a file that shares its id with at least one other file. */
+data class DuplicateIdReviewRow(
+    val path: String,
+    val oldId: Int,
+    val newId: Int,
+) {
+    /** True for the single file in each group that keeps the contested id (it is not renumbered). */
+    val keepsId: Boolean get() = newId == oldId
+}
+
+/**
+ * Every file that participates in a duplicate-id group, each annotated with the id it ends up with.
+ * Unlike [computeDuplicateIdRenumberPlan] - which lists only the files being renumbered - this also
+ * includes the kept file of each group, so the UI can show the whole collision rather than only the
+ * files that change. Rows are ordered by id, and within a group earliest-first so the kept file leads.
+ */
+fun computeDuplicateIdReview(entries: List<TestCaseIdEntry>): List<DuplicateIdReviewRow> {
+    val newIdByPath = computeDuplicateIdRenumberPlan(entries).associate { it.path to it.newId }
+    val duplicatedIds = entries.groupingBy { it.id }.eachCount().filterValues { it > 1 }.keys
+    val withinGroup = compareBy<TestCaseIdEntry>(
+        { it.createdEpochMillis ?: Long.MAX_VALUE },
+        { it.path },
+    )
+    return entries
+        .filter { it.id in duplicatedIds }
+        .sortedWith(compareBy<TestCaseIdEntry> { it.id }.then(withinGroup))
+        .map { DuplicateIdReviewRow(it.path, it.id, newIdByPath[it.path] ?: it.id) }
+}

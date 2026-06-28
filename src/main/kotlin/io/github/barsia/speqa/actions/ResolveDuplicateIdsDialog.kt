@@ -6,7 +6,7 @@ import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.table.JBTable
 import io.github.barsia.speqa.SpeqaBundle
-import io.github.barsia.speqa.registry.IdRenumber
+import io.github.barsia.speqa.registry.DuplicateIdReviewRow
 import com.intellij.util.ui.JBUI
 import java.awt.Dimension
 import javax.swing.JComponent
@@ -14,7 +14,7 @@ import javax.swing.table.DefaultTableModel
 
 class ResolveDuplicateIdsDialog(
     project: Project,
-    private val plan: List<IdRenumber>,
+    private val review: List<DuplicateIdReviewRow>,
 ) : DialogWrapper(project) {
 
     private val basePath: String? = project.basePath
@@ -39,8 +39,13 @@ class ResolveDuplicateIdsDialog(
         val model = object : DefaultTableModel(columns, 0) {
             override fun isCellEditable(row: Int, column: Int): Boolean = false
         }
-        for (renumber in plan) {
-            model.addRow(arrayOf(displayPath(renumber.path), "TC-${renumber.oldId}", "TC-${renumber.newId}"))
+        for (row in review) {
+            val newCell = if (row.keepsId) {
+                SpeqaBundle.message("resolveDuplicateIds.keptId", row.oldId)
+            } else {
+                "TC-${row.newId}"
+            }
+            model.addRow(arrayOf(displayPath(row.path), "TC-${row.oldId}", newCell))
         }
         val table = JBTable(model)
         // File column takes the space; the two id columns stay narrow.

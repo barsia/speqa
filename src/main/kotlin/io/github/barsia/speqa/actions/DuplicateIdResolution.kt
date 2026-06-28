@@ -10,37 +10,43 @@ import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VirtualFile
 import io.github.barsia.speqa.SpeqaBundle
 import io.github.barsia.speqa.editor.resolveTestCaseCreatedEpochMillis
+import io.github.barsia.speqa.registry.DuplicateIdReviewRow
 import io.github.barsia.speqa.registry.IdRenumber
 import io.github.barsia.speqa.registry.IdType
 import io.github.barsia.speqa.registry.SpeqaIds
 import io.github.barsia.speqa.registry.TestCaseIdEntry
-import io.github.barsia.speqa.registry.computeDuplicateIdRenumberPlan
+import io.github.barsia.speqa.registry.computeDuplicateIdReview
 
 object DuplicateIdResolution {
 
     private val ID_LINE_REGEX = Regex("""(?m)^id:\s*\d+\s*$""")
 
     fun reviewAndResolve(project: Project) {
-        val plan = computePlan(project) ?: return
-        if (plan.isEmpty()) {
+        val review = computeReview(project) ?: return
+        val renumbers = review.toRenumbers()
+        if (renumbers.isEmpty()) {
             showNone(project)
             return
         }
-        if (!ResolveDuplicateIdsDialog(project, plan).showAndGet()) return
-        applyPlan(project, plan)
+        if (!ResolveDuplicateIdsDialog(project, review).showAndGet()) return
+        applyPlan(project, renumbers)
     }
 
     fun resolveDirectly(project: Project) {
-        val plan = computePlan(project) ?: return
-        if (plan.isEmpty()) {
+        val review = computeReview(project) ?: return
+        val renumbers = review.toRenumbers()
+        if (renumbers.isEmpty()) {
             showNone(project)
             return
         }
-        applyPlan(project, plan)
+        applyPlan(project, renumbers)
     }
 
-    private fun computePlan(project: Project): List<IdRenumber>? {
-        var plan: List<IdRenumber> = emptyList()
+    private fun List<DuplicateIdReviewRow>.toRenumbers(): List<IdRenumber> =
+        filter { !it.keepsId }.map { IdRenumber(it.path, it.oldId, it.newId) }
+
+    private fun computeReview(project: Project): List<DuplicateIdReviewRow>? {
+        var review: List<DuplicateIdReviewRow> = emptyList()
         val completed = ProgressManager.getInstance().runProcessWithProgressSynchronously(
             Runnable {
                 val entries = runReadAction<List<Pair<VirtualFile, Int>>> {
@@ -56,13 +62,13 @@ object DuplicateIdResolution {
                     }
                     TestCaseIdEntry(file.path, id, created)
                 }
-                plan = computeDuplicateIdRenumberPlan(tcEntries)
+                review = computeDuplicateIdReview(tcEntries)
             },
             SpeqaBundle.message("resolveDuplicateIds.progress"),
             true,
             project,
         )
-        return if (completed) plan else null
+        return if (completed) review else null
     }
 
     private fun applyPlan(project: Project, plan: List<IdRenumber>) {

@@ -1,6 +1,7 @@
 package io.github.barsia.speqa.registry
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -72,5 +73,24 @@ class DuplicateIdResolverTest {
         plan.forEach { finalIds[it.path] = it.newId }
         assertTrue(plan.isNotEmpty())
         assertEquals(finalIds.values.toSet().size, finalIds.values.size)
+    }
+
+    @Test
+    fun review_lists_the_whole_group_kept_file_first() {
+        val entries = listOf(
+            TestCaseIdEntry("a.tc.md", 1, 5L),    // unique - excluded from the review
+            TestCaseIdEntry("b.tc.md", 2, 10L),   // earliest in its group - keeps 2
+            TestCaseIdEntry("c.tc.md", 2, 20L),   // renumbered to the first free id (3)
+        )
+        val review = computeDuplicateIdReview(entries)
+        assertEquals(
+            listOf(
+                DuplicateIdReviewRow("b.tc.md", 2, 2),
+                DuplicateIdReviewRow("c.tc.md", 2, 3),
+            ),
+            review,
+        )
+        assertTrue(review[0].keepsId)
+        assertFalse(review[1].keepsId)
     }
 }

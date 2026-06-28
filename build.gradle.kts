@@ -98,6 +98,11 @@ tasks {
             into("templates")
             rename { "speqa-test-cases-skill.md" }
         }
+        // The single starter test case the New Project wizard installs (and the
+        // SpeqaProjectScaffoldTest guard) is bundled from the repo's test-cases/.
+        from("test-cases/smoke/plugin-installation.tc.md") {
+            into("templates/test-cases/smoke")
+        }
     }
 
     // The sandbox IDE defaults to -Xmx2048m, which is not enough to index a large

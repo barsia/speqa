@@ -8,18 +8,19 @@ internal object SpeqaProjectScaffold {
     const val TEST_RUNS_DIR = "test-runs"
 
     /**
-     * Repo-relative path of the single starter test case the wizard installs into a
-     * new project; also its path under the bundled `/templates/` resources.
-     * [SpeqaProjectScaffoldTest] guards that this resource stays bundled and parseable.
+     * Path under the bundled `/templates/` resources of the starter template the wizard
+     * installs. It keeps a `.tc.md.template` suffix so SpeQA does not index it as a test
+     * case in this repo; the wizard strips `.template` when writing it into a new project.
+     * [SpeqaProjectScaffoldTest] guards that this resource stays bundled.
      */
-    const val BUNDLED_SAMPLE_PATH = "test-cases/smoke/plugin-installation.tc.md"
+    const val BUNDLED_SAMPLE_RESOURCE = "test-cases/login-happy-path.tc.md.template"
 
     fun generate(baseDir: VirtualFile): VirtualFile? {
         VfsUtil.createDirectoryIfMissing(baseDir, TEST_RUNS_DIR)
 
         val content = readBundledSample() ?: return null
-        val dirPath = BUNDLED_SAMPLE_PATH.substringBeforeLast('/')
-        val fileName = BUNDLED_SAMPLE_PATH.substringAfterLast('/')
+        val dirPath = BUNDLED_SAMPLE_RESOURCE.substringBeforeLast('/')
+        val fileName = BUNDLED_SAMPLE_RESOURCE.substringAfterLast('/').removeSuffix(".template")
         val dir = VfsUtil.createDirectoryIfMissing(baseDir, dirPath) ?: return null
         val tcFile = dir.findChild(fileName) ?: dir.createChildData(this, fileName)
         VfsUtil.saveText(tcFile, content)
@@ -28,7 +29,7 @@ internal object SpeqaProjectScaffold {
 
     private fun readBundledSample(): String? =
         SpeqaProjectScaffold::class.java
-            .getResourceAsStream("/templates/$BUNDLED_SAMPLE_PATH")
+            .getResourceAsStream("/templates/$BUNDLED_SAMPLE_RESOURCE")
             ?.readBytes()
             ?.toString(java.nio.charset.StandardCharsets.UTF_8)
 

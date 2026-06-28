@@ -17,7 +17,7 @@ class SpeqaProjectScaffoldTest {
     @Test
     fun `bundled starter test case is on the classpath and parses`() {
         val stream = SpeqaProjectScaffold::class.java
-            .getResourceAsStream("/templates/${SpeqaProjectScaffold.BUNDLED_SAMPLE_PATH}")
+            .getResourceAsStream("/templates/${SpeqaProjectScaffold.BUNDLED_SAMPLE_RESOURCE}")
         assertNotNull(
             "Bundled starter test case must be on the classpath - check the processResources 'from' rule",
             stream,

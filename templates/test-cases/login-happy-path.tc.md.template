@@ -1,0 +1,28 @@
+---
+id: 1
+title: Log in with valid credentials
+priority: critical
+status: ready
+tags:
+  - login
+  - smoke
+---
+
+A registered user signs in with a correct email and password and reaches the dashboard.
+
+Preconditions:
+
+1. A user account "user@example.com" with password "Secret123!" exists and is active
+2. The browser is open on the login page
+
+Scenario:
+
+1. Enter "user@example.com" into the "Email" field
+   > The field accepts the value with no validation error
+
+2. Enter "Secret123!" into the "Password" field
+   > The characters are masked
+
+3. Click the "Sign in" button
+   > 1. The browser is redirected to the dashboard
+   > 2. A greeting with the signed-in user's name is shown

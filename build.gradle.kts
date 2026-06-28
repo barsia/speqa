@@ -98,10 +98,12 @@ tasks {
             into("templates")
             rename { "speqa-test-cases-skill.md" }
         }
-        // The single starter test case the New Project wizard installs (and the
-        // SpeqaProjectScaffoldTest guard) is bundled from the repo's test-cases/.
-        from("test-cases/smoke/plugin-installation.tc.md") {
-            into("templates/test-cases/smoke")
+        // The bundled starter (web-login example) is kept as a ".tc.md.template" so
+        // SpeQA does not index it in this repo; it is bundled into the jar as a real
+        // ".tc.md" that the wizard and the SpeqaProjectScaffoldTest guard read as
+        // templates/test-cases/login-happy-path.tc.md.
+        from("templates/test-cases/login-happy-path.tc.md.template") {
+            into("templates/test-cases")
         }
     }
 

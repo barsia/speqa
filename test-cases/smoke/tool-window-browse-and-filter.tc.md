@@ -12,7 +12,7 @@ The SpeQA tool window lists the project's test cases and test runs on separate t
 
 Preconditions:
 
-1. The SpeQA plugin is installed and a project with several test cases and at least one test run is open
+The SpeQA plugin is installed and a project with several test cases and at least one test run is open
 
 Scenario:
 

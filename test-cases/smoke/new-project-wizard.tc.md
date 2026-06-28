@@ -12,7 +12,7 @@ The "Test Cases Project" generator scaffolds the SpeQA folder layout and install
 
 Preconditions:
 
-1. The SpeQA plugin is installed
+The SpeQA plugin is installed
 
 Scenario:
 

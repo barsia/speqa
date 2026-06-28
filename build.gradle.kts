@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "io.github.barsia"
-version = "0.1.8"
+version = "0.1.9"
 
 val localProps = rootProject.file("local.properties")
     .takeIf { it.exists() }
@@ -50,11 +50,19 @@ intellijPlatform {
         }
 
         changeNotes = """
-            <h3>0.1.8</h3>
+            <h3>0.1.9</h3>
             <ul>
-                <li>New SpeQA tool window on the left lists every test case or test run by its title, grouped by folder</li>
-                <li>Filter test cases by status, priority, tags, and environment</li>
-                <li>Fixed Tab adding stray spaces inside a step's expected result</li>
+                <li>The overall run result is now a dropdown for single and multi-case runs, with a manual override and a per-case result you can set yourself</li>
+                <li>Reset all results in a run, and expand or collapse every case, in one action</li>
+                <li>The Create Test Run dialog defaults its import options off and toggles a case when you click anywhere in its row</li>
+                <li>Test case files now place Links before Preconditions</li>
+                <li>Resolve Duplicate Test Case IDs now lists every file that shares an ID and marks the one that keeps it</li>
+                <li>The preview is now fully keyboard-navigable: <code>Tab</code> moves between fields, and tag chips and link, attachment, and ticket rows are single <code>Tab</code> stops where <code>Delete</code> removes, <code>F2</code> edits, and <code>Enter</code> activates</li>
+                <li>A thin focus ring shows on keyboard focus and after keyboard-driven actions, never on mouse clicks</li>
+                <li>The step drag handle is keyboard-operable: <code>Space</code>, <code>Enter</code>, or a left-click opens its Move, Duplicate, and Delete menu</li>
+                <li>Keyboard focus returns to where you were after closing a dialog or popup or removing an item</li>
+                <li>Fixed the preview and editor getting out of sync after undoing an added step</li>
+                <li>Fixed several test case and run title editing issues, including the caret jumping and blank titles being saved</li>
             </ul>
         """.trimIndent()
     }

@@ -1,5 +1,5 @@
 ---
-name: releaser
+name: speqa-releaser
 description: Use when the user asks to prepare/cut/publish a new SpeQA plugin release or bump the version.
 user-invocable: true
 ---
@@ -78,7 +78,7 @@ Rules:
 
 `verifyPlugin` downloads a recommended verifier IDE (needs network and several GB of free disk). Two kinds of failure, treat them differently:
 
-- **Plugin findings** (internal API usage, missing `plugin.xml` declarations, compatibility problems): these are real - fix before tagging.
+- **Plugin findings** (internal API usage, missing `plugin.xml` declarations, compatibility problems): these are real - fix before tagging. **Using internal (non-public) IntelliJ Platform API is not allowed in a release**: `verifyPlugin` reports every internal-API reference, and each one is a release blocker - replace it with stable/public API before tagging. (Experimental-API overrides/usages are only warnings and do not block the release.)
 - **Environment failures** (e.g. "No space left on device", "Could not download ...dmg", network errors while fetching the verifier IDE): these are NOT plugin defects and do NOT block the release. Free disk / restore network and retry, or fall back to the minimum gate `./gradlew compileKotlin compileTestKotlin test` and note that `verifyPlugin` could not run.
 
 If `verifyPlugin` passes (or only failed on the environment and compile+tests are green), proceed.

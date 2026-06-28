@@ -90,6 +90,14 @@ tasks {
         filesMatching("speqa-plugin.properties") {
             expand(mapOf("version" to pluginVersion))
         }
+        // The test-case-writer skill lives as a real project skill under
+        // .claude/skills, and is bundled into the jar as a template so the
+        // new-project wizard (SpeqaProjectScaffold.installSkill) can install it
+        // into freshly scaffolded user projects.
+        from(".claude/skills/test-case-writer/SKILL.md") {
+            into("templates")
+            rename { "test-case-writer-skill.md" }
+        }
     }
 
     // The sandbox IDE defaults to -Xmx2048m, which is not enough to index a large

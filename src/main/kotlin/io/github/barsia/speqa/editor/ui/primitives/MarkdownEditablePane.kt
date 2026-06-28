@@ -324,7 +324,10 @@ class MarkdownEditablePane(
             selectionEnd = source.selectionEnd,
             action = action,
         )
-        runWriteAction {
+        // Toolbar formatting runs from a mouse listener, not an editor action, so it is NOT
+        // already inside a command - a bare runWriteAction throws "Must not change document
+        // outside command". Wrap the document edit in a WriteCommandAction.
+        WriteCommandAction.runWriteCommandAction(project) {
             editor.document.replaceString(0, editor.document.textLength, result.text)
         }
         suppressFormattingToolbarUpdate = true

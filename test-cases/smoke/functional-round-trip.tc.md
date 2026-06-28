@@ -11,7 +11,7 @@ A single happy-path walk through the SpeQA plugin: create a project, author and 
 
 Preconditions:
 
-The SpeQA plugin is installed.
+The [SpeQA plugin](https://plugins.jetbrains.com/plugin/31268-speqa--test-management-system) is installed.
 
 Scenario:
 
@@ -30,9 +30,10 @@ Scenario:
 3. 1. In the preview, click "Add tag" under "Tags"
    2. Type "regression" and press "Enter"
    > 1. A "regression" chip appears in the preview
-   > 2. The source `tags:` list gains "regression"
+   > 2. The source `tags:` list gains "regression" in the Editor
 
-4. Create a second test case via "New | SpeQA Test Case"
+4. 1. Right-click the "test-cases" folder again and choose "New | SpeQA Test Case"
+   2. Enter a different name and confirm
    > A second `.tc.md` exists under "test-cases/"
 
 5. 1. Right-click a `.tc.md` and choose "Run Test Case"

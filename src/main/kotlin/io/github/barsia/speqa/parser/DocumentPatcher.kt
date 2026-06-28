@@ -251,12 +251,14 @@ object DocumentPatcher {
         val descRange = layout.descriptionRange
 
         if (descRange != null && markdown.isNotBlank()) {
-            // Replace existing description content
+            // Replace existing description content. Trim leading/trailing blank lines the
+            // preview pane may hand back (e.g. after deleting the last paragraph) so they
+            // do not leak into the source as extra blank lines before the next block.
             return listOf(
                 DocumentEdit(
                     offset = descRange.start,
                     length = descRange.length,
-                    replacement = ensureTrailingNewline(markdown),
+                    replacement = ensureTrailingNewline(markdown.trim()),
                 )
             )
         }
@@ -285,7 +287,7 @@ object DocumentPatcher {
                 DocumentEdit(
                     offset = insertOffset,
                     length = 0,
-                    replacement = "\n" + ensureTrailingNewline(markdown) + tail,
+                    replacement = "\n" + ensureTrailingNewline(markdown.trim()) + tail,
                 )
             )
         }
@@ -311,7 +313,7 @@ object DocumentPatcher {
                 DocumentEdit(
                     offset = bodyRange.start,
                     length = bodyRange.length,
-                    replacement = ensureTrailingNewline(markdown),
+                    replacement = ensureTrailingNewline(markdown.trim()),
                 )
             )
         }
@@ -357,7 +359,7 @@ object DocumentPatcher {
                 DocumentEdit(
                     offset = insertOffset,
                     length = 0,
-                    replacement = prefix + marker + "\n\n" + ensureTrailingNewline(markdown) + tail,
+                    replacement = prefix + marker + "\n\n" + ensureTrailingNewline(markdown.trim()) + tail,
                 )
             )
         }

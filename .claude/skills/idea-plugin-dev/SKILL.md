@@ -358,3 +358,47 @@ To ship a template the New Project wizard installs into user projects:
 - **Internal (non-public) API usage is a hard release blocker.** The verifier flags every `@ApiStatus.Internal` reference; replace each with stable/public API before tagging - reaching for internal symbols is the most common way to break on a future IDE.
 - **Experimental-API overrides/usages are warnings, not blockers** (e.g. overriding `ToolWindowFactory.manage`/`getAnchor`). Acceptable, but minimize them.
 - Environment failures (no disk, can't download the verifier IDE) are not plugin defects; fix the environment or fall back to `compileKotlin compileTestKotlin test` and note that `verifyPlugin` could not run.
+
+---
+
+> The sections below distil patterns from the local `codocation` plugin (`intellij-community/plugins/codocation/src/main/kotlin/com/codocation/plugin/...`) - open the cited files for the canonical implementation.
+
+## Keep Work Off the EDT (threading)
+
+Freezing the IDE is the most common plugin sin.
+
+- **Derive heavy state once, recompute only on real change.** Cache behind `CachedValuesManager.createCachedValue { CachedValueProvider.Result.create(build(), tracker) }` with a `SimpleModificationTracker`, and bump the tracker from BOTH a `VFS_CHANGES` `BulkFileListener` AND `EditorFactory.getEventMulticaster().addDocumentListener(...)` - the document listener is what makes *unsaved* edits invalidate. Wrap the accessor in `ReadAction.compute {}` since EDT callers (widgets, annotators) hold no read action. (`validate/ProjectContentProvider.kt`)
+- **Never compute in a paint/getter.** A status-bar widget returns its last `@Volatile` value instantly and kicks `ReadAction.nonBlocking { heavy }.expireWith(this).coalesceBy(this).finishOnUiThread(ModalityState.any()) { applyOnEdt }.submit(AppExecutorUtil.getAppExecutorService())`. An `AtomicBoolean` guard collapses overlapping requests; **capture UI-thread state (selected file, caret) BEFORE** entering the background action; `coalesceBy` drops superseded recomputes. (`status/DiagnosticsStatusBarWidget.kt`, `toc/TocEditorPanel.kt`)
+- **Whole-file/project validation without blocking typing:** an `ExternalAnnotator` splits into `collectInformation` (EDT: grab `document.text` + path, filter early), `doAnnotate` (background: run a pure validator off the cached snapshot), `apply` (map to `holder.newAnnotation(...).range(...).withFix(...)`). One shared snapshot feeds many annotators. (`validate/MarkdownDocAnnotator.kt`)
+- **Long one-shots** (build/export) run under `ProgressManager.run(Task.Backgroundable)`; files written outside the Document layer need `LocalFileSystem.getInstance().refreshAndFindFileByNioFile(dir)?.refresh(true, true)` to appear. (`build/BuildSiteAction.kt`)
+- A legitimate user-initiated EDT action that must touch the filesystem wraps it in `SlowOperations.allowSlowOperations { … }` instead of tripping the slow-op assertion.
+
+## Editing the Document Well (beyond replaceString)
+
+- Wrap writes in `CommandProcessor.executeCommand(project, { runWriteAction { … } }, name, groupId, UndoConfirmationPolicy.DEFAULT, document)`. A shared **`groupId`** merges related edits into ONE undo; passing the `document` ties undo to that file.
+- Apply multiple edits **sorted descending by offset** so earlier offsets stay valid as you mutate.
+- **Suppress your own echo:** disable the panel's document listener while writing, or the plugin rebuilds its UI from the change it just made. (`toc/TocWriteBack.kt`)
+
+## Service & State Architecture
+
+- A `@Service(Service.Level.PROJECT)` holding an `AtomicReference<State>` (immutable data class) swapped atomically on refresh is a clean single source of truth. (`project/CodocationProjectService.kt`)
+- **Match a config file by `VirtualFile` identity, not `path.endsWith("config.yml")`** - the suffix also matches `my-config.yml` and nested files; keep a path fallback only for create/delete when the cached VF is stale.
+- Notify other components via a custom `Topic` + `project.messageBus.syncPublisher(TOPIC)` on state change, so they react without re-parsing.
+- For settings, prefer `SimplePersistentStateComponent<MyState : BaseState>` with `by property()` / `by string()` delegates over hand-rolling `PersistentStateComponent`. (`settings/CodocationSettings.kt`)
+- Store tokens/passwords in `PasswordSafe` via `CredentialAttributes(generateServiceName("My Plugin", key))` - never in the project tree or settings. (`deploy/CodocationCredentials.kt`)
+
+## More Extension Points Worth Knowing
+
+- **Schema-backed plain YAML/JSON** without a custom language: a `JsonSchemaProviderFactory` whose provider serves a bundled draft-07 schema (`SchemaType.embeddedSchema`) gated by a filename matcher gives completion + validation on `*.yml`. Needs `<depends>com.intellij.modules.json</depends>`. (`schema/CodocationSchemaProviderFactory.kt`)
+- **Gutter icons:** a `LineMarkerProvider` returns `null` from `getLineMarkerInfo` and does its scanning in `collectSlowLineMarkers` (background), anchoring each marker to the smallest *leaf* PSI element (`firstChild == null`), never a composite. (`gutter/VariableUsageLineMarkerProvider.kt`)
+- **JCEF local assets:** serve preview files through a custom `my-asset://` scheme (registered once via an `AppLifecycleListener` + `CefAppHandlerAdapter`, with a canonical-path traversal guard) rather than `file://`, which JCEF blocks for relative loads. (`editor/CodocationAssetScheme*.kt`)
+
+## More Pitfalls
+
+| Pitfall | Fix |
+|---------|-----|
+| Icon referenced from `plugin.xml` `icon="…"` throws "Icon cannot be found" | The Kotlin `val` must be `@JvmField` - a plain val compiles to a getter the reflective loader can't resolve |
+| Config-file listener also fires for `my-<name>` / nested files | Match by `VirtualFile` identity, not `path.endsWith(...)` |
+| "Slow operations are prohibited on EDT" on a user one-shot | Wrap in `SlowOperations.allowSlowOperations { … }` |
+| Files written outside the Document layer don't appear | `LocalFileSystem…refreshAndFindFileByNioFile(dir)?.refresh(true, true)` |
+| `CachedValue` doesn't refresh on unsaved edits | Bump the `ModificationTracker` from a Document listener too, not only VFS |

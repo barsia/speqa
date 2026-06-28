@@ -128,9 +128,8 @@ class MarkdownEditablePane(
             installWysiwyg(editor)
             installUndoDelegation(editor)
             installFormattingToolbar(editor)
-            installListContinuation(editor)
+            installEnterHandling(editor)
             installTabFocusTraversal(editor)
-            installCodeBlockEnter(editor)
             installHiddenCodeBlockEditGuard(editor)
             installCodeBlockCopyButton(editor)
             normalizeEmbeddedEditorScroll(editor)
@@ -449,26 +448,32 @@ class MarkdownEditablePane(
         redoAction.registerCustomShortcutSet(redoShortcuts, component)
     }
 
-    private fun installListContinuation(editor: EditorEx) {
+    /**
+     * Single Enter handler: inside an indented code block insert a plain newline,
+     * otherwise continue the Markdown list. Both write through a command so the change
+     * applies and is undoable. One action (not two competing ENTER bindings) so the
+     * editor never receives an ambiguous shortcut that silently swallows Enter.
+     */
+    private fun installEnterHandling(editor: EditorEx) {
         val action = object : AnAction() {
             override fun getActionUpdateThread() = ActionUpdateThread.EDT
 
             override fun update(e: AnActionEvent) {
-                val document = editor.document
-                val text = document.charsSequence.toString()
-                val caret = editor.caretModel.offset
-                e.presentation.isEnabledAndVisible = ListContinuation.onEnter(text, caret) != null
+                e.presentation.isEnabledAndVisible =
+                    isInsideIndentedCodeBlock(editor) ||
+                    ListContinuation.onEnter(editor.document.charsSequence.toString(), editor.caretModel.offset) != null
             }
 
             override fun actionPerformed(e: AnActionEvent) {
-                val document = editor.document
-                val text = document.charsSequence.toString()
-                val caret = editor.caretModel.offset
-                val result = ListContinuation.onEnter(text, caret) ?: return
-                runWriteAction {
-                    document.replaceString(0, document.textLength, result.text)
+                if (isInsideIndentedCodeBlock(editor)) {
+                    val caret = editor.caretModel.offset
+                    WriteCommandAction.runWriteCommandAction(project) {
+                        editor.document.insertString(caret, "\n")
+                    }
+                    editor.caretModel.moveToOffset(caret + 1)
+                    return
                 }
-                editor.caretModel.moveToOffset(result.cursor.coerceIn(0, document.textLength))
+                MarkdownEnterHandler.apply(editor, project)
             }
         }
         action.registerCustomShortcutSet(CustomShortcutSet.fromString("ENTER"), editor.contentComponent)
@@ -487,25 +492,6 @@ class MarkdownEditablePane(
             }
         }
         backward.registerCustomShortcutSet(CustomShortcutSet.fromString("shift TAB"), editor.contentComponent)
-    }
-
-    private fun installCodeBlockEnter(editor: EditorEx) {
-        val action = object : AnAction() {
-            override fun getActionUpdateThread() = ActionUpdateThread.EDT
-
-            override fun update(e: AnActionEvent) {
-                e.presentation.isEnabledAndVisible = isInsideIndentedCodeBlock(editor)
-            }
-
-            override fun actionPerformed(e: AnActionEvent) {
-                val caret = editor.caretModel.offset
-                WriteCommandAction.runWriteCommandAction(project) {
-                    editor.document.insertString(caret, "\n")
-                }
-                editor.caretModel.moveToOffset(caret + 1)
-            }
-        }
-        action.registerCustomShortcutSet(CustomShortcutSet.fromString("ENTER"), editor.contentComponent)
     }
 
     private fun installCodeBlockCopyButton(editor: EditorEx) {

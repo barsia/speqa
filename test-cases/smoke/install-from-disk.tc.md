@@ -10,7 +10,7 @@ tags:
   - smoke
 ---
 
-A locally built, verified SpeQA distribution installs from disk and its features become available in the IDE.
+Verify locally built / launched from `./gradlew runIde` SpeQA plugin.
 
 Links:
 
@@ -18,8 +18,8 @@ Links:
 
 Preconditions:
 
-1. The SpeQA plugin distribution is built with `./gradlew buildPlugin` and passes `./gradlew verifyPlugin`
-2. A supported JetBrains IDE (IntelliJ IDEA) is installed and open
+1. The SpeQA plugin passes `./gradlew verifyPlugin`
+2. The SpeQA plugin distribution is built with `./gradlew buildPlugin`A supported JetBrains IDE (IntelliJ IDEA) is installed and open
 
 Scenario:
 

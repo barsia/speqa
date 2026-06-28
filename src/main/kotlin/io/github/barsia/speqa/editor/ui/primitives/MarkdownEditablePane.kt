@@ -707,6 +707,10 @@ class MarkdownEditablePane(
         val foldingModel = editor.foldingModel
         val markup = editor.markupModel
         val codeBlocks = MarkdownWysiwygRanges.fencedCodeBlocks(editor.document.charsSequence)
+        val editingInlineCode = MarkdownWysiwygRanges.inlineCodeSpanAt(
+            editor.document.charsSequence,
+            editor.caretModel.offset,
+        )
 
         clearWysiwygNonFoldingArtifacts()
         foldingModel.runBatchFoldingOperation {
@@ -728,6 +732,13 @@ class MarkdownEditablePane(
             addDelimitedWysiwyg(editor, Regex("_(?!_)([^_\\n]+)_"), 1, italicAttributes())
             addDelimitedWysiwyg(editor, Regex("~~([^~\\n]+)~~"), 2, strikeAttributes())
             addCodeBlockWysiwyg(editor, codeBlockStyle(), codeBlocks)
+        }
+        // Variant B: keep the caret inside the inline-code span being edited. Collapsing the
+        // closing-backtick fold ejects a caret sitting at the content end past the closing
+        // backtick; pull it back to the content end (just before the now-hidden backtick) so
+        // typing stays inside the inline code until the user arrows out.
+        if (editingInlineCode != null && editor.caretModel.offset > editingInlineCode.last) {
+            editor.caretModel.moveToOffset(editingInlineCode.last)
         }
         addInlineCodePaddingInlays(editor, Regex("`([^`\\n]+)`"), delimiterLength = 1)
         addCodeBlockSpacerInlays(editor, codeBlocks)

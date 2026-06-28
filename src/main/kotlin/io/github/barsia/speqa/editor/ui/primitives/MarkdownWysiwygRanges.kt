@@ -19,6 +19,24 @@ internal data class MarkdownWysiwygFoldRange(
 internal object MarkdownWysiwygRanges {
     private val fencedCodeBlock = Regex("""(?m)^([ \t]*```[^\n]*\n)(.*?)(^[ \t]*```)(?=\n|$)""", RegexOption.DOT_MATCHES_ALL)
 
+    private val inlineCode = Regex("`([^`\\n]+)`")
+
+    /**
+     * The inline-code span (`` `...` ``) the caret is currently editing, as the inclusive
+     * index range of the whole span (both backticks), or null when the caret is not between
+     * the backticks of any inline-code span. The caret counts as inside from just after the
+     * opening backtick up to just before the closing one - the span that must be exempt from
+     * delimiter folding so collapsing the closing-backtick fold cannot eject the caret.
+     */
+    fun inlineCodeSpanAt(text: CharSequence, caret: Int): IntRange? {
+        for (m in inlineCode.findAll(text)) {
+            val openStart = m.range.first
+            val closeEnd = m.range.last + 1
+            if (caret in (openStart + 1)..(closeEnd - 1)) return openStart..(closeEnd - 1)
+        }
+        return null
+    }
+
     fun fencedCodeBlocks(text: CharSequence): List<MarkdownWysiwygRange> =
         fencedCodeBlock.findAll(text).map { match ->
             val open = match.groups[1] ?: error("Opening code fence group is required")

@@ -123,7 +123,7 @@ Marker line: exactly `Links:`, followed by a blank line, then one link per line:
 - Marker line: `Scenario:` followed by a blank line, then steps numbered `1.`, `2.`, ….
 - Each step = one concrete action. If a step bundles two actions, either **split it** (each step has its own expected result) or **use the nested sub-list form** below (one shared expected result covering the whole chain).
 - Expected result = `> ` blockquote lines immediately under the action.
-- Multiple expected results: number them (`> 1.`, `> 2.`) or bullet them (`> - `). A single expected result needs neither.
+- One line per distinct, separately observable check. If a step verifies several things at once (a folder exists AND a file opens AND a chip appears), give each its own numbered line (`> 1.`, `> 2.`, …) or bullet (`> - `) - never pack several checks into one sentence joined by "and" or commas, because each result must be tickable on its own. A single check needs no marker.
 - A scenario cannot end on a bare action step — the last step must include an expected result.
 - Expected results must be observable from outside the system — what the user sees or what the client receives. No internal implementation details.
 - Nested sub-actions are allowed when a logical step contains tightly coupled inputs. Sub-items align under the parent step's content (3 spaces of indent for single-digit parent numbers, 4 spaces for double-digit). `> ` lines sit at the parent indent and cover the whole sub-list.

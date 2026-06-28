@@ -373,6 +373,44 @@ Freezing the IDE is the most common plugin sin.
 - **Long one-shots** (build/export) run under `ProgressManager.run(Task.Backgroundable)`; files written outside the Document layer need `LocalFileSystem.getInstance().refreshAndFindFileByNioFile(dir)?.refresh(true, true)` to appear. (`build/BuildSiteAction.kt`)
 - A legitimate user-initiated EDT action that must touch the filesystem wraps it in `SlowOperations.allowSlowOperations { … }` instead of tripping the slow-op assertion.
 
+The two shapes that matter most, lightly trimmed from codocation:
+
+```kotlin
+// CachedValue invalidated by VFS changes AND unsaved document edits (validate/ProjectContentProvider.kt)
+private val tracker = SimpleModificationTracker()
+init {
+    project.messageBus.connect(this).subscribe(VFS_CHANGES, object : BulkFileListener {
+        override fun after(events: List<VFileEvent>) {
+            if (events.any { it.path.endsWith(".md") }) tracker.incModificationCount()
+        }
+    })
+    EditorFactory.getInstance().eventMulticaster.addDocumentListener(object : DocumentListener {
+        override fun documentChanged(e: DocumentEvent) {                      // unsaved edits count too
+            val vf = FileDocumentManager.getInstance().getFile(e.document) ?: return
+            if (vf.path.endsWith(".md")) tracker.incModificationCount()
+        }
+    }, this)
+}
+private val cache = CachedValuesManager.getManager(project)
+    .createCachedValue { CachedValueProvider.Result.create(buildSnapshot(), tracker) }
+fun getContent() = ReadAction.compute<Content?, RuntimeException> { cache.value }  // EDT callers hold no read action
+```
+
+```kotlin
+// Recompute off the EDT, repaint only when the result changed (status/DiagnosticsStatusBarWidget.kt)
+private fun scheduleRecompute() {
+    if (!computing.compareAndSet(false, true)) return     // collapse overlapping requests
+    val rel = activeRel()                                 // capture UI state BEFORE going background
+    ReadAction.nonBlocking(Callable { computeCounts(rel) })
+        .expireWith(this).coalesceBy(this)
+        .finishOnUiThread(ModalityState.any()) { counts ->
+            val changed = counts != last; last = counts; computing.set(false)
+            if (changed) statusBar?.updateWidget(ID())
+        }
+        .submit(AppExecutorUtil.getAppExecutorService())
+}
+```
+
 ## Editing the Document Well (beyond replaceString)
 
 - Wrap writes in `CommandProcessor.executeCommand(project, { runWriteAction { … } }, name, groupId, UndoConfirmationPolicy.DEFAULT, document)`. A shared **`groupId`** merges related edits into ONE undo; passing the `document` ties undo to that file.
@@ -392,6 +430,8 @@ Freezing the IDE is the most common plugin sin.
 - **Schema-backed plain YAML/JSON** without a custom language: a `JsonSchemaProviderFactory` whose provider serves a bundled draft-07 schema (`SchemaType.embeddedSchema`) gated by a filename matcher gives completion + validation on `*.yml`. Needs `<depends>com.intellij.modules.json</depends>`. (`schema/CodocationSchemaProviderFactory.kt`)
 - **Gutter icons:** a `LineMarkerProvider` returns `null` from `getLineMarkerInfo` and does its scanning in `collectSlowLineMarkers` (background), anchoring each marker to the smallest *leaf* PSI element (`firstChild == null`), never a composite. (`gutter/VariableUsageLineMarkerProvider.kt`)
 - **JCEF local assets:** serve preview files through a custom `my-asset://` scheme (registered once via an `AppLifecycleListener` + `CefAppHandlerAdapter`, with a canonical-path traversal guard) rather than `file://`, which JCEF blocks for relative loads. (`editor/CodocationAssetScheme*.kt`)
+- **Tool-window survival:** a left-anchored tool window can be evicted by the Project view when it opens. A `ToolWindowManagerListener` (`projectListeners`) that pre-activates the restored window on `toolWindowsRegistered` - reading saved `isVisible` so closed ones stay closed - keeps `activeToolWindowId` non-null and stops the eviction. (`project/CodocationToolWindowRestorer.kt`)
+- **Tab-aware header actions:** one tool-window header button whose enabled/text/run resolves per the active tab via `setTitleActions`/`setAdditionalGearActions`, instead of a button per tab. (`toc/NavigationToolWindowFactory.kt`)
 
 ## More Pitfalls
 

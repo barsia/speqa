@@ -75,17 +75,50 @@ class SpeqaToolWindowFactory : ToolWindowFactory, DumbAware {
         val contentDisposable = arrayOfNulls<Disposable>(1)
         buildContent(project, toolWindow, contentDisposable)
 
-        val projectDir = project.guessProjectDir() ?: return
-        val tcPath = "${projectDir.path}/${SpeqaProjectScaffold.TEST_CASES_DIR}"
-        val trPath = "${projectDir.path}/${SpeqaProjectScaffold.TEST_RUNS_DIR}"
-        var hadTc = projectDir.findChild(SpeqaProjectScaffold.TEST_CASES_DIR) != null
-        var hadTr = projectDir.findChild(SpeqaProjectScaffold.TEST_RUNS_DIR) != null
+        // Resolving the SpeQA directories' initial existence calls VFS findChild, which hits
+        // the persistence layer - a slow operation forbidden on the EDT. Resolve it in a
+        // background read action, then install the directory watcher on the EDT.
+        ReadAction.nonBlocking(Callable { resolveDirectoryWatchState(project) })
+            .expireWith(toolWindow.disposable)
+            .finishOnUiThread(ModalityState.any()) { state ->
+                if (state != null) installDirectoryWatcher(project, toolWindow, contentDisposable, state)
+            }
+            .submit(AppExecutorUtil.getAppExecutorService())
+    }
+
+    /** Off-EDT: resolve the project dir and whether the SpeQA directories currently exist. */
+    private fun resolveDirectoryWatchState(project: Project): DirectoryWatchState? {
+        val projectDir = project.guessProjectDir() ?: return null
+        return DirectoryWatchState(
+            projectDir = projectDir,
+            tcPath = "${projectDir.path}/${SpeqaProjectScaffold.TEST_CASES_DIR}",
+            trPath = "${projectDir.path}/${SpeqaProjectScaffold.TEST_RUNS_DIR}",
+            hadTc = projectDir.findChild(SpeqaProjectScaffold.TEST_CASES_DIR) != null,
+            hadTr = projectDir.findChild(SpeqaProjectScaffold.TEST_RUNS_DIR) != null,
+        )
+    }
+
+    /**
+     * Installs the VFS listener that rebuilds the tool-window content when the test-cases or
+     * test-runs directories appear or disappear. The [state]'s existence flags were resolved
+     * off the EDT; subsequent findChild calls here run from a VFS change callback, when the
+     * affected children are already loaded.
+     */
+    private fun installDirectoryWatcher(
+        project: Project,
+        toolWindow: ToolWindow,
+        contentDisposable: Array<Disposable?>,
+        state: DirectoryWatchState,
+    ) {
+        val projectDir = state.projectDir
+        var hadTc = state.hadTc
+        var hadTr = state.hadTr
         project.messageBus.connect(toolWindow.disposable)
             .subscribe(VirtualFileManager.VFS_CHANGES, object : BulkFileListener {
                 override fun after(events: List<VFileEvent>) {
                     // Only the SpeQA directories themselves changing existence triggers a
                     // rebuild, not edits to files inside them (those are handled per-tab).
-                    if (events.none { it.path == tcPath || it.path == trPath }) return
+                    if (events.none { it.path == state.tcPath || it.path == state.trPath }) return
                     val hasTc = projectDir.findChild(SpeqaProjectScaffold.TEST_CASES_DIR) != null
                     val hasTr = projectDir.findChild(SpeqaProjectScaffold.TEST_RUNS_DIR) != null
                     if (hasTc == hadTc && hasTr == hadTr) return
@@ -97,6 +130,15 @@ class SpeqaToolWindowFactory : ToolWindowFactory, DumbAware {
                 }
             })
     }
+
+    /** Project-directory existence state for the SpeQA dirs, resolved off the EDT. */
+    private class DirectoryWatchState(
+        val projectDir: VirtualFile,
+        val tcPath: String,
+        val trPath: String,
+        val hadTc: Boolean,
+        val hadTr: Boolean,
+    )
 
     /**
      * Adds a transient "Loading..." content shown until the first real build completes. It uses

@@ -353,6 +353,31 @@ class TestRunSupportTest {
     }
 
     @Test
+    fun `recomputeCaseResult keeps a manually overridden result even when the steps disagree`() {
+        val case = RunCase(
+            caseId = 1,
+            stepResults = listOf(StepResult(verdict = StepVerdict.FAILED)),
+            result = RunResult.PASSED,
+            manualResult = true,
+        )
+        val recomputed = TestRunSupport.recomputeCaseResult(case)
+        assertEquals(RunResult.PASSED, recomputed.result)
+        assertTrue(recomputed.manualResult)
+    }
+
+    @Test
+    fun `recomputeCaseResult re-derives the result from steps when not manually overridden`() {
+        val case = RunCase(
+            caseId = 1,
+            stepResults = listOf(StepResult(verdict = StepVerdict.PASSED), StepResult(verdict = StepVerdict.FAILED)),
+            result = RunResult.NOT_STARTED,
+            manualResult = false,
+        )
+        val recomputed = TestRunSupport.recomputeCaseResult(case)
+        assertEquals(RunResult.FAILED, recomputed.result)
+    }
+
+    @Test
     fun `aggregateResult mix of PASSED and NOT_STARTED is IN_PROGRESS`() {
         val cases = listOf(
             RunCase(caseId = 1, result = RunResult.PASSED),

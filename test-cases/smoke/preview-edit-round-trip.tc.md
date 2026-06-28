@@ -12,8 +12,8 @@ Editing fields in the SpeQA preview pane writes the change back to the raw `.tc.
 
 Preconditions:
 
-- The SpeQA plugin is installed and a project is open
-- A test case (`.tc.md`) is open in the SpeQA editor, showing both the Markdown source pane and the preview pane
+1. The SpeQA plugin is installed and a project is open
+2. A test case (`.tc.md`) is open in the SpeQA editor, showing both the Markdown source pane and the preview pane
 
 Scenario:
 

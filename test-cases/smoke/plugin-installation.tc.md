@@ -18,8 +18,8 @@ Links:
 
 Preconditions:
 
-- A supported JetBrains IDE (IntelliJ IDEA) is installed and open
-- The SpeQA plugin distribution is built with `./gradlew buildPlugin` and passes `./gradlew verifyPlugin`
+1. The SpeQA plugin distribution is built with `./gradlew buildPlugin` and passes `./gradlew verifyPlugin`
+2. A supported JetBrains IDE (IntelliJ IDEA) is installed and open
 
 Scenario:
 

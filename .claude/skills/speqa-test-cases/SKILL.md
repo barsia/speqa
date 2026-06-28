@@ -62,8 +62,8 @@ Links:
 
 Preconditions:
 
-- First precondition
-- Second precondition
+1. First precondition
+2. Second precondition
 
 Scenario:
 
@@ -112,7 +112,7 @@ Start with the behaviour under test as a noun phrase or short statement of what 
 
 ## Preconditions
 
-Marker line: exactly `Preconditions:`, followed by a blank line. Choose the list style by whether order matters: use a numbered list (`1.`, `2.`) when the preconditions are an ordered setup sequence, or a bulleted list (`- `) when they are an unordered set of independent prerequisites (the common case). A single precondition takes no list marker at all. Each item must be executable or verifiable - a command, a config key with a value, a role assignment, a feature flag state - not an abstract description. Include auth state, screen or service location, data setup. Omit the section if nothing is required.
+Marker line: exactly `Preconditions:`, followed by a blank line. Preconditions usually form an ordered setup sequence where each item builds on the previous, so number them `1.`, `2.` by default; use a bulleted list (`- `) only when the items are genuinely independent and order does not matter. A single precondition takes no list marker at all. Each item must be executable or verifiable - a command, a config key with a value, a role assignment, a feature flag state - not an abstract description. Include auth state, screen or service location, data setup. Omit the section if nothing is required.
 
 ## Links
 

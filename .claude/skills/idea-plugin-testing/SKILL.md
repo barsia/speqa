@@ -8,104 +8,88 @@ user-invocable: true
 
 ## Overview
 
-Two principles drive every testing decision here:
+Two principles drive every decision:
 
-1. **Push logic down to where it can be tested without the platform.** A pure function tested with plain JUnit runs in milliseconds, never flakes, and needs no IDE. Most "plugin logic" (parsing, serializing, aggregating, decision rules) does not actually need the platform - it only *looks* like it does because it lives next to platform code. Extract it.
-2. **Cover the gap, not the line.** A test earns its place by failing when a real invariant breaks. Tests written for a coverage number (re-asserting what three other tests already prove) cost maintenance and prove nothing. One test on the only untested branch beats ten redundant ones.
+1. **Push logic down until it needs no platform.** A pure function tested with plain JUnit runs in milliseconds and never flakes. Most "plugin logic" (parsing, serializing, aggregating, decision rules) only *looks* platform-bound because it lives next to platform code - extract it.
+2. **Cover the gap, not the line.** A test earns its place by failing when a real invariant breaks. Re-asserting what other tests already prove costs maintenance and proves nothing; one test on the only untested branch beats ten redundant ones.
 
-The platform test framework is JUnit (JUnit 4 idioms - `BasePlatformTestCase` extends it) plus IntelliJ fixtures. Reach for a fixture only for behavior that genuinely needs a live project, VFS, PSI, editor, or the daemon.
+The harness is JUnit 4 (`BasePlatformTestCase` extends it) plus IntelliJ fixtures. Reach for a fixture only for behavior that genuinely needs a live project, VFS, PSI, editor, or daemon.
 
 ## Pick the lightest level that proves the behavior
 
-Climb this ladder and stop at the first rung that can actually exercise the behavior. Lower is faster, less flaky, and clearer.
+Stop at the first rung that can exercise the behavior - lower is faster and less flaky.
 
-| Level | Base class / harness | Use for | Cost |
-|-------|----------------------|---------|------|
-| 1. Pure unit | none (plain JUnit) | parsers, serializers, patch-offset math, result aggregation, decision functions, anything you can express as `input -> output` | ~ms, never flakes |
+| Level | Harness | Use for | Cost |
+|-------|---------|---------|------|
+| 1. Pure unit | plain JUnit | parsers, serializers, patch-offset math, result aggregation, decision functions - anything `input -> output` | ~ms, never flakes |
 | 2. Light fixture | `BasePlatformTestCase` / `LightPlatformTestCase` | annotators, inspections, PSI, file templates, actions, Document/VFS, quick fixes, completion | in-memory project, ~100ms |
-| 3. Heavy fixture | `HeavyPlatformTestCase` | real on-disk project, multiple modules, SDK/roots, project-model changes | slow; avoid unless required |
-| 4. Real IDE | `runIde` sandbox + a UI driver | true end-to-end UI you cannot reach below | very slow; reserve for a few smoke flows |
+| 3. Heavy fixture | `HeavyPlatformTestCase` | real on-disk project, multiple modules, SDK/roots | slow; avoid unless required |
+| 4. Real IDE | `runIde` sandbox + UI driver | end-to-end UI you can't reach below | very slow; a few smoke flows only |
 
-**The single most valuable habit:** before writing a fixture test, ask "what's the pure decision here?" and extract it. Examples from this codebase that started life tangled in platform code and became plain-JUnit tests once extracted:
-
-- `computeDuplicateIdRenumberPlan(entries)` / `computeDuplicateIdReview(entries)` - pure list-in, plan-out; no `Project`, no index.
-- `TestRunSupport.deriveRunResult(steps)` / `aggregateResult(cases)` / `recomputeCaseResult(case)` - verdict math.
-- `nextFocusTargetAfterDelete(index, sizeBefore)` - the focus-restore decision, separated from the Swing component.
-- `isKeyboardFocusCause(cause)` - the focus-visible decision, separated from the painting.
-
-Each is a one-liner test (`assertEquals(expected, fn(input))`) and covers the logic that actually breaks.
+**Most valuable habit: before writing a fixture test, ask "what's the pure decision here?" and extract it.** Real examples that became plain-JUnit tests once pulled out of platform code: `computeDuplicateIdRenumberPlan` / `computeDuplicateIdReview` (list in, plan out), `TestRunSupport.deriveRunResult`/`aggregateResult`/`recomputeCaseResult` (verdict math), `nextFocusTargetAfterDelete` (focus-restore decision), `isKeyboardFocusCause` (focus-visible decision). Each is a one-line `assertEquals` and covers the logic that actually breaks.
 
 ## Light fixtures: BasePlatformTestCase
 
-The fixture is your in-memory project. It **gives** you a real `project`, an in-memory VFS + PSI, a `myFixture` handle, and runs the real daemon. You almost never construct platform objects yourself.
+The fixture IS your in-memory project: it gives you a real `project`, in-memory VFS + PSI, a `myFixture` handle, and the real daemon. You rarely construct platform objects yourself.
 
 ```kotlin
 class SpeqaAnnotatorTest : BasePlatformTestCase() {
-    override fun getTestDataPath(): String = "src/test/resources/testData/annotator"
+    override fun getTestDataPath() = "src/test/resources/testData/annotator"
 
-    fun `test valid title shows no title warning`() {
-        myFixture.configureByFile("validTitle.tc.md")          // loads a fixture file into the in-memory editor
-        val highlights = myFixture.doHighlighting(HighlightSeverity.WARNING)  // runs the annotator
-        val titleWarnings = highlights.filter { it.description?.contains("title is not set") == true }
-        assertTrue(titleWarnings.isEmpty())
+    fun `test valid title shows no warning`() {
+        myFixture.configureByFile("validTitle.tc.md")                      // load into the in-memory editor
+        val warnings = myFixture.doHighlighting(HighlightSeverity.WARNING) // run the annotator
+        assertTrue(warnings.none { it.description?.contains("title is not set") == true })
     }
 }
 ```
 
-Key handles: `configureByText(fileName, text)` or `configureByFile(name)` (relative to `getTestDataPath()`), `doHighlighting(severity)` for annotators/inspections, `myFixture.editor`/`file`/`project`, `myFixture.type(...)`, `launchAction(...)` for quick fixes/intentions.
+Handles: `configureByText`/`configureByFile` (relative to `getTestDataPath()`), `doHighlighting(severity)`, `myFixture.editor`/`file`/`project`/`type(...)`, `launchAction(...)` for fixes/intentions.
 
-### What to mock (and what not to)
+**What to mock:**
+- **Not the platform.** Project, VFS, PSI, editor, `FileBasedIndex` come from the fixture and behave correctly - mocking them fakes the thing under test.
+- **Your own services**, when needed: `project.replaceService(Foo::class.java, fake, testRootDisposable)` (or on the application), tied to the test disposable. Prefer a small fake over a deep mock; keep `@Service` logic thin so most of it tests at level 1.
+- **Indexing/dumb mode:** index-backed queries return empty during indexing by design - let indexing finish, or test the pure query at level 1.
 
-- **Do not mock the platform.** The project, VFS, PSI, editor, and `FileBasedIndex` come from the fixture and behave correctly. Mocking them fakes the very thing under test.
-- **Replace your own services** when a test needs a controlled one. Use `project.replaceService(Foo::class.java, fake, testRootDisposable)` (or `ApplicationManager.getApplication().replaceService(...)`), tied to the test disposable so it is torn down. Prefer a small real/fake implementation over a deep mock.
-- **Keep `@Service` logic thin** so most of it can be tested at level 1 without a fixture at all.
-- **`DumbService`/indexing:** index-backed queries return empty during dumb mode by design - a fixture-level test that depends on an index must let indexing finish, or you test the pure query logic at level 1 instead.
+## Bundled jar resources
 
-## Testing bundled jar resources
-
-A plugin that bundles templates/skills into the jar (e.g. a New Project wizard starter) should be guarded by a test that the resource is actually on the classpath and parses - otherwise a broken `processResources` wiring ships silently.
+A plugin that bundles a template/skill into the jar should guard that it's on the classpath and parses, or a broken `processResources` ships silently:
 
 ```kotlin
-@Test
-fun `bundled starter is on the classpath and parses`() {
-    val stream = SpeqaProjectScaffold::class.java
-        .getResourceAsStream("/templates/${SpeqaProjectScaffold.BUNDLED_SAMPLE_RESOURCE}")
+@Test fun `bundled starter is on the classpath and parses`() {
+    val stream = Scaffold::class.java.getResourceAsStream("/templates/${Scaffold.BUNDLED_RESOURCE}")
     assertNotNull("check the processResources 'from' rule", stream)
-    val parsed = TestCaseParser.parse(stream!!.readBytes().toString(Charsets.UTF_8))
-    assertEquals(1, parsed.id)
+    assertEquals(1, TestCaseParser.parse(stream!!.readBytes().toString(Charsets.UTF_8)).id)
 }
 ```
 
-**Hard-won caveat - Gradle `rename {}` is flaky with the test classpath.** Bundling a resource with `from(file) { into(...); rename { "x" } }` produces the renamed file in `build/resources/main`, yet the test classloader intermittently fails to find it (clean build fails, a rerun passes). Bundle the resource **as-is, with no `rename`** - copy `from(file) { into(...) }` and let the source carry the final name. If you need a file that the running plugin must NOT also index (e.g. a `.tc.md` template that would collide with real ids in a dogfooded repo), give the source a non-indexed suffix like `foo.tc.md.template`, bundle it unchanged, and strip the suffix when the plugin writes it into the user's project. This avoids both the flake and the self-indexing.
+**Caveat:** Gradle `rename {}` is flaky with the test classpath (clean build fails to find the renamed resource, a rerun finds it). Bundle the file under its final name, no `rename`. If it must NOT be indexed by your own plugin (a `.tc.md` template that would collide with real ids), give the source a `.template` suffix, bundle unchanged, and strip it on install.
 
 ## Cover the gap, not the line
 
-Before adding a test, find the branch or invariant that nothing else proves. Read the existing tests first.
-
-Worked example: `TestRunSupport`'s result math had 15 tests across `deriveRunResult` and `aggregateResult` - thorough. But `recomputeCaseResult` (re-derive a case's result from its steps *unless it was manually overridden*) had none. The valuable test is the one that pins the override branch with a case where the steps disagree:
+Read the existing tests first; add the one that pins a branch nothing else proves. `TestRunSupport` had 15 tests on result math but none on `recomputeCaseResult` (re-derive a case's result *unless manually overridden*). The valuable test pins the override branch with steps that *disagree*:
 
 ```kotlin
-@Test
-fun `recomputeCaseResult keeps a manual override even when the steps disagree`() {
-    val case = RunCase(caseId = 1, stepResults = listOf(StepResult(verdict = StepVerdict.FAILED)),
+@Test fun `manual override survives even when the steps disagree`() {
+    val case = RunCase(stepResults = listOf(StepResult(StepVerdict.FAILED)),
                        result = RunResult.PASSED, manualResult = true)
-    assertEquals(RunResult.PASSED, TestRunSupport.recomputeCaseResult(case).result)   // override survives
+    assertEquals(RunResult.PASSED, TestRunSupport.recomputeCaseResult(case).result)
 }
 ```
 
-The "disagree" setup is mandatory, not incidental: if the steps agreed with the override, the test could not tell a preserved override from a re-derived one - it would pass whether the logic was right or broken.
+The "disagree" setup is mandatory: if the steps agreed with the override, the test couldn't tell a preserved override from a re-derived one - it would pass whether the logic was right or broken.
 
-## UI behavior you cannot reach below
+## UI you can't reach lower
 
-Most UI logic *can* be pulled down: keyboard-focus decisions, list-mutation focus targets, and verdict aggregation are all level-1 functions here. Genuinely visual/interactive behavior that survives only end-to-end (real focus traversal, painting, drag) belongs at level 4 - a `runIde` sandbox driven by a UI test harness (IntelliJ's UI test framework / driver). It is slow and brittle, so keep it to a few smoke paths and prove everything else lower. (Manual `.tc.md` smoke cases are the pragmatic stand-in until a real-IDE harness exists - see speqa-test-cases.)
+Most UI logic pulls down to level 1 (focus decisions, list-mutation targets, verdict math are all pure here). Genuinely end-to-end visual/interactive behavior (real focus traversal, painting, drag) belongs at level 4: a `runIde` sandbox driven by a UI harness - slow and brittle, so keep it to a few smoke paths. (Manual `.tc.md` smoke cases stand in until a real-IDE harness exists - see speqa-test-cases.)
 
 ## Common mistakes
 
 | Mistake | Fix |
 |---------|-----|
-| Writing a `BasePlatformTestCase` for logic that is just `input -> output` | Extract a pure function, test at level 1 |
-| Mocking `Project`/VFS/PSI inside a fixture | Use the fixture's real ones; only replace your own services |
+| `BasePlatformTestCase` for `input -> output` logic | Extract a pure function, test at level 1 |
+| Mocking `Project`/VFS/PSI in a fixture | Use the fixture's real ones; replace only your services |
 | `HeavyPlatformTestCase` "to be safe" | Use light unless you need on-disk modules/SDK |
-| Bundling a jar resource with `rename {}` then a flaky guard test | Bundle as-is; use a `.template` suffix + strip-on-install if it must stay out of the index |
-| Adding a test to raise coverage % | Find the untested branch/invariant; if none, don't add it |
-| Index query returns empty in a fixture test | It is dumb-mode; finish indexing, or test the pure query logic at level 1 |
+| Bundling a resource with `rename {}` + flaky guard | Bundle as-is; `.template` suffix + strip-on-install if it must stay unindexed |
+| A test added to raise coverage % | Find the untested branch; if none, don't add it |
+| Index query empty in a fixture test | Dumb mode - finish indexing or test the pure query at level 1 |

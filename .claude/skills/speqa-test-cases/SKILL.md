@@ -1,6 +1,6 @@
 ---
-name: test-case-writer
-description: Use when the user asks to write, update, or review manual test cases based on a feature description, user story, spec, acceptance criteria, bug report, PR, Figma design, or a ticket from a tracker.
+name: speqa-test-cases
+description: Use when the user asks to write, update, or review manual test cases in a SpeQA project (`.tc.md` files), based on a feature description, user story, spec, acceptance criteria, bug report, PR, Figma design, or a ticket from a tracker.
 ---
 
 # Test Case Writer

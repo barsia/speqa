@@ -94,9 +94,9 @@ tasks {
         // .claude/skills, and is bundled into the jar as a template so the
         // new-project wizard (SpeqaProjectScaffold.installSkill) can install it
         // into freshly scaffolded user projects.
-        from(".claude/skills/test-case-writer/SKILL.md") {
+        from(".claude/skills/speqa-test-cases/SKILL.md") {
             into("templates")
-            rename { "test-case-writer-skill.md" }
+            rename { "speqa-test-cases-skill.md" }
         }
     }
 

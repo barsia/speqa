@@ -12,8 +12,8 @@ Running a test case opens the "Create test run" dialog, writes a `.tr.md` under 
 
 Preconditions:
 
-1. The SpeQA plugin is installed and a project is open
-2. A SpeQA test case (`.tc.md`) with at least one step exists in the project
+- The SpeQA plugin is installed and a project is open
+- A SpeQA test case (`.tc.md`) with at least one step exists in the project
 
 Scenario:
 

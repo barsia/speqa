@@ -41,7 +41,7 @@ class ResolveDuplicateIdsDialog(
         }
         for (row in review) {
             val newCell = if (row.keepsId) {
-                SpeqaBundle.message("resolveDuplicateIds.keptId", row.oldId)
+                SpeqaBundle.message("resolveDuplicateIds.kept")
             } else {
                 "TC-${row.newId}"
             }

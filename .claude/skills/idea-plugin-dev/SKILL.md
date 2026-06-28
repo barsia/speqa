@@ -330,3 +330,31 @@ Never hardcode `Color(0xFF, ...)` in UI code.
 | `runWriteAction` inside `runWriteAction`      | Never nest, use separate `invokeLater` blocks                                    |
 | Panel flickers on model update                | Use `update(model)` mutation pattern, not `removeAll()`/rebuild                  |
 | Expensive component created eagerly           | Lazy-create on first expansion/access                                            |
+
+---
+
+## Project-Wide ID / Registry via FileBasedIndex
+
+For a project-wide registry (unique ids, tags, cross-file lookup), back it with a `FileBasedIndex`, not an ad-hoc scan. Lessons that bite:
+
+- **Filter by filename, not file type.** `getInputFilter()` should match `file.name.endsWith(".tc.md")`, not a `FileType` - a compound extension (`.tc.md`) is plain Markdown to the platform, so a type filter mis-matches. Key entries by your own prefix (`"TC:<id>"` / `"TR:<id>"`).
+- **`getContainingFiles` is an over-approximation.** Re-verify each candidate against its *current* parsed content before trusting it; the index can return stale or extra files (`candidates.filter { it.isValid && currentId(it) == id }`).
+- **Guard against dumb mode.** During indexing the index is unavailable; return empty / "not duplicate" rather than throwing, so the daemon stays calm.
+- **Scope includes test sources.** `GlobalSearchScope.projectScope(project)` also scans `src/test/resources`. When you dogfood the plugin on its own repo, test fixtures (`.tc.md` data) share the id space with real cases - plan ids/scoping so fixtures don't collide.
+- The inline annotator and the batch resolver MUST share one query path - if the warning counts files the resolver's preview doesn't list, you get an unresolvable "phantom" duplicate.
+
+## Bundling Templates into the Jar (wizard starters, skills)
+
+To ship a template the New Project wizard installs into user projects:
+
+- Bundle with `processResources { from("path/in/repo") { into("templates/...") } }`, read it at runtime via `getResourceAsStream("/templates/...")`.
+- **Do not use Gradle `rename {}`** - it is flaky with the IntelliJ test classpath (a clean build's test can't find the renamed resource; a rerun finds it). Bundle the file under its final name.
+- If the bundled file is a type your own plugin would index in this repo (e.g. a `.tc.md` starter that would collide with real ids), store the source with a non-indexed suffix (`starter.tc.md.template`), bundle it unchanged, and have the scaffold strip `.template` when writing it into the user's project - it ships as a real `.tc.md` yet never pollutes your own index. Guard the whole chain with a classpath test (see idea-plugin-testing).
+
+## Release Gate: verifyPlugin and internal API
+
+`./gradlew verifyPlugin` runs the JetBrains Plugin Verifier against recommended IDEs. Treat its findings by class:
+
+- **Internal (non-public) API usage is a hard release blocker.** The verifier flags every `@ApiStatus.Internal` reference; replace each with stable/public API before tagging - reaching for internal symbols is the most common way to break on a future IDE.
+- **Experimental-API overrides/usages are warnings, not blockers** (e.g. overriding `ToolWindowFactory.manage`/`getAnchor`). Acceptable, but minimize them.
+- Environment failures (no disk, can't download the verifier IDE) are not plugin defects; fix the environment or fall back to `compileKotlin compileTestKotlin test` and note that `verifyPlugin` could not run.

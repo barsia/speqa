@@ -56,3 +56,16 @@ Check the UI before finishing code changes:
 - Test with a supported screen reader when practical: NVDA or JAWS on Windows, VoiceOver on macOS.
 - Use UI Inspector to examine accessible names, descriptions, roles, and states. Enable "Show Accessibility Issues" to investigate suspected issues or validate custom UI behavior; it is not normally required for routine verification.
 - In code reviews or final notes, explicitly state what accessibility paths were checked and what remains manual.
+
+## Keyboard & Focus for Custom Interactive UI
+
+Custom Swing components (chips, rows, drag handles, inline editors) lose the keyboard and focus affordances native widgets get for free. Expect and build these:
+
+- **Focus-visible ring, not always-on.** Show a focus ring only when the last interaction was the keyboard, never on a mouse click. Track input modality once (an `IdeEventQueue` dispatcher / a small app service) and gate the ring on it (the `FocusEvent.Cause` plus the modality flag). A ring that flashes on every click reads as noise.
+- **One Tab stop per removable item.** A tag chip or a link/attachment/ticket row is a SINGLE Tab stop; its per-item glyph buttons (edit/delete) are OUT of the Tab chain - reachable by keys, not Tab: `Delete` removes, `F2` edits, `Enter` activates. This keeps traversal short instead of visiting every tiny glyph.
+- **Restore focus after a delete.** When a row is removed, move focus to the neighbor (same index, or the previous if it was last, or the add-button when the list empties) - never drop focus to nowhere. Extract the choice as a pure function (`nextFocusTargetAfterDelete(index, sizeBefore)`), unit-test it, and route it through one reusable restorer instead of re-implementing per list.
+- **Return focus to the trigger** after a dialog or popup closes, and after deleting the focused item - the keyboard user should never have to re-find their place.
+- **Make custom affordances operable.** A drag handle must be focusable and openable by `Space`/`Enter` (its reorder menu) at parity with right-click; a plain left-click should open it too. Anything the mouse can do must have a keyboard path.
+- **Tab navigates between fields, it does not type.** Inside a multi-line editor pane embedded in a form, `Tab` must move to the next field, not insert a tab/spaces, or keyboard users get trapped indenting text.
+
+Tooltips are mouse-hover only - never put a key hint like "press Space" in a tooltip (a keyboard user never sees it); put key affordances in the accessible description.

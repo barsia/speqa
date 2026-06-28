@@ -1,5 +1,6 @@
 package io.github.barsia.speqa.actions
 
+import com.intellij.icons.AllIcons
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.ui.components.JBLabel
@@ -8,8 +9,12 @@ import com.intellij.ui.table.JBTable
 import io.github.barsia.speqa.SpeqaBundle
 import io.github.barsia.speqa.registry.DuplicateIdReviewRow
 import com.intellij.util.ui.JBUI
+import java.awt.Component
 import java.awt.Dimension
+import javax.swing.Icon
 import javax.swing.JComponent
+import javax.swing.JTable
+import javax.swing.table.DefaultTableCellRenderer
 import javax.swing.table.DefaultTableModel
 
 class ResolveDuplicateIdsDialog(
@@ -40,10 +45,34 @@ class ResolveDuplicateIdsDialog(
             override fun isCellEditable(row: Int, column: Int): Boolean = false
         }
         for (row in review) {
-            val newCell = if (row.keepsId) "" else "TC-${row.newId}"
+            val newCell: Any = if (row.keepsId) AllIcons.General.GreenCheckmark else "TC-${row.newId}"
             model.addRow(arrayOf(displayPath(row.path), "TC-${row.oldId}", newCell))
         }
         val table = JBTable(model)
+        // The "New" cell holds either the new id text or, for the file that keeps its id,
+        // a checkmark icon meaning "stays as is".
+        table.columnModel.getColumn(2).cellRenderer = object : DefaultTableCellRenderer() {
+            override fun getTableCellRendererComponent(
+                t: JTable,
+                value: Any?,
+                isSelected: Boolean,
+                hasFocus: Boolean,
+                rowIndex: Int,
+                columnIndex: Int,
+            ): Component {
+                super.getTableCellRendererComponent(
+                    t,
+                    if (value is Icon) "" else value,
+                    isSelected,
+                    hasFocus,
+                    rowIndex,
+                    columnIndex,
+                )
+                icon = value as? Icon
+                toolTipText = if (value is Icon) SpeqaBundle.message("resolveDuplicateIds.kept.tooltip") else null
+                return this
+            }
+        }
         // File column takes the space; the two id columns stay narrow.
         table.columnModel.getColumn(0).preferredWidth = JBUI.scale(420)
         listOf(1, 2).forEach { col ->

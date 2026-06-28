@@ -10,7 +10,7 @@ tags:
   - smoke
 ---
 
-A locally built, verified SpeQA distribution installs from disk and activates the "SpeQA Test Case" creation action and the `.tc.md` split editor with preview.
+A locally built, verified SpeQA distribution installs from disk and its features become available in the IDE.
 
 Links:
 
@@ -28,10 +28,8 @@ Scenario:
    3. Choose "Install Plugin from Disk..."
    4. Select the built `.zip` from "build/distributions/"
    5. Restart the IDE when prompted
-   > 1. "SpeQA - Test Management System" is listed under "Plugins | Installed"
-   > 2. The "New" menu (File | New, or right-click any folder in the Project view) contains a "SpeQA Test Case" item
+   > "SpeQA - Test Management System" is listed under "Plugins | Installed" with no error
 
-2. 1. Right-click a folder in the Project view and choose "New | SpeQA Test Case"
-   2. Enter a file name
-   3. Confirm the dialog
-   > A new `.tc.md` file is created and opens in the SpeQA editor with a Markdown source pane and a rendered preview
+2. Open any `.tc.md` file
+   > 1. It opens in the SpeQA editor with a Markdown source pane and a rendered preview
+   > 2. A "SpeQA" tool window is available and the "New" menu offers a "SpeQA Test Case" item

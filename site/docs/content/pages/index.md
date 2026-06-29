@@ -6,25 +6,27 @@ Welcome to SpeQA - a plugin for writing, organizing, and running manual test cas
 
 SpeQA brings test case management and execution into your IDE with:
 
-- **Markdown editor** for test cases with interactive preview
-- **Visual test run tracking** - mark steps as Passed, Failed, or Skipped in interactive preview
-- **Built-in links and attachments** - add screenshots and files to test evidence
-- **Tags and environment management** - mark your tests and runs with corresponding env and tags
-- **Claude Code skill for test cases generation** - automatically generate test cases rom your ticket, requirements or Pull request
-- **Git-friendly** - store test cases as `.tc.md` files, just like a code
+- **Markdown editor** for test cases with an interactive preview
+- **Multi-case test runs** - record Passed, Failed, Skipped, or Blocked per step across one or more cases in a single run
+- **Tool window** - browse, search, and filter test cases and runs without digging through the project tree
+- **Built-in links and attachments** - add screenshots and files as test evidence
+- **Tags and environment management** - label your tests and runs with environments and tags
+- **Claude Code skill for test case generation** - generate test cases from your ticket, requirements, or pull request
+- **Git-friendly** - store test cases as `.tc.md` files, just like code
 
 ## Quick Path: 5 Minutes to Your First Test
 
-1. [Install SpeQA](./installation.md) from the JetBrains Marketplace (click **Get** directly from plugin page)
-2. [Create a test case project](./creating-project.md) using the Welcome wizard
+1. [Install SpeQA](./installation.md) from the JetBrains Marketplace (click **Get** on the plugin page)
+2. [Create a test case project](./creating-project.md) with the New Project wizard
 3. [Write your first test case](./writing-test-cases.md) in the split editor
 4. [Run the test](./running-tests.md) and track results
-5. [Generate a Claude Code skill](./claude-code-skills.md) to write test cases faster
+5. [Install the Test Case Writer skill](./claude-code-skills.md) to write test cases faster
 
 ## What's Next?
 
-- **Want to automate?** Learn about [Claude Code Skills](./claude-code-skills.md)
-- **Need power features?** Explore [Test Case Properties](./test-case-properties.md)
+- **Want to automate?** Learn about the [Test Case Writer skill](./claude-code-skills.md)
+- **Browsing your suite?** See the [tool window](./tool-window.md)
+- **Need more fields?** Explore [Test Case Properties](./test-case-properties.md)
 
 ## Key Concepts
 

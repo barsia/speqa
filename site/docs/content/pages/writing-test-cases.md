@@ -15,39 +15,43 @@ Open any `.tc.md` file in your project. SpeQA automatically shows the split edit
 
 A complete test case includes:
 
-### Required Fields
+### Header metadata
 
-**Title** - What are you testing?
-- Example: "User can log in with email and password"
+- **Title** - what you are testing (e.g. "User can log in with email and password")
+- **Priority** - Critical, Major, Normal, or Low (dropdown)
+- **Status** - Draft, Ready, or Deprecated (dropdown)
+- **Environment** - where the test runs (e.g. `Chrome 122, macOS`)
+- **Tags** - free-form labels for organizing tests (e.g. `smoke`, `regression`)
 
-**Description** - Brief context (optional but recommended)
-- Example: "Verify login flow with valid credentials"
+### Body sections
 
-**Scenario/Steps** - What actions does the tester perform?
-- Each step includes:
-  - **Action**: What the tester does (e.g., "Enter email in the email field")
-  - **Expected Result**: What should happen (e.g., "Email is accepted without error")
+The preview always shows every section, even when empty, so you can see what is missing. The sections appear in a fixed order:
 
-### Optional Fields
+1. **Description** - context and intent for the tester
+2. **Links** - references to tickets, documentation, or related tests
+3. **Attachments** - screenshots, logs, or other files
+4. **Preconditions** - setup required before execution starts
+5. **Scenario** - the numbered steps. Each step has an **Action** (what the tester does) and an optional **Expected result** (what should happen)
 
-- **Preconditions**: Setup required before testing (e.g., "User account exists", "Logged out of app")
-- **Attachments**: Screenshots, files, or recordings
-- **Links**: References to tickets, documentation, or related tests
-- **Tags**: Labels for organizing tests (e.g., `smoke`, `critical`, `regression`)
+See [Test Case Properties](./test-case-properties.md) for tags, environments, links, and attachments in depth.
 
 ## Filling in the Form
 
-In the right panel, fill in each field:
+The right panel is an interactive form, not a read-only render.
 
-1. **Click the field** to edit it
-2. **Enter your content** - most fields support Markdown formatting
-3. **For Steps**:
-   - Click **Add Step** to create a new action/result pair
-   - Enter the action (what the tester does)
-   - Enter the expected result (what should happen)
-   - Click the **+** button to add more steps
+- **Metadata** - pick Priority and Status from their dropdowns. For Environment and Tags, click the **+** next to the section to add a value.
+- **Description and Preconditions** - click the pencil icon next to the section to edit, and the save (disk) icon (or `Escape` to cancel) to finish. While editing text, a small formatting toolbar offers **bold**, *italic*, ~~strikethrough~~, `inline code`, code blocks, and bullet/numbered lists; you can also add links.
+- **Scenario steps** - click **Add step** to create an action and expected-result pair. Inside a step, press `Enter` in the action to jump to its expected result, and `Enter` in the expected result to move to the next step. Use the drag handle on a step to reorder, duplicate, or delete it.
 
-4. Save automatically as you type (no save button needed)
+Everything is **saved automatically** as you type. Edits on the left (Markdown) and right (form) stay in sync both ways.
+
+### Inline links
+
+Markdown links inside editable text (descriptions, preconditions, step actions and expected results) render as styled link text with a small open-link icon after them, tinted to the link color.
+
+- **Create a link** - select the text you want to turn into a link, then click the **Link** button on the formatting toolbar (it sits right after the code-block button). A dialog opens with **Text** and **URL** fields; confirm to wrap the selection as a link.
+- **Open a link** - click the open-link icon after the link, or hold `Ctrl` (`Cmd` on macOS) and click the link text. The URL opens in your browser.
+- **View or edit a link** - click the link text (without a modifier) to open a small popup showing the link text and the URL. Click the URL to open it in the browser, or click **Edit** to reopen the Text + URL dialog and change either value.
 
 ## Example Test Case
 
@@ -134,21 +138,23 @@ Changes in the Markdown automatically update the form on the right, and vice ver
 - `ui` - UI testing
 - Add custom tags for your project needs
 
-## Using Claude Code Skill
+## Running the Test Case
 
-If you have a Claude Code skill for your project (see [Creating a Test Case Project](./creating-project.md)), you can speed up test writing:
+When the case is ready, click the green **Run** (play) button in the editor header (tooltip: **Start a manual test run**) to execute it and record results. See [Running and Tracking Tests](./running-tests.md).
 
-1. Type `/[project-name]-tests` in Claude Code
-2. Ask Claude to write or refine test cases:
-   - "Write a test case for user registration"
-   - "Expand the login test with error scenarios"
-   - "Create test cases for the checkout flow"
+## Writing Faster with Claude Code
 
-The skill understands your project structure and generates test cases in SpeQA format.
+If you have installed the [Test Case Writer skill](./claude-code-skills.md), you can ask Claude Code to draft or refine cases for you:
+
+- "Write a test case for user registration"
+- "Expand the login test with error scenarios"
+- "Create test cases for the checkout flow"
+
+The skill generates properly formatted `.tc.md` files that you can then refine in the SpeQA editor.
 
 ## Saving Test Cases
 
-Test cases are **saved automatically** as you type. The `.tc.md` file is updated in real-time.
+Test cases are **saved automatically** as you type. The `.tc.md` file is updated in real time.
 
 ## What's Next?
 
@@ -165,8 +171,8 @@ Once you've written your test case:
 - The form updates as you type in the Markdown on the left
 
 **Can't add more steps:**
-- Click **Add Step** or the **+** button below the existing steps
-- Each step needs an Action and an Expected Result
+- Click **Add step** below the existing steps
+- Each step needs an Action and an optional Expected result
 
 **Markdown shows differently on the form:**
 - Some Markdown features (links, bold, code) are preserved

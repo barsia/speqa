@@ -6,7 +6,7 @@ Install SpeQA in your JetBrains IDE in just a few clicks.
 
 ## Option 1: Quick Install from Marketplace (Recommended)
 
-The easiest way to get SpeQA is directly from the JetBrains plugin marketplace.
+The easiest way to get SpeQA is directly from the JetBrains plugin marketplace. You can also open the plugin's [marketplace page](https://plugins.jetbrains.com/plugin/31268-speqa--test-management-system) and install it from there.
 
 ### Steps
 
@@ -34,8 +34,9 @@ If you have a plugin JAR file:
 
 After installation, you should see SpeQA features available:
 
-- Right-click a folder in your project and look for **New > Test Case** option
-- The plugin icon may appear in the toolbar or left sidebar (depending on IDE theme and settings)
+- Right-click a folder in your project and look for the **New > Test Case** option
+- The **SpeQA** tool window button appears on the left stripe (see [the tool window guide](./tool-window.md))
+- A **Test Cases Project** generator appears in **File > New > Project**
 - Open any `.tc.md` file (test case) and you should see the split editor with preview
 
 ## Troubleshooting

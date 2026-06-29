@@ -1,4 +1,4 @@
-# AGENTS.md
+# CLAUDE.md
 
 ## User communication
 

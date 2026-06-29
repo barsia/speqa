@@ -2,6 +2,7 @@
 
 ## 0.1.9
 
+- Run several test cases together in a single multi-case test run
 - Set the overall run result from a dropdown, with per-case manual overrides
 - Reset all results, or expand and collapse all cases, in one action
 - Create Test Run imports nothing by default; click a row to toggle a case

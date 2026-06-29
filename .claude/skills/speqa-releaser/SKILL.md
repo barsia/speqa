@@ -40,6 +40,7 @@ Prepend a new section at the top, after the `# Changelog` heading. **Keep every 
 ```
 
 Rules:
+- Order by user impact, not by when it was built: the first bullet is the single biggest user-facing change of the release (a new tool window, a major new capability), then secondary features, then minor changes, with bug fixes ("Fixed ...") last. A reader skimming only the top line should learn the headline of the release
 - One line per user-visible change; merge related tiny fixes into one entry
 - Keep each entry to one short line - aim for under ~80 characters (about 12 words). If an entry runs long it is bundling several changes or leaking implementation detail; cut it to the user-visible essence or split it
 - No implementation details, no PR/commit references

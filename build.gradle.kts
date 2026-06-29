@@ -52,6 +52,7 @@ intellijPlatform {
         changeNotes = """
             <h3>0.1.9</h3>
             <ul>
+                <li>Run several test cases together in a single multi-case test run</li>
                 <li>Set the overall run result from a dropdown, with per-case manual overrides</li>
                 <li>Reset all results, or expand and collapse all cases, in one action</li>
                 <li>Create Test Run imports nothing by default; click a row to toggle a case</li>

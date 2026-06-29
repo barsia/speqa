@@ -408,7 +408,7 @@ class MarkdownEditablePane(
         val existing = LinkMarkdown.linkAt(source.text, selStart)
         val initialText = existing?.text ?: source.text.substring(selStart, selEnd)
         val initialUrl = existing?.url ?: ""
-        val input = LinkDialog.edit(project, initialText, initialUrl) ?: return
+        val input = LinkDialog.edit(project, initialText, initialUrl, isEdit = existing != null) ?: return
         val replaceStart = existing?.span?.first ?: selStart
         val replaceEnd = existing?.let { it.span.last + 1 } ?: selEnd
         val result = LinkMarkdown.applyLink(source.text, replaceStart, replaceEnd, input.text, input.url)
@@ -699,9 +699,9 @@ class MarkdownEditablePane(
      * Non-modal management popup for a rendered inline link, anchored above the link text (below
      * when there is no room above). Shows the link text, the URL as a clickable label that opens
      * the browser, and an Edit button that re-opens [LinkDialog] seeded with the current text/URL
-     * and replaces the whole link span via [LinkMarkdown.applyLink] on confirm. The popup keeps
-     * focus out of itself (so the editor selection/caret are undisturbed), stays open on mouse
-     * move, and closes on click-outside or Escape.
+     * and replaces the whole link span via [LinkMarkdown.applyLink] on confirm. The popup is
+     * non-modal (the editor is not blocked) but focused so Escape reaches it; it stays open on
+     * mouse move and closes on click-outside or Escape.
      */
     private fun showLinkPopup(editor: EditorEx, range: MarkdownWysiwygRange) {
         if (editor.isDisposed) return
@@ -734,20 +734,24 @@ class MarkdownEditablePane(
             alignmentX = Component.LEFT_ALIGNMENT
             handCursor()
             addActionListener {
-                val result = LinkDialog.edit(project, linkText, url)
-                if (result != null) {
-                    val applied = LinkMarkdown.applyLink(
-                        fullText,
-                        range.openStart,
-                        range.closeEnd,
-                        result.text,
-                        result.url,
-                    )
-                    applyFormattingWrite(editor, applied.text, applied.selectionStart, applied.selectionEnd)
-                    popup.cancel()
-                }
+                // Close the popup before the modal dialog so only the dialog is visible.
+                popup.cancel()
+                val result = LinkDialog.edit(project, linkText, url, isEdit = true) ?: return@addActionListener
+                val applied = LinkMarkdown.applyLink(
+                    fullText,
+                    range.openStart,
+                    range.closeEnd,
+                    result.text,
+                    result.url,
+                )
+                applyFormattingWrite(editor, applied.text, applied.selectionStart, applied.selectionEnd)
             }
         }
+
+        // Cap the content width so a long URL ellipsizes instead of stretching the popup wide.
+        val maxContentWidth = JBUI.scale(360)
+        capLabelWidth(textLabel, maxContentWidth)
+        capLabelWidth(urlLabel, maxContentWidth)
 
         val panel = JPanel().apply {
             layout = BoxLayout(this, BoxLayout.Y_AXIS)
@@ -791,6 +795,18 @@ class MarkdownEditablePane(
         val maxX = (visible.x + visible.width - size.width).coerceAtLeast(visible.x)
         val x = anchor.x.coerceIn(visible.x, maxX)
         popup.show(RelativePoint(editor.contentComponent, Point(x, y)))
+    }
+
+    /**
+     * Caps [label]'s width at [maxWidth] so its text ellipsizes within the popup instead of forcing
+     * the popup wider; a label narrower than [maxWidth] keeps its natural width.
+     */
+    private fun capLabelWidth(label: JComponent, maxWidth: Int) {
+        val pref = label.preferredSize
+        if (pref.width > maxWidth) {
+            label.preferredSize = java.awt.Dimension(maxWidth, pref.height)
+            label.maximumSize = java.awt.Dimension(maxWidth, pref.height)
+        }
     }
 
     private fun installCodeBlockCopyButton(editor: EditorEx) {

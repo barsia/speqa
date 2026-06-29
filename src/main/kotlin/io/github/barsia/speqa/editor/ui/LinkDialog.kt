@@ -31,13 +31,16 @@ class LinkDialog(
     project: Project,
     initialText: String,
     initialUrl: String,
+    isEdit: Boolean,
 ) : DialogWrapper(project) {
 
     private val textField = JBTextField(initialText, 30)
     private val urlField = JBTextField(initialUrl, 30)
 
     init {
-        title = SpeqaBundle.message("dialog.link.title")
+        title = SpeqaBundle.message(
+            if (isEdit) "dialog.link.title.edit" else "dialog.link.title.add",
+        )
         init()
     }
 
@@ -71,10 +74,11 @@ class LinkDialog(
     companion object {
         /**
          * Shows the modal dialog seeded with [initialText]/[initialUrl] and returns the entered
-         * [LinkInput], or `null` if the user cancelled.
+         * [LinkInput], or `null` if the user cancelled. [isEdit] titles the dialog "Edit link" when
+         * an existing link is being changed and "Add link" when a new link is being created.
          */
-        fun edit(project: Project, initialText: String, initialUrl: String): LinkInput? {
-            val dialog = LinkDialog(project, initialText, initialUrl)
+        fun edit(project: Project, initialText: String, initialUrl: String, isEdit: Boolean): LinkInput? {
+            val dialog = LinkDialog(project, initialText, initialUrl, isEdit)
             return if (dialog.showAndGet()) dialog.result() else null
         }
     }

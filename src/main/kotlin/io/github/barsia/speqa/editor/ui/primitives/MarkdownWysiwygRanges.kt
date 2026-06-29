@@ -99,6 +99,28 @@ internal object MarkdownWysiwygRanges {
         return null
     }
 
+    /**
+     * Classifies a click [offset] against the inline link at that position: the open-link icon,
+     * the link's editable visible text, or neither. The icon anchor (the link's close end) wins
+     * over the text, so it is checked first.
+     */
+    sealed interface LinkTarget {
+        /** The click landed on the open-link icon; follow [url]. */
+        data class OpenUrl(val url: String) : LinkTarget
+
+        /** The click landed inside the link's visible text; keep editing it (link is [url]). */
+        data class EditText(val url: String) : LinkTarget
+
+        /** The click is not on any link icon or link text. */
+        object None : LinkTarget
+    }
+
+    fun linkTargetAt(text: CharSequence, offset: Int): LinkTarget {
+        linkUrlAtIconOffset(text, offset)?.let { return LinkTarget.OpenUrl(it) }
+        linkUrlAt(text, offset)?.let { return LinkTarget.EditText(it) }
+        return LinkTarget.None
+    }
+
     fun fencedCodeBlocks(text: CharSequence): List<MarkdownWysiwygRange> =
         fencedCodeBlock.findAll(text).map { match ->
             val open = match.groups[1] ?: error("Opening code fence group is required")

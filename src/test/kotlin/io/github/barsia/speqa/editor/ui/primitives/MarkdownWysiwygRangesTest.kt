@@ -212,4 +212,33 @@ class MarkdownWysiwygRangesTest {
         assertEquals(null, MarkdownWysiwygRanges.linkUrlAtIconOffset("![alt](https://img.example.com/x.png)", 5))
         assertEquals(null, MarkdownWysiwygRanges.linkUrlAtIconOffset("[rel](./path/page.md)", 4))
     }
+
+    @Test
+    fun `linkTargetAt classifies the icon offset as OpenUrl`() {
+        val text = "a [x](https://e.com) b"
+        val range = MarkdownWysiwygRanges.inlineLinks(text).single()
+
+        assertEquals(
+            MarkdownWysiwygRanges.LinkTarget.OpenUrl("https://e.com"),
+            MarkdownWysiwygRanges.linkTargetAt(text, range.closeEnd),
+        )
+    }
+
+    @Test
+    fun `linkTargetAt classifies an offset inside the link text as EditText`() {
+        val text = "a [x](https://e.com) b"
+        val range = MarkdownWysiwygRanges.inlineLinks(text).single()
+
+        assertEquals(
+            MarkdownWysiwygRanges.LinkTarget.EditText("https://e.com"),
+            MarkdownWysiwygRanges.linkTargetAt(text, range.contentStart),
+        )
+    }
+
+    @Test
+    fun `linkTargetAt returns None outside any link`() {
+        val text = "a [x](https://e.com) b"
+
+        assertEquals(MarkdownWysiwygRanges.LinkTarget.None, MarkdownWysiwygRanges.linkTargetAt(text, 0))
+    }
 }

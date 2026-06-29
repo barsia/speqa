@@ -520,6 +520,13 @@ class MarkdownEditablePane(
         editor.addEditorMouseListener(object : EditorMouseListener {
             override fun mouseClicked(e: EditorMouseEvent) {
                 if (editor.isDisposed) return
+                // A plain left-click on a link's open-link icon opens the URL, no modifier needed.
+                val iconUrl = openLinkIconUrlAt(editor, e)
+                if (iconUrl != null && SwingUtilities.isLeftMouseButton(e.mouseEvent)) {
+                    e.consume()
+                    BrowserUtil.browse(iconUrl)
+                    return
+                }
                 if (!isFollowLinkGesture(e.mouseEvent)) return
                 val url = linkUrlUnderPoint(editor, e.mouseEvent.point) ?: return
                 // Consume so the click does not also place the caret / start a selection.
@@ -530,11 +537,12 @@ class MarkdownEditablePane(
         editor.addEditorMouseMotionListener(object : EditorMouseMotionListener {
             override fun mouseMoved(e: EditorMouseEvent) {
                 if (editor.isDisposed) return
+                val overIcon = openLinkIconUrlAt(editor, e) != null
                 val overLink = isFollowLinkGesture(e.mouseEvent) &&
                     linkUrlUnderPoint(editor, e.mouseEvent.point) != null
                 editor.setCustomCursor(
                     this@MarkdownEditablePane,
-                    if (overLink) Cursor.getPredefinedCursor(Cursor.HAND_CURSOR) else null,
+                    if (overIcon || overLink) Cursor.getPredefinedCursor(Cursor.HAND_CURSOR) else null,
                 )
             }
         }, ed)
@@ -549,6 +557,18 @@ class MarkdownEditablePane(
         if (editor.isDisposed) return null
         val offset = editor.logicalPositionToOffset(editor.xyToLogicalPosition(point))
         return MarkdownWysiwygRanges.linkUrlAt(editor.document.charsSequence, offset)
+    }
+
+    /**
+     * The URL of the open-link icon under the mouse event, or null when the event is not over
+     * one of our [OpenLinkIconRenderer] inlays. The inlay's offset (the link's content end) is
+     * mapped back to the URL by the pure [MarkdownWysiwygRanges.linkUrlAtIconOffset].
+     */
+    private fun openLinkIconUrlAt(editor: EditorEx, e: EditorMouseEvent): String? {
+        if (editor.isDisposed) return null
+        val inlay = e.inlay ?: return null
+        if (inlay.renderer !is OpenLinkIconRenderer) return null
+        return MarkdownWysiwygRanges.linkUrlAtIconOffset(editor.document.charsSequence, inlay.offset)
     }
 
     private fun installCodeBlockCopyButton(editor: EditorEx) {
@@ -800,6 +820,7 @@ class MarkdownEditablePane(
         }
         addInlineCodePaddingInlays(editor, Regex("`([^`\\n]+)`"), delimiterLength = 1)
         addCodeBlockSpacerInlays(editor, codeBlocks)
+        addLinkOpenIconInlays(editor, MarkdownWysiwygRanges.inlineLinks(editor.document.charsSequence))
         invalidateWysiwygLayout()
     }
 
@@ -913,6 +934,26 @@ class MarkdownEditablePane(
             val lastContent = (range.contentEnd - 1).coerceAtLeast(range.contentStart)
             editor.inlayModel.addBlockElement(lastContent, true, false, 0, spacer)
                 ?.let { ourInlays += it }
+        }
+    }
+
+    /**
+     * Render a small open-link icon right after each rendered inline link's visible text. The
+     * icon is an inline inlay anchored at the link's content end (where the `](url)` tail is
+     * folded away) and relates to the preceding text so it stays glued to the link text. A plain
+     * left-click on it opens the URL (wired in [installLinkFollowing]); the inlay's offset maps
+     * back to the URL via [MarkdownWysiwygRanges.linkUrlAtIconOffset]. Registered in [ourInlays]
+     * so the WYSIWYG refresh disposes it alongside the other inlays.
+     */
+    private fun addLinkOpenIconInlays(editor: EditorEx, ranges: List<MarkdownWysiwygRange>) {
+        if (editor.isDisposed) return
+        for (range in ranges) {
+            if (range.contentStart >= range.contentEnd) continue
+            editor.inlayModel.addInlineElement(
+                range.contentEnd,
+                true,
+                OpenLinkIconRenderer(),
+            )?.let { ourInlays += it }
         }
     }
 
@@ -1251,6 +1292,30 @@ class MarkdownEditablePane(
             targetRegion: Rectangle,
             textAttributes: TextAttributes,
         ) = Unit
+    }
+
+    /**
+     * Inline inlay that paints a small open-link icon after a rendered inline link's visible
+     * text. A leading gap separates it from the link text. The icon itself is not interactive
+     * here; the plain left-click that opens the URL is handled in [installLinkFollowing] by
+     * resolving the clicked inlay's offset to the link URL.
+     */
+    private class OpenLinkIconRenderer : EditorCustomElementRenderer {
+        private val icon = AllIcons.Ide.External_link_arrow
+        private val gap = JBUI.scale(2)
+
+        override fun calcWidthInPixels(inlay: Inlay<*>): Int = gap + icon.iconWidth
+
+        override fun paint(
+            inlay: Inlay<*>,
+            g: Graphics,
+            targetRegion: Rectangle,
+            textAttributes: TextAttributes,
+        ) {
+            val x = targetRegion.x + gap
+            val y = targetRegion.y + (targetRegion.height - icon.iconHeight) / 2
+            icon.paintIcon(inlay.editor.contentComponent, g, x, y)
+        }
     }
 
     companion object {

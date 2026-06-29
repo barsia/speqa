@@ -81,6 +81,23 @@ internal object MarkdownWysiwygRanges {
         return null
     }
 
+    /**
+     * The destination URL of the inline link whose open-link icon sits at [offset]. The icon
+     * is an inline inlay anchored at the link's content end (one past the last visible link
+     * character, where the `](url)` tail is folded away), so this maps that inlay offset back
+     * to the link's `http(s)://` URL, or null when [offset] is not any link's content end.
+     * Used to open a rendered inline link on a plain click of its open-link icon. Only
+     * `http(s)://` destinations qualify, matching [inlineLinks].
+     */
+    fun linkUrlAtIconOffset(text: CharSequence, offset: Int): String? {
+        for (m in inlineLink.findAll(text)) {
+            val content = m.groups[1] ?: continue
+            val url = m.groups[2] ?: continue
+            if (offset == content.range.last + 1) return url.value
+        }
+        return null
+    }
+
     fun fencedCodeBlocks(text: CharSequence): List<MarkdownWysiwygRange> =
         fencedCodeBlock.findAll(text).map { match ->
             val open = match.groups[1] ?: error("Opening code fence group is required")

@@ -167,4 +167,40 @@ class MarkdownWysiwygRangesTest {
         val relative = "[rel](./path/page.md)"
         assertEquals(null, MarkdownWysiwygRanges.linkUrlAt(relative, 2))
     }
+
+    @Test
+    fun `linkUrlAtIconOffset returns url at the content end where the open-link icon sits`() {
+        val text = "The [SpeQA plugin](https://plugins.jetbrains.com/x) is installed."
+        val range = MarkdownWysiwygRanges.inlineLinks(text).single()
+
+        assertEquals(
+            "https://plugins.jetbrains.com/x",
+            MarkdownWysiwygRanges.linkUrlAtIconOffset(text, range.contentEnd),
+        )
+    }
+
+    @Test
+    fun `linkUrlAtIconOffset resolves the correct url among multiple links`() {
+        val text = "see [a](http://a.com) and [b](https://b.com)"
+        val ranges = MarkdownWysiwygRanges.inlineLinks(text)
+
+        assertEquals("http://a.com", MarkdownWysiwygRanges.linkUrlAtIconOffset(text, ranges[0].contentEnd))
+        assertEquals("https://b.com", MarkdownWysiwygRanges.linkUrlAtIconOffset(text, ranges[1].contentEnd))
+    }
+
+    @Test
+    fun `linkUrlAtIconOffset returns null when the offset is not a link content end`() {
+        val text = "The [SpeQA plugin](https://plugins.jetbrains.com/x) is installed."
+        val range = MarkdownWysiwygRanges.inlineLinks(text).single()
+
+        assertEquals(null, MarkdownWysiwygRanges.linkUrlAtIconOffset(text, range.contentStart))
+        assertEquals(null, MarkdownWysiwygRanges.linkUrlAtIconOffset(text, 0))
+        assertEquals(null, MarkdownWysiwygRanges.linkUrlAtIconOffset(text, text.length))
+    }
+
+    @Test
+    fun `linkUrlAtIconOffset ignores image and non-http destinations`() {
+        assertEquals(null, MarkdownWysiwygRanges.linkUrlAtIconOffset("![alt](https://img.example.com/x.png)", 5))
+        assertEquals(null, MarkdownWysiwygRanges.linkUrlAtIconOffset("[rel](./path/page.md)", 4))
+    }
 }

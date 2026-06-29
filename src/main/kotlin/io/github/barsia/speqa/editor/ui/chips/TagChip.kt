@@ -101,6 +101,12 @@ class TagChip(
     tooltip: String? = null,
     private val alwaysShowDelete: Boolean = false,
     private val isEnvironment: Boolean = false,
+    /**
+     * Extra horizontal space (unscaled) reserved between the value and the trailing delete `X`.
+     * Used by always-visible remove chips (the filter chip row) so the persistent `X` does not
+     * crowd the value; hover-reveal chips leave it at 0 to keep their compact width.
+     */
+    private val deleteValueGap: Int = 0,
 ) : JPanel(null) {
 
     private val backgroundColor: Color =
@@ -113,6 +119,10 @@ class TagChip(
 
     private val deleteButtonSize: Int
         get() = if (deleteButton == null) 0 else JBUI.scale(14)
+
+    /** Reserved gap between the value and the delete `X`; zero when there is no delete button. */
+    private val deleteValueGapScaled: Int
+        get() = if (deleteButton == null) 0 else JBUI.scale(deleteValueGap)
 
     private val deleteButtonOverlap: Int
         get() = 0
@@ -267,8 +277,9 @@ class TagChip(
         val label = getComponent(0).preferredSize
         val edit = editButton?.preferredSize ?: Dimension(0, 0)
         val gap = editGap
-        // Reserve deleteButtonSize on the right for the button (no vertical overlap).
-        val deleteReserve = deleteButtonSize
+        // Reserve deleteButtonSize on the right for the button (no vertical overlap), plus an
+        // optional gap so an always-visible X does not crowd the value.
+        val deleteReserve = deleteButtonSize + deleteValueGapScaled
         val fillWidth = insets.left + label.width + gap + edit.width + deleteReserve + insets.right
         val fillHeight = insets.top + maxOf(label.height, edit.height) + insets.bottom
         return Dimension(fillWidth, fillHeight)

@@ -46,6 +46,12 @@ internal class AddTagPopup(
     private val allKnown: () -> Set<String>,
     private val currentSelection: () -> Set<String>,
     private val onPick: (String) -> Unit,
+    /**
+     * Whether the `+ Create '<query>'` row is offered for a query that matches no known value.
+     * True when authoring metadata (the editor's tag clouds), false for filtering, where a value
+     * that does not exist in the project can only ever match nothing.
+     */
+    private val allowCreate: Boolean = true,
 ) {
 
     private val searchField = JBTextField().apply {
@@ -56,9 +62,22 @@ internal class AddTagPopup(
     private val listModel = DefaultListModel<Row>()
     private val list = JBList(listModel).apply {
         selectionMode = ListSelectionModel.SINGLE_SELECTION
-        visibleRowCount = 8
         cellRenderer = RowRenderer()
         background = JBColor.background()
+    }
+    private val scrollPane = JBScrollPane(list).apply {
+        border = JBUI.Borders.emptyTop(4)
+    }
+
+    /**
+     * Sizes the list viewport to the current number of rows (capped at [MAX_VISIBLE_ROWS], beyond
+     * which it scrolls), so the popup is as tall as its content instead of a fixed block with
+     * empty space below. Width stays fixed so the popup does not jitter horizontally.
+     */
+    private fun fitListSize() {
+        list.visibleRowCount = visibleRowCount(listModel.size(), MAX_VISIBLE_ROWS)
+        val viewport = list.preferredScrollableViewportSize
+        scrollPane.preferredSize = Dimension(JBUI.scale(240), viewport.height)
     }
 
     private var popup: JBPopup? = null
@@ -78,21 +97,19 @@ internal class AddTagPopup(
     fun refresh() {
         if (popup?.isDisposed == true) return
         refreshRows()
+        fitListSize()
+        popup?.takeIf { it.isVisible }?.pack(true, true)
     }
 
-    fun show() {
+    /** Builds, shows, and returns the underlying popup so a caller can track its lifetime. */
+    fun show(): JBPopup? {
         refreshRows()
+        fitListSize()
 
         val content = JPanel(BorderLayout()).apply {
             border = JBUI.Borders.empty(JBUI.scale(4))
             add(searchField, BorderLayout.NORTH)
-            add(
-                JBScrollPane(list).apply {
-                    border = JBUI.Borders.emptyTop(4)
-                    preferredSize = Dimension(JBUI.scale(240), JBUI.scale(220))
-                },
-                BorderLayout.CENTER,
-            )
+            add(scrollPane, BorderLayout.CENTER)
         }
 
         val builder = JBPopupFactory.getInstance()
@@ -103,7 +120,7 @@ internal class AddTagPopup(
             .setFocusable(true)
             .setCancelOnClickOutside(true)
             .setCancelOnOtherWindowOpen(true)
-            .setMinSize(Dimension(JBUI.scale(260), JBUI.scale(260)))
+            .setMinSize(Dimension(JBUI.scale(240), 0))
         popup = builder.createPopup()
         // Return focus to the anchor on any non-keyboard dismissal (click-outside,
         // mouse item selection). Keyboard paths (ESC/Enter/Tab) set dismissedByKeyboard=true
@@ -126,6 +143,7 @@ internal class AddTagPopup(
             RelativePoint.getCenterOf(anchor)
         }
         popup?.show(anchorPoint)
+        return popup
     }
 
     private fun wireSearch() {
@@ -223,9 +241,7 @@ internal class AddTagPopup(
         } else {
             pickable.filter { it.contains(query, ignoreCase = true) }
         }
-        val showCreate = query.isNotBlank() &&
-            pickable.none { it.equals(query, ignoreCase = true) } &&
-            currentlySelected.none { it.equals(query, ignoreCase = true) }
+        val showCreate = shouldShowCreateRow(allowCreate, query, pickable, currentlySelected)
 
         listModel.clear()
         if (showCreate) listModel.addElement(Row.Create(query))
@@ -258,4 +274,33 @@ internal class AddTagPopup(
             return c
         }
     }
+
+    private companion object {
+        /** Rows shown before the list starts to scroll instead of growing the popup. */
+        const val MAX_VISIBLE_ROWS = 8
+    }
 }
+
+/**
+ * Whether the `+ Create '<query>'` row is offered: only when creation is allowed, the [query] is
+ * non-blank, and it does not already exist as a [pickable] value or an already [selected] one
+ * (case-insensitive). Pure so the "filter offers existing values only" contract and the
+ * exact-match suppression are unit-tested without a live popup.
+ */
+internal fun shouldShowCreateRow(
+    allowCreate: Boolean,
+    query: String,
+    pickable: List<String>,
+    selected: Set<String>,
+): Boolean =
+    allowCreate &&
+        query.isNotBlank() &&
+        pickable.none { it.equals(query, ignoreCase = true) } &&
+        selected.none { it.equals(query, ignoreCase = true) }
+
+/**
+ * The list viewport row count: the item count, but at least 1 (so an empty list still has a
+ * sensible height) and at most [max] (beyond which the list scrolls instead of growing the
+ * popup). Pure so the "popup fits its content, capped" contract is unit-tested.
+ */
+internal fun visibleRowCount(itemCount: Int, max: Int): Int = itemCount.coerceIn(1, max)

@@ -5,6 +5,7 @@ import com.intellij.openapi.editor.markup.TextAttributes
 import com.intellij.openapi.editor.markup.TextAttributesEffectsBuilder
 import java.awt.Color
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class MarkdownEditablePaneCaretTest {
@@ -225,5 +226,36 @@ class MarkdownEditablePaneCaretTest {
                 maxWidth = 120,
             ),
         )
+    }
+
+    @Test
+    fun `link underline sits below the text descenders, not on the baseline`() {
+        // ascent 11, descent 3: the underline must clear the descenders (>= ascent + descent),
+        // i.e. lower than the old buggy ascent+3 position that drew it on top of the text.
+        val offset = MarkdownEditablePane.linkUnderlineBaselineOffset(
+            ascent = 11,
+            descent = 3,
+            lineHeight = 20,
+            gap = 2,
+            clampInset = 1,
+        )
+
+        assertEquals(16, offset)
+        assertTrue("underline must be below baseline+descent", offset >= 11 + 3)
+    }
+
+    @Test
+    fun `link underline is clamped inside the line so a tall line height never clips it`() {
+        // ascent+descent+gap = 17 would fall on/over the line bottom (18); clamp to lineHeight-1.
+        val offset = MarkdownEditablePane.linkUnderlineBaselineOffset(
+            ascent = 12,
+            descent = 3,
+            lineHeight = 18,
+            gap = 2,
+            clampInset = 1,
+        )
+
+        assertEquals(17, offset)
+        assertTrue("underline must stay above the line bottom", offset <= 18 - 1)
     }
 }

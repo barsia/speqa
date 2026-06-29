@@ -7,7 +7,7 @@ tags:
   - "smoke"
 ---
 
-A single happy-path walk through the SpeQA plugin: create a project, author and edit test cases, run a single and a multi-case run, and browse the tool window.
+A single happy-path walk through the SpeQA plugin: create a project, author and edit test cases, create a single and a multi-case run, and browse the tool window.
 
 Preconditions:
 

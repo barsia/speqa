@@ -15,10 +15,8 @@ import com.intellij.openapi.util.NlsActions
 import com.intellij.ui.components.JBList
 import com.intellij.util.ui.JBUI
 import io.github.barsia.speqa.SpeqaBundle
-import io.github.barsia.speqa.editor.ui.chips.MetadataKind
-import io.github.barsia.speqa.editor.ui.chips.MetadataScope
+import io.github.barsia.speqa.editor.ui.chips.AddTagPopup
 import io.github.barsia.speqa.editor.ui.chips.TagChip
-import io.github.barsia.speqa.editor.ui.chips.TagCloud
 import io.github.barsia.speqa.editor.ui.primitives.WrapLayout
 import io.github.barsia.speqa.filetype.SpeqaIcons
 import io.github.barsia.speqa.model.Priority
@@ -77,7 +75,6 @@ class SpeqaFilterHeader(
     private val project: Project,
     private val filter: SpeqaFilter,
     private val primary: PrimaryFacet,
-    private val metadataScope: MetadataScope,
     private val knownTags: () -> Set<String>,
     private val knownEnvironments: () -> Set<String>,
     private val hasContent: () -> Boolean,
@@ -135,7 +132,7 @@ class SpeqaFilterHeader(
     private inner class FacetAction(
         private val facet: Facet,
         icon: Icon,
-        @NlsActions.ActionText tooltip: String,
+        @NlsActions.ActionText private val tooltip: String,
     ) : DumbAwareAction(tooltip, null, icon), Toggleable {
 
         override fun actionPerformed(e: AnActionEvent) {
@@ -151,9 +148,42 @@ class SpeqaFilterHeader(
         override fun update(e: AnActionEvent) {
             // Hide every facet trigger when the tab has no leaves at all - there is
             // nothing to filter until at least one test case / test run exists.
-            val enabled = hasContent()
-            e.presentation.isEnabledAndVisible = enabled
-            if (enabled) Toggleable.setSelected(e.presentation, isFacetActive(facet))
+            if (!hasContent()) {
+                e.presentation.isEnabledAndVisible = false
+                return
+            }
+            e.presentation.isVisible = true
+            // A multi-select tag/environment facet whose picker would be empty (the project has
+            // no such values, or all of them are already selected) is disabled with an explaining
+            // tooltip instead of opening an empty "Nothing to show" popup.
+            val emptyPickerTooltip = emptyPickerTooltip()
+            e.presentation.isEnabled = emptyPickerTooltip == null
+            e.presentation.text = emptyPickerTooltip ?: tooltip
+            Toggleable.setSelected(e.presentation, isFacetActive(facet))
+        }
+
+        /**
+         * For a tag/environment facet, the tooltip to show while its picker has nothing to offer,
+         * or null when the facet is pickable (and for the single-select facets, which always are).
+         */
+        private fun emptyPickerTooltip(): String? {
+            val (known, selected) = when (facet) {
+                Facet.TAGS -> knownTags() to filter.tags
+                Facet.ENVIRONMENT -> knownEnvironments() to filter.environments
+                else -> return null
+            }
+            val key = when (facetPickState(known, selected)) {
+                FacetPickState.PICKABLE -> return null
+                FacetPickState.NO_VALUES ->
+                    if (facet == Facet.TAGS) "toolwindow.speqa.filter.noTags" else "toolwindow.speqa.filter.noEnvironments"
+                FacetPickState.ALL_SELECTED ->
+                    if (facet == Facet.TAGS) {
+                        "toolwindow.speqa.filter.allTagsSelected"
+                    } else {
+                        "toolwindow.speqa.filter.allEnvironmentsSelected"
+                    }
+            }
+            return SpeqaBundle.message(key)
         }
 
         override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
@@ -224,7 +254,7 @@ class SpeqaFilterHeader(
     }
 
     private fun removableChip(label: String, colored: Boolean, onRemove: () -> Unit): JComponent =
-        TagChip(tag = label, colored = colored, onDelete = onRemove, alwaysShowDelete = true)
+        TagChip(tag = label, colored = colored, onDelete = onRemove, alwaysShowDelete = true, deleteValueGap = 4)
 
     /** Cancels any open facet popup and clears the open-facet tracking. */
     private fun cancelPopup() {
@@ -333,52 +363,74 @@ class SpeqaFilterHeader(
 
     private fun showTagsPopup(e: AnActionEvent, anchor: JComponent?) {
         if (!shouldOpen(Facet.TAGS)) return
-        val cloud = TagCloud(
-            coloredChips = true,
-            metadataKind = MetadataKind.TAG,
-            metadataScope = metadataScope,
-            metadataProject = project,
-            onActivate = {},
-            onAdd = { value -> filter.addTag(value); refresh(); onChanged() },
-            onRemove = { value -> filter.removeTag(value); refresh(); onChanged() },
+        showValuePicker(
+            facet = Facet.TAGS,
+            anchor = anchor ?: return,
+            allKnown = { knownTags() },
+            currentSelection = { filter.tags },
+            onPick = { value ->
+                if (value.isNotBlank() && filter.tags.none { it.equals(value, ignoreCase = true) }) {
+                    filter.addTag(value)
+                    refresh()
+                    onChanged()
+                }
+            },
         )
-        cloud.setAllKnownTags { knownTags() }
-        cloud.setTags(filter.tags.toList())
-        registry.whenInitialized { cloud.setAllKnownTags { knownTags() } }
-        showCloudPopup(Facet.TAGS, anchor, e, cloud)
     }
 
     private fun showEnvironmentPopup(e: AnActionEvent, anchor: JComponent?) {
         if (!shouldOpen(Facet.ENVIRONMENT)) return
-        val cloud = TagCloud(
-            coloredChips = true,
-            metadataKind = MetadataKind.ENVIRONMENT,
-            metadataScope = metadataScope,
-            metadataProject = project,
-            onActivate = {},
-            onAdd = { value -> filter.addEnvironment(value); refresh(); onChanged() },
-            onRemove = { value -> filter.removeEnvironment(value); refresh(); onChanged() },
+        showValuePicker(
+            facet = Facet.ENVIRONMENT,
+            anchor = anchor ?: return,
+            allKnown = { knownEnvironments() },
+            currentSelection = { filter.environments },
+            onPick = { value ->
+                if (value.isNotBlank() && filter.environments.none { it.equals(value, ignoreCase = true) }) {
+                    filter.addEnvironment(value)
+                    refresh()
+                    onChanged()
+                }
+            },
         )
-        cloud.setAllKnownTags { knownEnvironments() }
-        cloud.setTags(filter.environments.toList())
-        registry.whenInitialized { cloud.setAllKnownTags { knownEnvironments() } }
-        showCloudPopup(Facet.ENVIRONMENT, anchor, e, cloud)
     }
 
-    private fun showCloudPopup(facet: Facet, anchor: JComponent?, e: AnActionEvent, cloud: TagCloud) {
-        val panel = JPanel(BorderLayout()).apply {
-            border = JBUI.Borders.empty(8)
-            add(cloud, BorderLayout.CENTER)
-            preferredSize = JBUI.size(260, 120)
-        }
-        val newPopup = JBPopupFactory.getInstance()
-            .createComponentPopupBuilder(panel, cloud)
-            .setRequestFocus(true)
-            .setResizable(false)
-            .setMovable(false)
-            .createPopup()
-        openPopup(facet, newPopup, anchor, e)
-        cloud.startAdd()
+    /**
+     * Opens the shared [AddTagPopup] autocomplete picker for a tag/environment facet, anchored
+     * under the clicked title-bar button. It lists the tab's known values (minus the already
+     * selected ones) with type-to-filter, and picking one adds it to the filter; the already
+     * selected values are shown and removable in the chip row above the tree. The picker is
+     * tracked as [facet]'s open popup so clicking the same button again toggles it shut, and the
+     * known set is re-queried once the registry finishes its background scan.
+     */
+    private fun showValuePicker(
+        facet: Facet,
+        anchor: JComponent,
+        allKnown: () -> Set<String>,
+        currentSelection: () -> Set<String>,
+        onPick: (String) -> Unit,
+    ) {
+        val picker = AddTagPopup(
+            anchor = anchor,
+            allKnown = allKnown,
+            currentSelection = currentSelection,
+            onPick = onPick,
+            // Filtering by a value that does not exist in the project can only match nothing,
+            // so the picker offers existing values only - no "+ Create" row.
+            allowCreate = false,
+        )
+        val shown = picker.show() ?: return
+        popup = shown
+        openFacet = facet
+        shown.addListener(object : com.intellij.openapi.ui.popup.JBPopupListener {
+            override fun onClosed(event: com.intellij.openapi.ui.popup.LightweightWindowEvent) {
+                if (popup === shown) {
+                    popup = null
+                    openFacet = null
+                }
+            }
+        })
+        registry.whenInitialized { if (!shown.isDisposed) picker.refresh() }
     }
 
     private fun capitalize(label: String): String = label.replaceFirstChar { it.uppercase() }
@@ -386,4 +438,20 @@ class SpeqaFilterHeader(
     private enum class Facet { PRIMARY, PRIORITY, TAGS, ENVIRONMENT }
 
     private data class PriorityOption(val value: Priority?, val label: String)
+}
+
+/** Whether a multi-select tag/environment facet has anything left to pick. */
+internal enum class FacetPickState { PICKABLE, NO_VALUES, ALL_SELECTED }
+
+/**
+ * Classifies a multi-select facet for enable/disable gating: `NO_VALUES` when the project has no
+ * such values at all, `ALL_SELECTED` when every known value is already in the filter (so the
+ * picker would be empty), and `PICKABLE` otherwise. Selection membership is compared
+ * case-insensitively to match how [AddTagPopup] filters already-picked values out of its list.
+ * Pure so the gating contract is unit-tested without standing up the tool window.
+ */
+internal fun facetPickState(known: Set<String>, selected: Set<String>): FacetPickState {
+    if (known.isEmpty()) return FacetPickState.NO_VALUES
+    val hasPickable = known.any { value -> selected.none { it.equals(value, ignoreCase = true) } }
+    return if (hasPickable) FacetPickState.PICKABLE else FacetPickState.ALL_SELECTED
 }

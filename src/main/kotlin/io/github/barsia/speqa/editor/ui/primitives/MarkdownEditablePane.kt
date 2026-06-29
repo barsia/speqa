@@ -635,11 +635,14 @@ class MarkdownEditablePane(
                         if (isFollowLinkGesture(e.mouseEvent)) {
                             BrowserUtil.browse(target.url)
                         } else {
-                            val range = MarkdownWysiwygRanges.inlineLinks(text).firstOrNull {
-                                offset in it.contentStart..it.contentEnd
-                            }
+                            val range = MarkdownWysiwygRanges.linkRangeAt(text, offset)
                             // Consume already suppressed caret placement; only open if we resolved a range.
-                            if (range != null) showLinkPopup(editor, range)
+                            if (range != null) {
+                                // Select the whole rendered link text so a multi-word link reads as one
+                                // object while its management popup is open.
+                                editor.selectionModel.setSelection(range.contentStart, range.contentEnd)
+                                showLinkPopup(editor, range)
+                            }
                         }
                     }
                     LinkTarget.None -> Unit
@@ -1256,6 +1259,7 @@ class MarkdownEditablePane(
                 attrs,
                 HighlighterTargetArea.EXACT_RANGE,
             )
+            attrs.foregroundColor?.let { highlighter.setCustomRenderer(LinkUnderlineRenderer(it)) }
             ourHighlighters += highlighter
         }
     }
@@ -1332,10 +1336,11 @@ class MarkdownEditablePane(
         val foreground = markdownAttributes("MARKDOWN_LINK_TEXT")?.foregroundColor
             ?: markdownAttributes("MARKDOWN_LINK_DESTINATION")?.foregroundColor
             ?: JBUI.CurrentTheme.Link.Foreground.ENABLED
+        // No platform underline effect here: the underline is painted by
+        // [LinkUnderlineRenderer] a couple of pixels lower than the platform default so
+        // the line sits with a slightly larger gap below the link text.
         return TextAttributes().apply {
             foregroundColor = foreground
-            effectType = EffectType.LINE_UNDERSCORE
-            effectColor = foreground
         }
     }
 
@@ -1536,6 +1541,72 @@ class MarkdownEditablePane(
     }
 
     /**
+     * Paints the inline-link underline a couple of pixels below the platform
+     * [EffectType.LINE_UNDERSCORE] position, so the line clears the text with a slightly
+     * larger gap. Spans are computed per visual line so a wrapped link underlines correctly.
+     */
+    private class LinkUnderlineRenderer(private val color: Color) : CustomHighlighterRenderer {
+        override fun paint(editor: Editor, highlighter: RangeHighlighter, g: Graphics) {
+            val start = highlighter.startOffset.coerceIn(0, editor.document.textLength)
+            val end = highlighter.endOffset.coerceIn(start, editor.document.textLength)
+            if (start >= end) return
+
+            val text = editor.document.charsSequence
+            val metrics = editor.contentComponent.getFontMetrics(editor.contentComponent.font)
+            // Sit the underline below the text descenders with a small gap, clamped inside the
+            // visual line so it is never clipped. This is lower than the platform's default
+            // LINE_UNDERSCORE position, giving a slightly larger gap from the link text.
+            val baselineOffset = linkUnderlineBaselineOffset(
+                ascent = metrics.ascent,
+                descent = metrics.descent,
+                lineHeight = editor.lineHeight,
+                gap = JBUI.scale(2),
+                clampInset = JBUI.scale(1),
+            )
+
+            val spans = LinkedHashMap<Int, IntArray>()
+            for (offset in start until end) {
+                val position = editor.offsetToVisualPosition(offset)
+                val left = editor.offsetToXY(offset).x
+                val nextOffset = offset + 1
+                val nextPosition = if (nextOffset <= editor.document.textLength) {
+                    editor.offsetToVisualPosition(nextOffset)
+                } else {
+                    null
+                }
+                val right = if (nextPosition != null && nextPosition.line == position.line) {
+                    editor.offsetToXY(nextOffset).x
+                } else {
+                    left + metrics.charWidth(text[offset])
+                }
+                val lo = minOf(left, right)
+                val hi = maxOf(left, right)
+                val span = spans.getOrPut(position.line) { intArrayOf(lo, hi) }
+                span[0] = minOf(span[0], lo)
+                span[1] = maxOf(span[1], hi)
+            }
+
+            val g2 = g.create() as Graphics2D
+            try {
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+                g2.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE)
+                g2.color = color
+                // Draw a one-DEVICE-pixel hairline. A default 1.0 stroke is 1 user unit, i.e. 2px
+                // on a retina display, which reads thicker than the native LINE_UNDERSCORE; scaling
+                // the stroke down by the device scale (with antialiasing) makes it a true 1px line.
+                g2.stroke = java.awt.BasicStroke(1f / com.intellij.ui.scale.JBUIScale.sysScale(g2))
+                for ((line, span) in spans) {
+                    if (span[1] <= span[0]) continue
+                    val y = (editor.visualLineToY(line) + baselineOffset).toDouble()
+                    g2.draw(java.awt.geom.Line2D.Double(span[0].toDouble(), y, span[1].toDouble(), y))
+                }
+            } finally {
+                g2.dispose()
+            }
+        }
+    }
+
+    /**
      * Inline inlay that paints a small open-link icon after a rendered inline link's visible
      * text. A leading gap separates it from the link text. The icon itself is not interactive
      * here; the plain left-click that opens the URL is handled in [installLinkFollowing] by
@@ -1543,7 +1614,7 @@ class MarkdownEditablePane(
      */
     private class OpenLinkIconRenderer(linkColor: Color) : EditorCustomElementRenderer {
         private val icon = IconUtil.colorize(AllIcons.Ide.External_link_arrow, linkColor)
-        private val gap = JBUI.scale(2)
+        private val gap = JBUI.scale(1)
 
         override fun calcWidthInPixels(inlay: Inlay<*>): Int = gap + icon.iconWidth
 
@@ -1574,6 +1645,22 @@ class MarkdownEditablePane(
             editorIsActive: Boolean,
             refreshAlreadyScheduled: Boolean,
         ): Boolean = !editorDisposed && editorIsActive && !refreshAlreadyScheduled
+
+        /**
+         * The y offset (from the top of the visual line) at which the inline-link underline is
+         * painted. It sits [gap] pixels below the text baseline-plus-descent so the line clears
+         * the descenders with a visible gap - lower than the platform's default LINE_UNDERSCORE
+         * position - but is clamped to [clampInset] pixels above the line bottom so a tall line
+         * height never pushes it out of (or onto the edge of) the line. Pure so the "below the
+         * descenders, never clipped" contract is unit-tested without a live editor.
+         */
+        internal fun linkUnderlineBaselineOffset(
+            ascent: Int,
+            descent: Int,
+            lineHeight: Int,
+            gap: Int,
+            clampInset: Int,
+        ): Int = (ascent + descent + gap).coerceAtMost(lineHeight - clampInset)
 
         /**
          * The y (in editor content-component coordinates) for the link popup: above the link when

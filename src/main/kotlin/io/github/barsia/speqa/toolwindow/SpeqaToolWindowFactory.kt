@@ -511,7 +511,6 @@ class SpeqaToolWindowFactory : ToolWindowFactory, DumbAware {
             project = project,
             filter = filter,
             primary = primary,
-            metadataScope = scope,
             knownTags = knownTags,
             knownEnvironments = knownEnvironments,
             hasContent = { hasLeaves.get() },

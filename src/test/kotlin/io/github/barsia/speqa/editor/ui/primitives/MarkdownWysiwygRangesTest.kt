@@ -241,4 +241,37 @@ class MarkdownWysiwygRangesTest {
 
         assertEquals(MarkdownWysiwygRanges.LinkTarget.None, MarkdownWysiwygRanges.linkTargetAt(text, 0))
     }
+
+    @Test
+    fun `linkRangeAt resolves the whole multi-word link span from a click on any word`() {
+        val text = "The [SpeQA plugin](https://plugins.jetbrains.com/x) is installed."
+        val range = MarkdownWysiwygRanges.inlineLinks(text).single()
+        // A click landing on the first word, between words, and on the last word must all
+        // resolve the same link, so the editor selects the entire "SpeQA plugin" text.
+        val firstWord = range.contentStart
+        val betweenWords = text.indexOf(' ', range.contentStart)
+        val lastWord = range.contentEnd - 1
+
+        for (offset in listOf(firstWord, betweenWords, lastWord)) {
+            val resolved = MarkdownWysiwygRanges.linkRangeAt(text, offset)
+            assertEquals("SpeQA plugin", resolved?.let { text.substring(it.contentStart, it.contentEnd) })
+        }
+    }
+
+    @Test
+    fun `linkRangeAt returns null when the click is outside every link text`() {
+        val text = "The [SpeQA plugin](https://plugins.jetbrains.com/x) is installed."
+
+        assertEquals(null, MarkdownWysiwygRanges.linkRangeAt(text, 0))
+        assertEquals(null, MarkdownWysiwygRanges.linkRangeAt(text, text.length))
+    }
+
+    @Test
+    fun `linkRangeAt picks the correct link among several on one line`() {
+        val text = "see [alpha](http://a.com) and [beta](https://b.com)"
+        val ranges = MarkdownWysiwygRanges.inlineLinks(text)
+
+        assertEquals(ranges[0], MarkdownWysiwygRanges.linkRangeAt(text, ranges[0].contentStart + 1))
+        assertEquals(ranges[1], MarkdownWysiwygRanges.linkRangeAt(text, ranges[1].contentStart + 1))
+    }
 }

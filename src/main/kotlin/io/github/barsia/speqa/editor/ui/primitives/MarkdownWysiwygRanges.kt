@@ -121,6 +121,15 @@ internal object MarkdownWysiwygRanges {
         return LinkTarget.None
     }
 
+    /**
+     * The inline link whose visible text (content) range contains [offset], or null when [offset]
+     * is outside every link's text. A plain click anywhere inside a rendered link's text resolves
+     * the whole link here so the editor can select its entire content span (even a multi-word
+     * link) and open the management popup. Only `http(s)://` links qualify, matching [inlineLinks].
+     */
+    fun linkRangeAt(text: CharSequence, offset: Int): MarkdownWysiwygRange? =
+        inlineLinks(text).firstOrNull { offset in it.contentStart..it.contentEnd }
+
     fun fencedCodeBlocks(text: CharSequence): List<MarkdownWysiwygRange> =
         fencedCodeBlock.findAll(text).map { match ->
             val open = match.groups[1] ?: error("Opening code fence group is required")

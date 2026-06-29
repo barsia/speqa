@@ -56,6 +56,7 @@ intellijPlatform {
                 <li>Set the overall run result from a dropdown, with per-case manual overrides</li>
                 <li>Reset all results, or expand and collapse all cases, in one action</li>
                 <li>Resolve Duplicate IDs now lists every file sharing an ID and marks the keeper</li>
+                <li>Links in the preview now render as links and open in your browser</li>
                 <li>The preview is now fully keyboard-navigable</li>
                 <li>A focus ring now shows only for keyboard focus, not mouse clicks</li>
                 <li>The step drag handle is now keyboard-operable</li>

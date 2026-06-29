@@ -5,15 +5,12 @@
 - Run several test cases together in a single multi-case test run
 - Set the overall run result from a dropdown, with per-case manual overrides
 - Reset all results, or expand and collapse all cases, in one action
-- Create Test Run imports nothing by default; click a row to toggle a case
-- Test case files now place Links before Preconditions
 - Resolve Duplicate IDs now lists every file sharing an ID and marks the keeper
 - The preview is now fully keyboard-navigable
 - A focus ring now shows only for keyboard focus, not mouse clicks
 - The step drag handle is now keyboard-operable
-- Focus returns to where you were after closing a dialog or deleting a row
+- Focus returns to where you were after closing a dialog
 - Fixed the preview desyncing after undoing an added step
-- Fixed title editing issues, including caret jumps and saved blank titles
 
 ## 0.1.8
 

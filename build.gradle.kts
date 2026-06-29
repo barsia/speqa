@@ -55,15 +55,12 @@ intellijPlatform {
                 <li>Run several test cases together in a single multi-case test run</li>
                 <li>Set the overall run result from a dropdown, with per-case manual overrides</li>
                 <li>Reset all results, or expand and collapse all cases, in one action</li>
-                <li>Create Test Run imports nothing by default; click a row to toggle a case</li>
-                <li>Test case files now place Links before Preconditions</li>
                 <li>Resolve Duplicate IDs now lists every file sharing an ID and marks the keeper</li>
                 <li>The preview is now fully keyboard-navigable</li>
                 <li>A focus ring now shows only for keyboard focus, not mouse clicks</li>
                 <li>The step drag handle is now keyboard-operable</li>
-                <li>Focus returns to where you were after closing a dialog or deleting a row</li>
+                <li>Focus returns to where you were after closing a dialog</li>
                 <li>Fixed the preview desyncing after undoing an added step</li>
-                <li>Fixed title editing issues, including caret jumps and saved blank titles</li>
             </ul>
         """.trimIndent()
     }

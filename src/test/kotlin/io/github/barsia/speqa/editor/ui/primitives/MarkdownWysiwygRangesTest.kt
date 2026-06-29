@@ -130,4 +130,41 @@ class MarkdownWysiwygRangesTest {
 
         assertEquals(emptyList<MarkdownWysiwygRange>(), MarkdownWysiwygRanges.inlineLinks(text))
     }
+
+    @Test
+    fun `linkUrlAt returns url when offset is inside the link text`() {
+        val text = "The [SpeQA plugin](https://plugins.jetbrains.com/x) is installed."
+        val range = MarkdownWysiwygRanges.inlineLinks(text).single()
+
+        assertEquals("https://plugins.jetbrains.com/x", MarkdownWysiwygRanges.linkUrlAt(text, range.contentStart))
+        val mid = (range.contentStart + range.contentEnd) / 2
+        assertEquals("https://plugins.jetbrains.com/x", MarkdownWysiwygRanges.linkUrlAt(text, mid))
+        assertEquals("https://plugins.jetbrains.com/x", MarkdownWysiwygRanges.linkUrlAt(text, range.contentEnd))
+    }
+
+    @Test
+    fun `linkUrlAt returns null outside any link text`() {
+        val text = "The [SpeQA plugin](https://plugins.jetbrains.com/x) is installed."
+
+        assertEquals(null, MarkdownWysiwygRanges.linkUrlAt(text, 0))
+        assertEquals(null, MarkdownWysiwygRanges.linkUrlAt(text, text.length))
+    }
+
+    @Test
+    fun `linkUrlAt resolves the correct url among multiple links`() {
+        val text = "see [a](http://a.com) and [b](https://b.com)"
+        val ranges = MarkdownWysiwygRanges.inlineLinks(text)
+
+        assertEquals("http://a.com", MarkdownWysiwygRanges.linkUrlAt(text, ranges[0].contentStart))
+        assertEquals("https://b.com", MarkdownWysiwygRanges.linkUrlAt(text, ranges[1].contentStart))
+    }
+
+    @Test
+    fun `linkUrlAt ignores image and non-http destinations`() {
+        val image = "![alt](https://img.example.com/x.png)"
+        assertEquals(null, MarkdownWysiwygRanges.linkUrlAt(image, 4))
+
+        val relative = "[rel](./path/page.md)"
+        assertEquals(null, MarkdownWysiwygRanges.linkUrlAt(relative, 2))
+    }
 }

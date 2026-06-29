@@ -3,6 +3,7 @@ package io.github.barsia.speqa.editor.ui.primitives
 import java.awt.BorderLayout
 import java.awt.Color
 import java.awt.Component
+import java.awt.Cursor
 import java.awt.FlowLayout
 import java.awt.Font
 import java.awt.Graphics
@@ -22,6 +23,7 @@ import javax.swing.SwingConstants
 import javax.swing.SwingUtilities
 import javax.swing.Timer
 
+import com.intellij.ide.BrowserUtil
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.command.WriteCommandAction
@@ -45,6 +47,7 @@ import com.intellij.openapi.editor.event.DocumentListener
 import com.intellij.openapi.editor.event.EditorFactoryEvent
 import com.intellij.openapi.editor.event.EditorFactoryListener
 import com.intellij.openapi.editor.event.EditorMouseEvent
+import com.intellij.openapi.editor.event.EditorMouseListener
 import com.intellij.openapi.editor.event.EditorMouseMotionListener
 import com.intellij.openapi.editor.event.SelectionEvent
 import com.intellij.openapi.editor.event.SelectionListener
@@ -131,6 +134,7 @@ class MarkdownEditablePane(
             installEnterHandling(editor)
             installTabFocusTraversal(editor)
             installHiddenCodeBlockEditGuard(editor)
+            installLinkFollowing(editor)
             installCodeBlockCopyButton(editor)
             normalizeEmbeddedEditorScroll(editor)
             return editor
@@ -501,6 +505,50 @@ class MarkdownEditablePane(
             }
         }
         backward.registerCustomShortcutSet(CustomShortcutSet.fromString("shift TAB"), editor.contentComponent)
+    }
+
+    /**
+     * Make rendered inline links followable. The text stays editable, so a plain click still
+     * places the caret; only a Ctrl/Cmd+click (the platform's follow-link gesture) opens the
+     * URL in the default browser. While the modifier is held and the cursor is over a link's
+     * visible text, a hand cursor signals the link is followable, matching how the IDE renders
+     * editor hyperlinks. Listeners are tied to the editor's disposable so they are cleaned up
+     * when this recreated/disposed embedded editor goes away.
+     */
+    private fun installLinkFollowing(editor: EditorEx) {
+        val ed = editorDisposable(editor)
+        editor.addEditorMouseListener(object : EditorMouseListener {
+            override fun mouseClicked(e: EditorMouseEvent) {
+                if (editor.isDisposed) return
+                if (!isFollowLinkGesture(e.mouseEvent)) return
+                val url = linkUrlUnderPoint(editor, e.mouseEvent.point) ?: return
+                // Consume so the click does not also place the caret / start a selection.
+                e.consume()
+                BrowserUtil.browse(url)
+            }
+        }, ed)
+        editor.addEditorMouseMotionListener(object : EditorMouseMotionListener {
+            override fun mouseMoved(e: EditorMouseEvent) {
+                if (editor.isDisposed) return
+                val overLink = isFollowLinkGesture(e.mouseEvent) &&
+                    linkUrlUnderPoint(editor, e.mouseEvent.point) != null
+                editor.setCustomCursor(
+                    this@MarkdownEditablePane,
+                    if (overLink) Cursor.getPredefinedCursor(Cursor.HAND_CURSOR) else null,
+                )
+            }
+        }, ed)
+        Disposer.register(ed) {
+            if (!editor.isDisposed) editor.setCustomCursor(this@MarkdownEditablePane, null)
+        }
+    }
+
+    private fun isFollowLinkGesture(e: MouseEvent): Boolean = e.isControlDown || e.isMetaDown
+
+    private fun linkUrlUnderPoint(editor: EditorEx, point: Point): String? {
+        if (editor.isDisposed) return null
+        val offset = editor.logicalPositionToOffset(editor.xyToLogicalPosition(point))
+        return MarkdownWysiwygRanges.linkUrlAt(editor.document.charsSequence, offset)
     }
 
     private fun installCodeBlockCopyButton(editor: EditorEx) {

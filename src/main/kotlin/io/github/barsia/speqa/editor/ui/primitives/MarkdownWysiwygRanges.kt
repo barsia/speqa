@@ -65,6 +65,22 @@ internal object MarkdownWysiwygRanges {
             )
         }.toList()
 
+    /**
+     * The destination URL of the inline link whose visible text (content) range contains
+     * [offset], or null when [offset] falls outside every link's text. Used to follow a
+     * rendered inline link on Ctrl/Cmd+click while the link text stays editable. Only
+     * `http(s)://` destinations qualify, matching [inlineLinks]; image syntax `![alt](url)`,
+     * anchors, and relative paths return null.
+     */
+    fun linkUrlAt(text: CharSequence, offset: Int): String? {
+        for (m in inlineLink.findAll(text)) {
+            val content = m.groups[1] ?: continue
+            val url = m.groups[2] ?: continue
+            if (offset in content.range.first..(content.range.last + 1)) return url.value
+        }
+        return null
+    }
+
     fun fencedCodeBlocks(text: CharSequence): List<MarkdownWysiwygRange> =
         fencedCodeBlock.findAll(text).map { match ->
             val open = match.groups[1] ?: error("Opening code fence group is required")

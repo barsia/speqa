@@ -326,6 +326,23 @@ class SpeqaToolWindowFactory : ToolWindowFactory, DumbAware {
         // does not fire selectionChanged.
         toolWindow.setTitleActions(initialTab.header.titleActions)
 
+        // Let the test-run creation flow reveal a freshly created run in this tab: activate the
+        // TRs tab and select the new row, without pulling focus back from the run editor. The
+        // model is invalidated first so the row for the just-created file exists before the
+        // visitor walks the tree. Scoped to this build's disposable, so a rebuild swaps it out.
+        val trTree = trTab.tree
+        val trModel = trTab.treeModel
+        if (trTree != null && trModel != null) {
+            val revealer = TestRunRevealer { file ->
+                contentManager.setSelectedContent(trTab.content)
+                toolWindow.activate(null, false)
+                trModel.invalidateAsync().whenComplete { _, _ ->
+                    SwingUtilities.invokeLater { selectFileInTree(trTree, file) }
+                }
+            }
+            SpeqaTestRunRevealService.getInstance(project).register(revealer, contentDisposable)
+        }
+
         // Surface "About SpeQA" as the last entry in the tool-window options menu,
         // mirroring its placement in the editor's entry-point menu.
         ActionManager.getInstance().getAction("Speqa.About")?.let { about ->
@@ -337,6 +354,7 @@ class SpeqaToolWindowFactory : ToolWindowFactory, DumbAware {
         val content: Content,
         val header: SpeqaFilterHeader,
         val tree: Tree? = null,
+        val treeModel: StructureTreeModel<SpeqaTreeStructure>? = null,
     )
 
     /** Centered empty-state panel: a large stamp icon, a title, a one-line description, and a button. */
@@ -527,7 +545,7 @@ class SpeqaToolWindowFactory : ToolWindowFactory, DumbAware {
         if (rootDir != null) {
             restoreAndTrackTreeState(contentDisposable, tree, stateStore)
         }
-        return Tab(content, header, tree = tree)
+        return Tab(content, header, tree = tree, treeModel = treeModel)
     }
 
     /**

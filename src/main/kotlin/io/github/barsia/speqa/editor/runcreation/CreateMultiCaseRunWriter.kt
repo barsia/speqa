@@ -5,7 +5,6 @@ import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.application.runReadAction
 import com.intellij.openapi.application.runWriteAction
 import com.intellij.openapi.fileEditor.FileDocumentManager
-import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VfsUtil
 import com.intellij.openapi.vfs.VirtualFile
@@ -17,6 +16,7 @@ import io.github.barsia.speqa.parser.TestRunSerializer
 import io.github.barsia.speqa.registry.IdType
 import io.github.barsia.speqa.registry.SpeqaIds
 import io.github.barsia.speqa.run.TestRunSupport
+import io.github.barsia.speqa.toolwindow.openAndRevealTestRun
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
@@ -139,7 +139,7 @@ internal object CreateMultiCaseRunWriter {
             file
         } ?: return
 
-        FileEditorManager.getInstance(project).openFile(runFile, true)
+        openAndRevealTestRun(project, runFile)
     }
 
     private fun readFileText(file: VirtualFile): String? {

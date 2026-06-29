@@ -5,7 +5,6 @@ import com.intellij.openapi.application.runWriteAction
 import com.intellij.openapi.command.CommandProcessor
 import com.intellij.openapi.editor.Document
 import com.intellij.openapi.fileEditor.FileDocumentManager
-import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.vfs.VfsUtil
@@ -18,6 +17,7 @@ import io.github.barsia.speqa.parser.TestRunSerializer
 import io.github.barsia.speqa.registry.IdType
 import io.github.barsia.speqa.registry.SpeqaIds
 import io.github.barsia.speqa.run.TestRunSupport
+import io.github.barsia.speqa.toolwindow.openAndRevealTestRun
 import io.github.barsia.speqa.settings.SpeqaSettings
 import java.nio.file.Files
 import java.nio.file.Path
@@ -192,7 +192,7 @@ internal fun startTestRun(project: Project, testCaseFile: VirtualFile) {
         VfsUtil.saveText(file, TestRunSerializer.serialize(initialRunWithId))
         file
     } ?: return
-    FileEditorManager.getInstance(project).openFile(runFile, true)
+    openAndRevealTestRun(project, runFile)
 }
 
 private fun resolveGitCreatedInstant(basePath: String, filePath: String): Instant? {

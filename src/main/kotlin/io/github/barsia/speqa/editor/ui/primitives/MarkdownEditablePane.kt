@@ -71,6 +71,7 @@ import com.intellij.ui.RoundedLineBorder
 import com.intellij.ui.awt.RelativePoint
 import com.intellij.util.ui.JBUI
 import io.github.barsia.speqa.SpeqaBundle
+import io.github.barsia.speqa.editor.ui.LinkDialog
 import org.intellij.plugins.markdown.MarkdownIcons
 
 private const val INLINE_CODE_CONTENT_PADDING = 2
@@ -269,9 +270,37 @@ class MarkdownEditablePane(
         }
         for (action in MarkdownFormatAction.entries) {
             panel.add(formatButton(editor, action))
+            // The Link button sits between Code block and the list buttons. It is not a
+            // MarkdownFormatAction because it opens a dialog and writes via LinkMarkdown rather
+            // than MarkdownSelectionFormatter, but it shares the same write path on apply.
+            if (action == MarkdownFormatAction.CODE_BLOCK) {
+                panel.add(linkButton(editor))
+            }
         }
         return panel
     }
+
+    private fun linkButton(editor: EditorEx): JButton =
+        JButton(MarkdownIcons.EditorActions.Link).apply {
+            toolTipText = SpeqaBundle.message("toolbar.link.tooltip")
+            isFocusable = false
+            handCursor()
+            horizontalAlignment = SwingConstants.CENTER
+            border = BorderFactory.createEmptyBorder()
+            margin = JBUI.emptyInsets()
+            preferredSize = JBUI.size(24, 24)
+            minimumSize = preferredSize
+            maximumSize = preferredSize
+            addMouseListener(object : MouseAdapter() {
+                override fun mousePressed(e: MouseEvent) {
+                    val snapshot = formattingSelection
+                    formattingSelection = null
+                    hideFormattingToolbar()
+                    applyLinkFromToolbar(editor, snapshot)
+                    e.consume()
+                }
+            })
+        }
 
     private fun formatButton(editor: EditorEx, action: MarkdownFormatAction): JButton =
         JButton(action.toolbarIcon()).apply {
@@ -328,20 +357,61 @@ class MarkdownEditablePane(
             selectionEnd = source.selectionEnd,
             action = action,
         )
-        // Toolbar formatting runs from a mouse listener, not an editor action, so it is NOT
-        // already inside a command - a bare runWriteAction throws "Must not change document
-        // outside command". Wrap the document edit in a WriteCommandAction.
+        // Formatting collapses the selection to a caret at the end of the inserted markup.
+        applyFormattingWrite(editor, result.text, result.selectionEnd, result.selectionEnd)
+    }
+
+    /**
+     * Builds a link from the current selection: opens [LinkDialog] seeded with the selected text,
+     * and on OK replaces the selection with `[text](url)` via [LinkMarkdown], writing through the
+     * same path [applyMarkdownFormatting] uses so there is no raw-Markdown flash.
+     */
+    private fun applyLinkFromToolbar(editor: EditorEx, selectionSnapshot: FormattingSelection?) {
+        val selectionModel = editor.selectionModel
+        val source = selectionSnapshot ?: run {
+            if (!selectionModel.hasSelection()) return
+            FormattingSelection(
+                text = editor.document.charsSequence.toString(),
+                selectionStart = selectionModel.selectionStart,
+                selectionEnd = selectionModel.selectionEnd,
+            )
+        }
+        val selStart = source.selectionStart.coerceIn(0, source.text.length)
+        val selEnd = source.selectionEnd.coerceIn(selStart, source.text.length)
+        if (selStart == selEnd) return
+        val selectedText = source.text.substring(selStart, selEnd)
+        val input = LinkDialog.edit(project, selectedText, "") ?: return
+        val result = LinkMarkdown.applyLink(source.text, selStart, selEnd, input.text, input.url)
+        // Keep the visible link text selected after insertion.
+        applyFormattingWrite(editor, result.text, result.selectionStart, result.selectionEnd)
+    }
+
+    /**
+     * Shared write path for the formatting toolbar: replaces the whole field with [newText] in a
+     * [WriteCommandAction] (the toolbar runs from a mouse listener, not an editor action, so a bare
+     * runWriteAction would throw "Must not change document outside command"), then restores the
+     * caret/selection and folds the just-inserted markers synchronously in this same EDT turn. The
+     * document-change listener only schedules a debounced refresh via invokeLater, so without this
+     * the editor would paint once with raw markers (`**bold**`, `[text](url)`) before the fold
+     * lands. [refreshMarkdownWysiwyg] rebuilds folds idempotently, so the later refresh is harmless.
+     */
+    private fun applyFormattingWrite(
+        editor: EditorEx,
+        newText: String,
+        selectionStart: Int,
+        selectionEnd: Int,
+    ) {
+        val selectionModel = editor.selectionModel
         WriteCommandAction.runWriteCommandAction(project) {
-            editor.document.replaceString(0, editor.document.textLength, result.text)
+            editor.document.replaceString(0, editor.document.textLength, newText)
         }
         suppressFormattingToolbarUpdate = true
-        selectionModel.removeSelection()
-        editor.caretModel.moveToOffset(result.selectionEnd)
-        // Fold the just-inserted markers synchronously in this same EDT turn. The
-        // document-change listener only schedules a debounced refresh via invokeLater, so
-        // without this the editor would paint once with raw markers (**bold**, _italic_,
-        // ~~strike~~) before the fold lands. refreshMarkdownWysiwyg clears and rebuilds folds
-        // idempotently, so the later scheduled refresh is harmless.
+        editor.caretModel.moveToOffset(selectionEnd)
+        if (selectionStart == selectionEnd) {
+            selectionModel.removeSelection()
+        } else {
+            selectionModel.setSelection(selectionStart, selectionEnd)
+        }
         refreshMarkdownWysiwyg(editor)
         hideFormattingToolbar()
         ApplicationManager.getApplication().invokeLater {

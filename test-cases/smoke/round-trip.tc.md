@@ -30,25 +30,27 @@ Scenario:
 3. 1. In the preview, click "Add tag" under "Tags"
    2. Type "regression" and press "Enter"
    > 1. A "regression" chip appears in the preview
-   > 2. The source `tags:` list gains "regression" in the Editor
+   > 2. The source `tags:` list gains "regression"
 
 4. 1. Right-click the "test-cases" folder again and choose "New | SpeQA Test Case"
    2. Enter a different name and confirm
    > A second `.tc.md` exists under "test-cases/"
 
-5. 1. Right-click a `.tc.md` and choose "Run Test Case"
+5. 1. Open a `.tc.md` and click the Run button (the green Play icon, "Start a manual test run") in the test case header
    2. Confirm the "Create test run" dialog with "OK"
-   3. Set the first step's verdict to "Passed"
-   > 1. A `.tr.md` is created under "test-runs/" and opens in the run editor
-   > 2. The first step shows the "Passed" verdict
+   > A `.tr.md` is created under "test-runs/" and opens in the run editor
 
-6. 1. Open the "SpeQA" tool window and switch to the "TCs" tab
-   2. Right-click the "test-cases" folder and choose "Create test run"
-   3. Click "Select all" and confirm
-   > 1. A multi-case `.tr.md` opens in the run editor
-   > 2. It has one section per selected test case
+6. On the first step of the run, click "Passed"
+   > The first step is marked "Passed"
 
-7. 1. On the "TCs" tab, open the "Priority" filter and select a value
-   2. Click "Clear all filters"
-   > 1. Selecting a priority narrows the list to matching test cases
-   > 2. "Clear all filters" restores the full list
+7. 1. Open the "SpeQA" tool window
+   2. Open the "TRs" tab
+   3. Click the "+" button at the top and choose "Create test run"
+   4. Click "Select all" and confirm
+   > A multi-case `.tr.md` opens in the run editor with one section per selected test case
+
+8. In the "SpeQA" tool window, on the "TCs" tab, open the "Priority" filter and select a value
+   > The list shows only test cases with that priority
+
+9. Click "Clear all filters"
+   > The full list of test cases is restored

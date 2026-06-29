@@ -21,6 +21,11 @@ internal object MarkdownWysiwygRanges {
 
     private val inlineCode = Regex("`([^`\\n]+)`")
 
+    // Inline Markdown link `[text](http(s)://...)`. The negative lookbehind on `!`
+    // keeps image syntax `![alt](url)` from matching as a plain link. Only http(s)
+    // destinations qualify so relative/anchor links stay as literal text.
+    private val inlineLink = Regex("""(?<!!)\[([^\]\n]+)\]\((https?://[^)\s]+)\)""")
+
     /**
      * The inline-code span (`` `...` ``) the caret is currently editing, as the inclusive
      * index range of the whole span (both backticks), or null when the caret is not between
@@ -36,6 +41,29 @@ internal object MarkdownWysiwygRanges {
         }
         return null
     }
+
+    /**
+     * Inline Markdown links `[text](http(s)://...)` as fold ranges: the `[` is folded
+     * via [MarkdownWysiwygRange.openStart]..[MarkdownWysiwygRange.openEnd] and the
+     * `](url)` tail via [MarkdownWysiwygRange.closeStart]..[MarkdownWysiwygRange.closeEnd],
+     * leaving only the link text visible. Image syntax `![alt](url)` is excluded.
+     */
+    fun inlineLinks(text: CharSequence): List<MarkdownWysiwygRange> =
+        inlineLink.findAll(text).map { match ->
+            val content = match.groups[1] ?: error("Link text group is required")
+            val contentStart = content.range.first
+            val contentEnd = content.range.last + 1
+            val closeEnd = match.range.last + 1
+            MarkdownWysiwygRange(
+                openStart = match.range.first,
+                openEnd = contentStart,
+                contentStart = contentStart,
+                contentEnd = contentEnd,
+                closeStart = contentEnd,
+                closeEnd = closeEnd,
+                closeFoldEnd = closeEnd,
+            )
+        }.toList()
 
     fun fencedCodeBlocks(text: CharSequence): List<MarkdownWysiwygRange> =
         fencedCodeBlock.findAll(text).map { match ->

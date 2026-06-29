@@ -93,4 +93,41 @@ class MarkdownWysiwygRangesTest {
 
         assertEquals(emptyList<MarkdownWysiwygRange>(), MarkdownWysiwygRanges.fencedCodeBlocks(text))
     }
+
+    @Test
+    fun `inline link range folds brackets and url but keeps link text`() {
+        val text = "The [SpeQA plugin](https://plugins.jetbrains.com/x) is installed."
+
+        val range = MarkdownWysiwygRanges.inlineLinks(text).single()
+
+        assertEquals("[", text.substring(range.openStart, range.openEnd))
+        assertEquals("SpeQA plugin", text.substring(range.contentStart, range.contentEnd))
+        assertEquals("](https://plugins.jetbrains.com/x)", text.substring(range.closeStart, range.closeEnd))
+        assertEquals(range.closeEnd, range.closeFoldEnd)
+    }
+
+    @Test
+    fun `inline link range supports http and multiple links on one line`() {
+        val text = "see [a](http://a.com) and [b](https://b.com)"
+
+        val ranges = MarkdownWysiwygRanges.inlineLinks(text)
+
+        assertEquals(listOf("a", "b"), ranges.map { text.substring(it.contentStart, it.contentEnd) })
+        assertEquals("](http://a.com)", text.substring(ranges[0].closeStart, ranges[0].closeEnd))
+        assertEquals("](https://b.com)", text.substring(ranges[1].closeStart, ranges[1].closeEnd))
+    }
+
+    @Test
+    fun `inline link range ignores image syntax`() {
+        val text = "![alt](https://img.example.com/x.png)"
+
+        assertEquals(emptyList<MarkdownWysiwygRange>(), MarkdownWysiwygRanges.inlineLinks(text))
+    }
+
+    @Test
+    fun `inline link range ignores non-http destinations`() {
+        val text = "[anchor](#section) and [rel](./path/page.md)"
+
+        assertEquals(emptyList<MarkdownWysiwygRange>(), MarkdownWysiwygRanges.inlineLinks(text))
+    }
 }

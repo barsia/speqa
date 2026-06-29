@@ -333,6 +333,12 @@ class MarkdownEditablePane(
         suppressFormattingToolbarUpdate = true
         selectionModel.removeSelection()
         editor.caretModel.moveToOffset(result.selectionEnd)
+        // Fold the just-inserted markers synchronously in this same EDT turn. The
+        // document-change listener only schedules a debounced refresh via invokeLater, so
+        // without this the editor would paint once with raw markers (**bold**, _italic_,
+        // ~~strike~~) before the fold lands. refreshMarkdownWysiwyg clears and rebuilds folds
+        // idempotently, so the later scheduled refresh is harmless.
+        refreshMarkdownWysiwyg(editor)
         hideFormattingToolbar()
         ApplicationManager.getApplication().invokeLater {
             formattingSelection = null
@@ -734,6 +740,7 @@ class MarkdownEditablePane(
             addDelimitedWysiwyg(editor, Regex("\\*\\*([^*\\n]+)\\*\\*"), 2, boldAttributes())
             addDelimitedWysiwyg(editor, Regex("_(?!_)([^_\\n]+)_"), 1, italicAttributes())
             addDelimitedWysiwyg(editor, Regex("~~([^~\\n]+)~~"), 2, strikeAttributes())
+            addLinkWysiwyg(editor, linkAttributes(), MarkdownWysiwygRanges.inlineLinks(editor.document.charsSequence))
             addCodeBlockWysiwyg(editor, codeBlockStyle(), codeBlocks)
         }
         // Variant B: keep the caret inside the inline-code span being edited. Collapsing the
@@ -887,6 +894,42 @@ class MarkdownEditablePane(
         }
     }
 
+    /**
+     * Inline links `[text](url)`: fold the `[` and the `](url)` tail so only the link
+     * text stays visible, and paint that text with the link attributes. The asymmetric
+     * delimiters around the content come from [MarkdownWysiwygRanges.inlineLinks], so this
+     * cannot reuse the symmetric [addDelimitedWysiwyg].
+     */
+    private fun addLinkWysiwyg(
+        editor: EditorEx,
+        attrs: TextAttributes,
+        ranges: List<MarkdownWysiwygRange>,
+    ) {
+        val foldingModel = editor.foldingModel
+        val markup = editor.markupModel
+        for (range in ranges) {
+            if (range.contentStart >= range.contentEnd) continue
+            val open = foldingModel.createFoldRegion(range.openStart, range.openEnd, "", null, true)
+            val close = foldingModel.createFoldRegion(range.closeStart, range.closeEnd, "", null, true)
+            if (open != null) {
+                open.isExpanded = false
+                ourFolds += open
+            }
+            if (close != null) {
+                close.isExpanded = false
+                ourFolds += close
+            }
+            val highlighter = markup.addRangeHighlighter(
+                range.contentStart,
+                range.contentEnd,
+                HighlighterLayer.SYNTAX + 10,
+                attrs,
+                HighlighterTargetArea.EXACT_RANGE,
+            )
+            ourHighlighters += highlighter
+        }
+    }
+
     private fun addDelimitedWysiwyg(
         editor: EditorEx,
         pattern: Regex,
@@ -954,6 +997,17 @@ class MarkdownEditablePane(
             effectType = EffectType.STRIKEOUT
             effectColor = EditorColorsManager.getInstance().globalScheme.defaultForeground
         }
+
+    private fun linkAttributes(): TextAttributes {
+        val foreground = markdownAttributes("MARKDOWN_LINK_TEXT")?.foregroundColor
+            ?: markdownAttributes("MARKDOWN_LINK_DESTINATION")?.foregroundColor
+            ?: JBUI.CurrentTheme.Link.Foreground.ENABLED
+        return TextAttributes().apply {
+            foregroundColor = foreground
+            effectType = EffectType.LINE_UNDERSCORE
+            effectColor = foreground
+        }
+    }
 
     private fun codeBlockStyle(): CodeBlockStyle {
         val fence = markdownAttributes("MARKDOWN_CODE_FENCE")

@@ -6,7 +6,7 @@
 - Set the overall run result from a dropdown, with per-case manual overrides
 - Reset all results, or expand and collapse all cases, in one action
 - Resolve Duplicate IDs now lists every file sharing an ID and marks the keeper
-- Links in the preview now render as links and open in your browser
+- Links in the preview now render as links and open in the browser
 - The preview is now fully keyboard-navigable
 - A focus ring now shows only for keyboard focus, not mouse clicks
 - The step drag handle is now keyboard-operable

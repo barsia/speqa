@@ -737,12 +737,19 @@ class MarkdownEditablePane(
 
         popup = JBPopupFactory.getInstance()
             .createComponentPopupBuilder(panel, editButton)
-            .setRequestFocus(false)
+            // Focus the popup so Escape reliably reaches it; it stays NON-MODAL (the editor is not
+            // blocked) and a component popup does not dismiss on mouse move.
+            .setRequestFocus(true)
             .setCancelOnClickOutside(true)
             .setCancelKeyEnabled(true)
             .setResizable(false)
             .setMovable(false)
             .createPopup()
+
+        // Cancel the popup if the embedded editor is disposed/recreated while it is open.
+        Disposer.register(editorDisposable(editor)) {
+            if (!popup.isDisposed) popup.cancel()
+        }
 
         val anchor = editor.offsetToXY(contentStart)
         val visible = editor.scrollingModel.visibleArea

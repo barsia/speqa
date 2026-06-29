@@ -2,17 +2,17 @@
 
 ## 0.1.9
 
-- The overall run result is now a dropdown for single and multi-case runs, with a manual override and a per-case result you can set yourself
-- Reset all results in a run, and expand or collapse every case, in one action
-- The Create Test Run dialog defaults its import options off and toggles a case when you click anywhere in its row
+- Set the overall run result from a dropdown, with per-case manual overrides
+- Reset all results, or expand and collapse all cases, in one action
+- Create Test Run imports nothing by default; click a row to toggle a case
 - Test case files now place Links before Preconditions
-- Resolve Duplicate Test Case IDs now lists every file that shares an ID and marks the one that keeps it
-- The preview is now fully keyboard-navigable: Tab moves between fields, and tag chips and link, attachment, and ticket rows are single Tab stops where Delete removes, F2 edits, and Enter activates
-- A thin focus ring shows on keyboard focus and after keyboard-driven actions, never on mouse clicks
-- The step drag handle is keyboard-operable: Space, Enter, or a left-click opens its Move, Duplicate, and Delete menu
-- Keyboard focus returns to where you were after closing a dialog or popup or removing an item
-- Fixed the preview and editor getting out of sync after undoing an added step
-- Fixed several test case and run title editing issues, including the caret jumping and blank titles being saved
+- Resolve Duplicate IDs now lists every file sharing an ID and marks the keeper
+- The preview is now fully keyboard-navigable
+- A focus ring now shows only for keyboard focus, not mouse clicks
+- The step drag handle is now keyboard-operable
+- Focus returns to where you were after closing a dialog or deleting a row
+- Fixed the preview desyncing after undoing an added step
+- Fixed title editing issues, including caret jumps and saved blank titles
 
 ## 0.1.8
 

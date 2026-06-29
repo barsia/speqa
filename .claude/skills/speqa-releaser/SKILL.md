@@ -41,6 +41,7 @@ Prepend a new section at the top, after the `# Changelog` heading. **Keep every 
 
 Rules:
 - One line per user-visible change; merge related tiny fixes into one entry
+- Keep each entry to one short line - aim for under ~80 characters (about 12 words). If an entry runs long it is bundling several changes or leaking implementation detail; cut it to the user-visible essence or split it
 - No implementation details, no PR/commit references
 - New features / behavior changes: describe what the user now experiences in present tense - "X now does Y", "Y is now enabled by default", "Hover over X to reveal Y"
 - Bug fixes: start with "Fixed" followed by a gerund or noun phrase - "Fixed selecting text inside...", "Fixed backspace on empty lines..."

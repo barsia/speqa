@@ -295,6 +295,16 @@ class MarkdownEditablePane(
             preferredSize = JBUI.size(24, 24)
             minimumSize = preferredSize
             maximumSize = preferredSize
+            // Show the button pressed/active (toggle-style) when the selection sits inside an
+            // existing link, signalling that clicking edits that link rather than creating a new
+            // one. The toolbar has no shared active-state machinery, so this minimal pressed look
+            // is applied to the Link button only, computed from the snapshot used to build it.
+            if (isSelectionInsideLink(formattingSelection)) {
+                isContentAreaFilled = false
+                isOpaque = true
+                background = toolbarActiveBackground()
+                border = BorderFactory.createLineBorder(JBColor.border())
+            }
             addMouseListener(object : MouseAdapter() {
                 override fun mousePressed(e: MouseEvent) {
                     val snapshot = formattingSelection
@@ -305,6 +315,15 @@ class MarkdownEditablePane(
                 }
             })
         }
+
+    private fun isSelectionInsideLink(selection: FormattingSelection?): Boolean {
+        val snapshot = selection ?: return false
+        val offset = snapshot.selectionStart.coerceIn(0, snapshot.text.length)
+        return LinkMarkdown.linkAt(snapshot.text, offset) != null
+    }
+
+    private fun toolbarActiveBackground(): JBColor =
+        JBColor.namedColor("ActionButton.pressedBackground", JBColor.LIGHT_GRAY)
 
     private fun formatButton(editor: EditorEx, action: MarkdownFormatAction): JButton =
         JButton(action.toolbarIcon()).apply {
@@ -366,9 +385,12 @@ class MarkdownEditablePane(
     }
 
     /**
-     * Builds a link from the current selection: opens [LinkDialog] seeded with the selected text,
-     * and on OK replaces the selection with `[text](url)` via [LinkMarkdown], writing through the
-     * same path [applyMarkdownFormatting] uses so there is no raw-Markdown flash.
+     * Creates or edits a link from the current selection, writing through the same path
+     * [applyMarkdownFormatting] uses so there is no raw-Markdown flash:
+     * - When the selection sits inside an existing `[text](url)` span, [LinkDialog] opens prefilled
+     *   with that link's text and url and the whole span is replaced (the same behaviour as the
+     *   popup Edit flow in [showLinkPopup]).
+     * - Otherwise the selected text is wrapped in a new link.
      */
     private fun applyLinkFromToolbar(editor: EditorEx, selectionSnapshot: FormattingSelection?) {
         val selectionModel = editor.selectionModel
@@ -383,9 +405,13 @@ class MarkdownEditablePane(
         val selStart = source.selectionStart.coerceIn(0, source.text.length)
         val selEnd = source.selectionEnd.coerceIn(selStart, source.text.length)
         if (selStart == selEnd) return
-        val selectedText = source.text.substring(selStart, selEnd)
-        val input = LinkDialog.edit(project, selectedText, "") ?: return
-        val result = LinkMarkdown.applyLink(source.text, selStart, selEnd, input.text, input.url)
+        val existing = LinkMarkdown.linkAt(source.text, selStart)
+        val initialText = existing?.text ?: source.text.substring(selStart, selEnd)
+        val initialUrl = existing?.url ?: ""
+        val input = LinkDialog.edit(project, initialText, initialUrl) ?: return
+        val replaceStart = existing?.span?.first ?: selStart
+        val replaceEnd = existing?.let { it.span.last + 1 } ?: selEnd
+        val result = LinkMarkdown.applyLink(source.text, replaceStart, replaceEnd, input.text, input.url)
         // Keep the visible link text selected after insertion.
         applyFormattingWrite(editor, result.text, result.selectionStart, result.selectionEnd)
     }

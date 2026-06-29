@@ -9,6 +9,9 @@ package io.github.barsia.speqa.editor.ui.primitives
 internal object LinkMarkdown {
     data class Result(val text: String, val selectionStart: Int, val selectionEnd: Int)
 
+    /** An inline link's span plus its parsed visible [text] and target [url]. */
+    data class LinkAt(val span: IntRange, val text: String, val url: String)
+
     /** Matches `[text](http(s)://url)`, excluding image links (`![text](...)`). */
     private val inlineLink = Regex("""(?<!!)\[([^\]\n]+)\]\((https?://[^)\s]+)\)""")
 
@@ -17,9 +20,24 @@ internal object LinkMarkdown {
      * `[text](url)`), or null when [offset] is not inside an inline link.
      */
     fun linkSpanAt(text: CharSequence, offset: Int): IntRange? =
+        linkMatchAt(text, offset)?.range
+
+    /**
+     * Returns the inline link containing [offset] - its [LinkAt.span] plus the parsed visible
+     * text and target url - or null when [offset] is not inside an http(s) link (images excluded).
+     */
+    fun linkAt(text: CharSequence, offset: Int): LinkAt? {
+        val match = linkMatchAt(text, offset) ?: return null
+        return LinkAt(
+            span = match.range,
+            text = match.groupValues[1],
+            url = match.groupValues[2],
+        )
+    }
+
+    private fun linkMatchAt(text: CharSequence, offset: Int): MatchResult? =
         inlineLink.findAll(text)
-            .map { it.range }
-            .firstOrNull { offset >= it.first && offset <= it.last + 1 }
+            .firstOrNull { offset >= it.range.first && offset <= it.range.last + 1 }
 
     /**
      * Builds `[linkText](url)`. If `[selStart, selEnd)` lies within an existing link span, that

@@ -169,14 +169,23 @@ class MarkdownWysiwygRangesTest {
     }
 
     @Test
-    fun `linkUrlAtIconOffset returns url at the content end where the open-link icon sits`() {
+    fun `linkUrlAtIconOffset returns url at the close end where the open-link icon sits`() {
         val text = "The [SpeQA plugin](https://plugins.jetbrains.com/x) is installed."
         val range = MarkdownWysiwygRanges.inlineLinks(text).single()
 
         assertEquals(
             "https://plugins.jetbrains.com/x",
-            MarkdownWysiwygRanges.linkUrlAtIconOffset(text, range.contentEnd),
+            MarkdownWysiwygRanges.linkUrlAtIconOffset(text, range.closeEnd),
         )
+    }
+
+    @Test
+    fun `linkUrlAtIconOffset does not resolve at the content end inside the folded close region`() {
+        val text = "The [SpeQA plugin](https://plugins.jetbrains.com/x) is installed."
+        val range = MarkdownWysiwygRanges.inlineLinks(text).single()
+
+        // contentEnd is the start of the collapsed `](url)` fold, where the icon would be hidden.
+        assertEquals(null, MarkdownWysiwygRanges.linkUrlAtIconOffset(text, range.contentEnd))
     }
 
     @Test
@@ -184,12 +193,12 @@ class MarkdownWysiwygRangesTest {
         val text = "see [a](http://a.com) and [b](https://b.com)"
         val ranges = MarkdownWysiwygRanges.inlineLinks(text)
 
-        assertEquals("http://a.com", MarkdownWysiwygRanges.linkUrlAtIconOffset(text, ranges[0].contentEnd))
-        assertEquals("https://b.com", MarkdownWysiwygRanges.linkUrlAtIconOffset(text, ranges[1].contentEnd))
+        assertEquals("http://a.com", MarkdownWysiwygRanges.linkUrlAtIconOffset(text, ranges[0].closeEnd))
+        assertEquals("https://b.com", MarkdownWysiwygRanges.linkUrlAtIconOffset(text, ranges[1].closeEnd))
     }
 
     @Test
-    fun `linkUrlAtIconOffset returns null when the offset is not a link content end`() {
+    fun `linkUrlAtIconOffset returns null when the offset is not a link close end`() {
         val text = "The [SpeQA plugin](https://plugins.jetbrains.com/x) is installed."
         val range = MarkdownWysiwygRanges.inlineLinks(text).single()
 

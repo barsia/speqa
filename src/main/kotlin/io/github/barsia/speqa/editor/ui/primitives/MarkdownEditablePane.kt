@@ -939,18 +939,20 @@ class MarkdownEditablePane(
 
     /**
      * Render a small open-link icon right after each rendered inline link's visible text. The
-     * icon is an inline inlay anchored at the link's content end (where the `](url)` tail is
-     * folded away) and relates to the preceding text so it stays glued to the link text. A plain
-     * left-click on it opens the URL (wired in [installLinkFollowing]); the inlay's offset maps
-     * back to the URL via [MarkdownWysiwygRanges.linkUrlAtIconOffset]. Registered in [ourInlays]
-     * so the WYSIWYG refresh disposes it alongside the other inlays.
+     * icon is an inline inlay anchored at the link's close end - one past the folded `](url)`
+     * tail, the first visible offset after the fold - and relates to the preceding text so it
+     * stays glued to the link text. It must not be anchored at the content end (the start of the
+     * collapsed `](url)` close fold), or the fold would swallow it and it would never paint. A
+     * plain left-click on it opens the URL (wired in [installLinkFollowing]); the inlay's offset
+     * maps back to the URL via [MarkdownWysiwygRanges.linkUrlAtIconOffset]. Registered in
+     * [ourInlays] so the WYSIWYG refresh disposes it alongside the other inlays.
      */
     private fun addLinkOpenIconInlays(editor: EditorEx, ranges: List<MarkdownWysiwygRange>) {
         if (editor.isDisposed) return
         for (range in ranges) {
             if (range.contentStart >= range.contentEnd) continue
             editor.inlayModel.addInlineElement(
-                range.contentEnd,
+                range.closeEnd,
                 true,
                 OpenLinkIconRenderer(),
             )?.let { ourInlays += it }

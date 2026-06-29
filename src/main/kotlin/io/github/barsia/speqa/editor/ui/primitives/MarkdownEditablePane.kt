@@ -15,6 +15,7 @@ import java.awt.datatransfer.StringSelection
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import javax.swing.BorderFactory
+import javax.swing.BoxLayout
 import javax.swing.Icon
 import javax.swing.JButton
 import javax.swing.JComponent
@@ -69,9 +70,12 @@ import com.intellij.ui.EditorTextField
 import com.intellij.ui.JBColor
 import com.intellij.ui.RoundedLineBorder
 import com.intellij.ui.awt.RelativePoint
+import com.intellij.ui.components.JBLabel
+import com.intellij.util.IconUtil
 import com.intellij.util.ui.JBUI
 import io.github.barsia.speqa.SpeqaBundle
 import io.github.barsia.speqa.editor.ui.LinkDialog
+import io.github.barsia.speqa.editor.ui.primitives.MarkdownWysiwygRanges.LinkTarget
 import org.intellij.plugins.markdown.MarkdownIcons
 
 private const val INLINE_CODE_CONTENT_PADDING = 2
@@ -590,18 +594,30 @@ class MarkdownEditablePane(
         editor.addEditorMouseListener(object : EditorMouseListener {
             override fun mouseClicked(e: EditorMouseEvent) {
                 if (editor.isDisposed) return
-                // A plain left-click on a link's open-link icon opens the URL, no modifier needed.
-                val iconUrl = openLinkIconUrlAt(editor, e)
-                if (iconUrl != null && SwingUtilities.isLeftMouseButton(e.mouseEvent)) {
-                    e.consume()
-                    BrowserUtil.browse(iconUrl)
-                    return
+                if (!SwingUtilities.isLeftMouseButton(e.mouseEvent)) return
+                val text = editor.document.charsSequence
+                val offset = linkClickOffset(editor, e)
+                when (val target = MarkdownWysiwygRanges.linkTargetAt(text, offset)) {
+                    is LinkTarget.OpenUrl -> {
+                        // A plain left-click on a link's open-link icon opens the URL, no modifier.
+                        e.consume()
+                        BrowserUtil.browse(target.url)
+                    }
+                    is LinkTarget.EditText -> {
+                        // Ctrl/Cmd+click follows the link; a plain click opens the management popup.
+                        e.consume()
+                        if (isFollowLinkGesture(e.mouseEvent)) {
+                            BrowserUtil.browse(target.url)
+                        } else {
+                            val range = MarkdownWysiwygRanges.inlineLinks(text).firstOrNull {
+                                offset in it.contentStart..it.contentEnd
+                            }
+                            // Consume already suppressed caret placement; only open if we resolved a range.
+                            if (range != null) showLinkPopup(editor, range)
+                        }
+                    }
+                    LinkTarget.None -> Unit
                 }
-                if (!isFollowLinkGesture(e.mouseEvent)) return
-                val url = linkUrlUnderPoint(editor, e.mouseEvent.point) ?: return
-                // Consume so the click does not also place the caret / start a selection.
-                e.consume()
-                BrowserUtil.browse(url)
             }
         }, ed)
         editor.addEditorMouseMotionListener(object : EditorMouseMotionListener {
@@ -639,6 +655,109 @@ class MarkdownEditablePane(
         val inlay = e.inlay ?: return null
         if (inlay.renderer !is OpenLinkIconRenderer) return null
         return MarkdownWysiwygRanges.linkUrlAtIconOffset(editor.document.charsSequence, inlay.offset)
+    }
+
+    /**
+     * The document offset a link click should be classified against. When the click lands on an
+     * [OpenLinkIconRenderer] inlay, its anchor offset (the link's close end) is used so
+     * [MarkdownWysiwygRanges.linkTargetAt] resolves the icon to an open-the-URL target; otherwise
+     * the offset under the cursor point is used so a click inside the link text edits it.
+     */
+    private fun linkClickOffset(editor: EditorEx, e: EditorMouseEvent): Int {
+        val inlay = e.inlay
+        if (inlay != null && inlay.renderer is OpenLinkIconRenderer) return inlay.offset
+        return editor.logicalPositionToOffset(editor.xyToLogicalPosition(e.mouseEvent.point))
+    }
+
+    /**
+     * Non-modal management popup for a rendered inline link, anchored above the link text (below
+     * when there is no room above). Shows the link text, the URL as a clickable label that opens
+     * the browser, and an Edit button that re-opens [LinkDialog] seeded with the current text/URL
+     * and replaces the whole link span via [LinkMarkdown.applyLink] on confirm. The popup keeps
+     * focus out of itself (so the editor selection/caret are undisturbed), stays open on mouse
+     * move, and closes on click-outside or Escape.
+     */
+    private fun showLinkPopup(editor: EditorEx, range: MarkdownWysiwygRange) {
+        if (editor.isDisposed) return
+        val fullText = editor.document.charsSequence.toString()
+        val contentStart = range.contentStart.coerceIn(0, fullText.length)
+        val contentEnd = range.contentEnd.coerceIn(contentStart, fullText.length)
+        val linkText = fullText.substring(contentStart, contentEnd)
+        val url = MarkdownWysiwygRanges.linkUrlAt(fullText, contentStart) ?: return
+        val linkColor = linkAttributes().foregroundColor ?: JBColor.foreground()
+
+        lateinit var popup: JBPopup
+
+        val textLabel = JBLabel(linkText).apply {
+            font = font.deriveFont(Font.BOLD)
+            alignmentX = Component.LEFT_ALIGNMENT
+        }
+        val urlLabel = JBLabel(url).apply {
+            foreground = linkColor
+            toolTipText = SpeqaBundle.message("popup.link.openTooltip")
+            alignmentX = Component.LEFT_ALIGNMENT
+            handCursor()
+            addMouseListener(object : MouseAdapter() {
+                override fun mouseClicked(e: MouseEvent) {
+                    BrowserUtil.browse(url)
+                    popup.cancel()
+                }
+            })
+        }
+        val editButton = JButton(SpeqaBundle.message("popup.link.edit")).apply {
+            alignmentX = Component.LEFT_ALIGNMENT
+            handCursor()
+            addActionListener {
+                val result = LinkDialog.edit(project, linkText, url)
+                if (result != null) {
+                    val applied = LinkMarkdown.applyLink(
+                        fullText,
+                        range.openStart,
+                        range.closeEnd,
+                        result.text,
+                        result.url,
+                    )
+                    applyFormattingWrite(editor, applied.text, applied.selectionStart, applied.selectionEnd)
+                    popup.cancel()
+                }
+            }
+        }
+
+        val panel = JPanel().apply {
+            layout = BoxLayout(this, BoxLayout.Y_AXIS)
+            isOpaque = true
+            background = JBColor.PanelBackground
+            border = JBUI.Borders.empty(8)
+            add(textLabel)
+            add(javax.swing.Box.createVerticalStrut(JBUI.scale(4)))
+            add(urlLabel)
+            add(javax.swing.Box.createVerticalStrut(JBUI.scale(8)))
+            add(editButton)
+        }
+
+        popup = JBPopupFactory.getInstance()
+            .createComponentPopupBuilder(panel, editButton)
+            .setRequestFocus(false)
+            .setCancelOnClickOutside(true)
+            .setCancelKeyEnabled(true)
+            .setResizable(false)
+            .setMovable(false)
+            .createPopup()
+
+        val anchor = editor.offsetToXY(contentStart)
+        val visible = editor.scrollingModel.visibleArea
+        val size = panel.preferredSize
+        val gap = JBUI.scale(6)
+        val y = linkPopupY(
+            linkTop = anchor.y,
+            lineHeight = editor.lineHeight,
+            popupHeight = size.height,
+            visibleTop = visible.y,
+            gap = gap,
+        )
+        val maxX = (visible.x + visible.width - size.width).coerceAtLeast(visible.x)
+        val x = anchor.x.coerceIn(visible.x, maxX)
+        popup.show(RelativePoint(editor.contentComponent, Point(x, y)))
     }
 
     private fun installCodeBlockCopyButton(editor: EditorEx) {
@@ -1019,12 +1138,13 @@ class MarkdownEditablePane(
      */
     private fun addLinkOpenIconInlays(editor: EditorEx, ranges: List<MarkdownWysiwygRange>) {
         if (editor.isDisposed) return
+        val linkColor = linkAttributes().foregroundColor ?: JBColor.foreground()
         for (range in ranges) {
             if (range.contentStart >= range.contentEnd) continue
             editor.inlayModel.addInlineElement(
                 range.closeEnd,
                 true,
-                OpenLinkIconRenderer(),
+                OpenLinkIconRenderer(linkColor),
             )?.let { ourInlays += it }
         }
     }
@@ -1372,8 +1492,8 @@ class MarkdownEditablePane(
      * here; the plain left-click that opens the URL is handled in [installLinkFollowing] by
      * resolving the clicked inlay's offset to the link URL.
      */
-    private class OpenLinkIconRenderer : EditorCustomElementRenderer {
-        private val icon = AllIcons.Ide.External_link_arrow
+    private class OpenLinkIconRenderer(linkColor: Color) : EditorCustomElementRenderer {
+        private val icon = IconUtil.colorize(AllIcons.Ide.External_link_arrow, linkColor)
         private val gap = JBUI.scale(2)
 
         override fun calcWidthInPixels(inlay: Inlay<*>): Int = gap + icon.iconWidth
@@ -1405,6 +1525,21 @@ class MarkdownEditablePane(
             editorIsActive: Boolean,
             refreshAlreadyScheduled: Boolean,
         ): Boolean = !editorDisposed && editorIsActive && !refreshAlreadyScheduled
+
+        /**
+         * The y (in editor content-component coordinates) for the link popup: above the link when
+         * the popup fits between the visible-area top and the link, otherwise just below the link.
+         */
+        internal fun linkPopupY(
+            linkTop: Int,
+            lineHeight: Int,
+            popupHeight: Int,
+            visibleTop: Int,
+            gap: Int,
+        ): Int {
+            val aboveY = linkTop - popupHeight - gap
+            return if (aboveY >= visibleTop) aboveY else linkTop + lineHeight + gap
+        }
 
         internal fun caretOffsetAfterTextSync(
             previousText: String,

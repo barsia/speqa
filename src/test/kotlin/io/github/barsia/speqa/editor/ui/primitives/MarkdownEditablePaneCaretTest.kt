@@ -43,6 +43,32 @@ class MarkdownEditablePaneCaretTest {
     }
 
     @Test
+    fun `link popup sits above the link when it fits`() {
+        val y = MarkdownEditablePane.linkPopupY(
+            linkTop = 200,
+            lineHeight = 20,
+            popupHeight = 80,
+            visibleTop = 0,
+            gap = 6,
+        )
+
+        assertEquals(200 - 80 - 6, y)
+    }
+
+    @Test
+    fun `link popup drops below the link when there is no room above`() {
+        val y = MarkdownEditablePane.linkPopupY(
+            linkTop = 10,
+            lineHeight = 20,
+            popupHeight = 80,
+            visibleTop = 0,
+            gap = 6,
+        )
+
+        assertEquals(10 + 20 + 6, y)
+    }
+
+    @Test
     fun `skips WYSIWYG refresh for disposed editor`() {
         assertEquals(
             false,

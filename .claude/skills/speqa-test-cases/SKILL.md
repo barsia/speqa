@@ -116,7 +116,7 @@ Marker line: exactly `Preconditions:`, followed by a blank line. Preconditions u
 
 ## Links
 
-Marker line: exactly `Links:`, followed by a blank line, then one link per line: `[title](url)`. Placed before `Preconditions:` and `Scenario:`. URLs must start with `http://` or `https://`. Use the ticket key as the link title for ticket URLs (`[ABC-1234](https://youtrack.jetbrains.com/issue/ABC-1234)`). Use a short descriptive title for other links (`[Figma — MCP add dialog](https://...)`). When updating a case, append new links; do not replace existing ones. Do not fabricate URLs — omit the section if none exist.
+Marker line: exactly `Links:`, followed by a blank line, then one link per line: `[title](url)`. Placed before `Preconditions:` and `Scenario:`. URLs must start with `http://` or `https://`. Use the ticket key as the link title for ticket URLs (`[ABC-1234](https://youtrack.jetbrains.com/issue/ABC-1234)`). Use a short descriptive title for other links (`[Figma — MCP add dialog](https://...)`). When updating a case, append new links; do not replace existing ones. Do not fabricate URLs — omit the section if none exist. Only *requirement* sources belong in `Links:` (the ticket, design, spec, or decision the case verifies). Never link a pull request, commit, branch, or a runtime/agent status notification - those are implementation or status, not requirements; follow them back to the originating ticket or design and link that. A bug ticket is not a `Links:` entry either: flag it under the affected step with a `Ticket:` marker (see Scenario Steps), unless the case exists *because* of that bug, in which case the bug may be cited in `Links:` as its origin.
 
 ## Scenario Steps
 
@@ -126,7 +126,12 @@ Marker line: exactly `Links:`, followed by a blank line, then one link per line:
 - One line per distinct, separately observable check. If a step verifies several things at once (a folder exists AND a file opens AND a chip appears), give each its own numbered line (`> 1.`, `> 2.`, …) or bullet (`> - `) - never pack several checks into one sentence joined by "and" or commas, because each result must be tickable on its own. A single check needs no marker.
 - A scenario cannot end on a bare action step — the last step must include an expected result.
 - Expected results must be observable from outside the system — what the user sees or what the client receives. No internal implementation details.
-- Nested sub-actions are allowed when a logical step contains tightly coupled inputs. Sub-items align under the parent step's content (3 spaces of indent for single-digit parent numbers, 4 spaces for double-digit). `> ` lines sit at the parent indent and cover the whole sub-list.
+- Nested sub-actions are allowed when a logical step contains tightly coupled inputs. Indent the sub-list **and** its `> ` lines by the full width of the parent marker, including its trailing space - count the characters in `N. ` / `NN. `: **3 spaces for single-digit steps 1-9, 4 spaces for double-digit steps 10-99**. Do not pick one fixed indent for the whole scenario: a 3-space indent silently breaks the first time a step number reaches two digits, because the renderer then reads the sub-item as a new top-level item and reports an error like `Expected item number 11, but got 2`. When a scenario crosses step 10, re-check that every nested step's indent shifted from 3 to 4 spaces.
+- The `Scenario:` marker stands alone - no parenthetical, label, or qualifier on that line (move any condition into the title or split the case). Parsers only recognise a bare `Scenario:`.
+- Nothing follows the last step's expected results - no summary, `Note:`, or trailing prose (a per-step `Ticket:` marker, defined below, counts as part of that step, not trailing prose). Whole-case remarks go in the description above the sections.
+- For text content, the element "states" or "displays" the copy - do not write "reads" (it anthropomorphises the UI).
+- Step-local bug marker: when a step documents the *intended* behaviour but the product does not match it yet, add a plain `Ticket: ABC-1234` line directly under that step's expected results (the `Ticket:` marker takes bug tickets only; tasks and features go in `Links:`; for the origin-bug exception see Links). Remove it once the bug is fixed and the step passes.
+- Skip repeated detail: when reaching a new assertion needs navigation or setup that another case already verifies, write those traversal steps with no `>` lines and put the `>` only on the step that checks the new behaviour.
 
 With a summary line:
 
@@ -145,6 +150,16 @@ Without a summary:
    2. Click the "Cancel" button
    > - Dialog closes
    > - No new server appears in the table
+```
+
+Double-digit parent step - sub-list and `> ` lines shift to 4 spaces (aligned under the text after `10. `):
+
+```markdown
+10. 1. Open the saved provider's context menu and pick "Edit credentials"
+    2. Enter `  https://api.openai.com  ` (leading and trailing spaces) into the "Endpoint" field
+    3. Click "Connect"
+    > 1. No validation error appears under the "Endpoint" field
+    > 2. The provider connects using the trimmed endpoint
 ```
 
 ## Writing Style
@@ -177,4 +192,5 @@ Produce a deterministic result.
 - **Save location** — place the new file next to the most-related existing `.tc.md` (by tags or feature area). If the project has no existing test cases yet, create `test-cases/<area>/` where `<area>` is the feature name taken from the change.
 - **Scope** — narrowest reasonable interpretation: fewer cases, smaller edits.
 - **Concrete tokens missing** (exact UI label, endpoint, payload key) — never fabricate. Skip the step rather than invent a value.
-- **Conflicting sources** — prefer the one closest to the change (code > spec > ticket discussion).
+- **Requirement vs implementation** - a test case verifies *requirements*, not the current code. Requirement sources (tickets, designs, specs, acceptance criteria, requirement decisions in chat) are authoritative for every expected result and every quoted UI label. Code, PRs, and diffs are implementation: they help locate an exact endpoint, label, or response shape the requirement already calls for, but never justify an expected behaviour on their own. When code contradicts a requirement source, the requirement wins and the code is a candidate bug - do not author a case asserting the code's behaviour.
+- **Conflicting requirement sources** - prefer the more specific and more recent one (a precise design node over a vague ticket line). If it cannot be resolved from the sources, do not author the conflicting expected result; report it instead.

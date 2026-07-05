@@ -56,9 +56,10 @@ jobs:
           mkdir -p _site
           # Landing page: site/ root excluding the docs source
           rsync -a --exclude='docs/' site/ _site/
-          # Docs built output under /docs (basePath: /speqa/docs in codocation.yml)
+          # Docs subtree CONTENTS -> /docs: CLI lays the site out under dist/<siteId> ("speqa-tms");
+          # trailing slash copies contents, so index.html lands at _site/docs/ (= served /speqa/docs/).
           mkdir -p _site/docs
-          rsync -a site/docs/dist/ _site/docs/
+          rsync -a site/docs/dist/speqa-tms/ _site/docs/
 
       - name: Setup Pages
         uses: actions/configure-pages@v5

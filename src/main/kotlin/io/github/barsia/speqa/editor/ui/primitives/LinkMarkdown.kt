@@ -43,6 +43,10 @@ internal object LinkMarkdown {
      * Builds `[linkText](url)`. If `[selStart, selEnd)` lies within an existing link span, that
      * whole span is replaced; otherwise `[selStart, selEnd)` is replaced. The returned selection
      * covers the visible [linkText] (the characters between `[` and `]`).
+     *
+     * Spaces and parentheses in [url] are percent-encoded so the produced markdown always
+     * matches [inlineLink]; an unencoded `(`/`)`/space would end the URL early (or break the
+     * match entirely) and leave raw markup in the preview.
      */
     fun applyLink(text: String, selStart: Int, selEnd: Int, linkText: String, url: String): Result {
         val start = selStart.coerceIn(0, text.length)
@@ -57,11 +61,29 @@ internal object LinkMarkdown {
             replaceStart = start
             replaceEnd = end
         }
-        val replacement = "[$linkText]($url)"
+        val replacement = "[$linkText](${encodeUrl(url)})"
         return Result(
             text = text.replaceRange(replaceStart, replaceEnd, replacement),
             selectionStart = replaceStart + 1,
             selectionEnd = replaceStart + 1 + linkText.length,
         )
     }
+
+    /**
+     * Unwraps the link containing [offset] back to its plain visible text, or returns null when
+     * [offset] is not inside an inline link. The returned selection covers the unwrapped text.
+     */
+    fun removeLink(text: String, offset: Int): Result? {
+        val link = linkAt(text, offset) ?: return null
+        return Result(
+            text = text.replaceRange(link.span.first, link.span.last + 1, link.text),
+            selectionStart = link.span.first,
+            selectionEnd = link.span.first + link.text.length,
+        )
+    }
+
+    private fun encodeUrl(url: String): String = url
+        .replace(" ", "%20")
+        .replace("(", "%28")
+        .replace(")", "%29")
 }

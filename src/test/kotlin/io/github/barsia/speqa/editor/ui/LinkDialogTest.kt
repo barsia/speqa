@@ -40,4 +40,10 @@ class LinkDialogTest {
   fun `javascript scheme is invalid`() {
     assertFalse(isValidLinkUrl("javascript:alert(1)"))
   }
+
+  @Test
+  fun `bare scheme with nothing after it is invalid`() {
+    assertFalse(isValidLinkUrl("https://"))
+    assertFalse(isValidLinkUrl("http://"))
+  }
 }

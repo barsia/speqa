@@ -55,4 +55,24 @@ class LinkMarkdownTest {
     fun `linkAt ignores images`() {
         assertNull(LinkMarkdown.linkAt("a ![x](https://e.com)", 5))
     }
+
+    @Test
+    fun `applyLink percent-encodes spaces and parentheses in the url`() {
+        val result = LinkMarkdown.applyLink("see x", 4, 5, "x", "https://e.com/a (b) c")
+        assertEquals("see [x](https://e.com/a%20%28b%29%20c)", result.text)
+        // The produced markdown must round-trip through the inline-link pattern.
+        assertEquals("https://e.com/a%20%28b%29%20c", LinkMarkdown.linkAt(result.text, 5)!!.url)
+    }
+
+    @Test
+    fun `removeLink unwraps the link to its plain text`() {
+        val result = LinkMarkdown.removeLink("a [foo](https://e.com) b", 5)!!
+        assertEquals("a foo b", result.text)
+        assertEquals("foo", result.text.substring(result.selectionStart, result.selectionEnd))
+    }
+
+    @Test
+    fun `removeLink returns null outside any link`() {
+        assertNull(LinkMarkdown.removeLink("a [foo](https://e.com) b", 0))
+    }
 }

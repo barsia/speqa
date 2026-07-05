@@ -26,6 +26,7 @@ import javax.swing.Timer
 
 import com.intellij.ide.BrowserUtil
 import com.intellij.openapi.Disposable
+import com.intellij.openapi.ide.CopyPasteManager
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.util.Disposer
@@ -70,6 +71,7 @@ import com.intellij.ui.EditorTextField
 import com.intellij.ui.JBColor
 import com.intellij.ui.RoundedLineBorder
 import com.intellij.ui.awt.RelativePoint
+import com.intellij.ui.components.ActionLink
 import com.intellij.ui.components.JBLabel
 import com.intellij.util.IconUtil
 import com.intellij.util.ui.JBUI
@@ -409,9 +411,8 @@ class MarkdownEditablePane(
         val initialText = existing?.text ?: source.text.substring(selStart, selEnd)
         val initialUrl = existing?.url ?: ""
         val input = LinkDialog.edit(project, initialText, initialUrl, isEdit = existing != null) ?: return
-        val replaceStart = existing?.span?.first ?: selStart
-        val replaceEnd = existing?.let { it.span.last + 1 } ?: selEnd
-        val result = LinkMarkdown.applyLink(source.text, replaceStart, replaceEnd, input.text, input.url)
+        // applyLink itself replaces the whole containing link span when selStart sits inside one.
+        val result = LinkMarkdown.applyLink(source.text, selStart, selEnd, input.text, input.url)
         // Keep the visible link text selected after insertion.
         applyFormattingWrite(editor, result.text, result.selectionStart, result.selectionEnd)
     }
@@ -700,11 +701,13 @@ class MarkdownEditablePane(
 
     /**
      * Non-modal management popup for a rendered inline link, anchored above the link text (below
-     * when there is no room above). Shows the link text, the URL as a clickable label that opens
-     * the browser, and an Edit button that re-opens [LinkDialog] seeded with the current text/URL
-     * and replaces the whole link span via [LinkMarkdown.applyLink] on confirm. The popup is
-     * non-modal (the editor is not blocked) but focused so Escape reaches it; it stays open on
-     * mouse move and closes on click-outside or Escape.
+     * when there is no room above). Shows the link text, the URL as a focusable [ActionLink] that
+     * opens the browser (mouse or keyboard), and an actions row: Edit re-opens [LinkDialog] seeded
+     * with the current text/URL and replaces the whole link span via [LinkMarkdown.applyLink] on
+     * confirm; Copy URL puts the URL on the clipboard; Remove link unwraps the span back to its
+     * plain text via [LinkMarkdown.removeLink]. The popup is non-modal (the editor is not blocked)
+     * but focused so Escape reaches it; it stays open on mouse move and closes on click-outside
+     * or Escape.
      */
     private fun showLinkPopup(editor: EditorEx, range: MarkdownWysiwygRange) {
         if (editor.isDisposed) return
@@ -713,7 +716,6 @@ class MarkdownEditablePane(
         val contentEnd = range.contentEnd.coerceIn(contentStart, fullText.length)
         val linkText = fullText.substring(contentStart, contentEnd)
         val url = MarkdownWysiwygRanges.linkUrlAt(fullText, contentStart) ?: return
-        val linkColor = linkAttributes().foregroundColor ?: JBColor.foreground()
 
         lateinit var popup: JBPopup
 
@@ -721,20 +723,15 @@ class MarkdownEditablePane(
             font = font.deriveFont(Font.BOLD)
             alignmentX = Component.LEFT_ALIGNMENT
         }
-        val urlLabel = JBLabel(url).apply {
-            foreground = linkColor
+        val urlLink = ActionLink(url) {
+            BrowserUtil.browse(url)
+            popup.cancel()
+        }.apply {
             toolTipText = SpeqaBundle.message("popup.link.openTooltip")
             alignmentX = Component.LEFT_ALIGNMENT
             handCursor()
-            addMouseListener(object : MouseAdapter() {
-                override fun mouseClicked(e: MouseEvent) {
-                    BrowserUtil.browse(url)
-                    popup.cancel()
-                }
-            })
         }
         val editButton = JButton(SpeqaBundle.message("popup.link.edit")).apply {
-            alignmentX = Component.LEFT_ALIGNMENT
             handCursor()
             addActionListener {
                 // Close the popup before the modal dialog so only the dialog is visible.
@@ -750,11 +747,37 @@ class MarkdownEditablePane(
                 applyFormattingWrite(editor, applied.text, applied.selectionStart, applied.selectionEnd)
             }
         }
+        val copyButton = JButton(SpeqaBundle.message("popup.link.copy")).apply {
+            handCursor()
+            addActionListener {
+                CopyPasteManager.getInstance().setContents(StringSelection(url))
+                popup.cancel()
+            }
+        }
+        val removeButton = JButton(SpeqaBundle.message("popup.link.remove")).apply {
+            handCursor()
+            addActionListener {
+                popup.cancel()
+                val removed = LinkMarkdown.removeLink(fullText, range.openStart) ?: return@addActionListener
+                applyFormattingWrite(editor, removed.text, removed.selectionStart, removed.selectionEnd)
+            }
+        }
+        // BoxLayout row (not FlowLayout) so the first button aligns flush with the labels above.
+        val buttonsRow = JPanel().apply {
+            layout = BoxLayout(this, BoxLayout.X_AXIS)
+            isOpaque = false
+            alignmentX = Component.LEFT_ALIGNMENT
+            add(editButton)
+            add(javax.swing.Box.createHorizontalStrut(JBUI.scale(6)))
+            add(copyButton)
+            add(javax.swing.Box.createHorizontalStrut(JBUI.scale(6)))
+            add(removeButton)
+        }
 
         // Cap the content width so a long URL ellipsizes instead of stretching the popup wide.
         val maxContentWidth = JBUI.scale(360)
         capLabelWidth(textLabel, maxContentWidth)
-        capLabelWidth(urlLabel, maxContentWidth)
+        capLabelWidth(urlLink, maxContentWidth)
 
         val panel = JPanel().apply {
             layout = BoxLayout(this, BoxLayout.Y_AXIS)
@@ -763,9 +786,9 @@ class MarkdownEditablePane(
             border = JBUI.Borders.empty(8)
             add(textLabel)
             add(javax.swing.Box.createVerticalStrut(JBUI.scale(4)))
-            add(urlLabel)
+            add(urlLink)
             add(javax.swing.Box.createVerticalStrut(JBUI.scale(8)))
-            add(editButton)
+            add(buttonsRow)
         }
 
         popup = JBPopupFactory.getInstance()

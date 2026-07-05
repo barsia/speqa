@@ -64,6 +64,9 @@ internal class AddTagPopup(
         selectionMode = ListSelectionModel.SINGLE_SELECTION
         cellRenderer = RowRenderer()
         background = JBColor.background()
+        // Shown when the query filters every row out (always possible with allowCreate=false),
+        // so the popup explains itself instead of showing a blank area.
+        setEmptyText(SpeqaBundle.message("tagCloud.noMatches"))
     }
     private val scrollPane = JBScrollPane(list).apply {
         border = JBUI.Borders.emptyTop(4)

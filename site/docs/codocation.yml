@@ -1,11 +1,10 @@
 sites:
   speqa-tms:
     title: SpeQA TMS
-    slug: /
     type: docs
+    basePath: /speqa/docs
     logo: images/speqa.svg
 build:
   output: dist
   cleanUrls: true
   assetsDir: images
-  basePath: /speqa/docs

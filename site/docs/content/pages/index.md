@@ -35,12 +35,16 @@ sections:
       items:
         - title: Split editor
           text: Native IntelliJ editor on the left, interactive panel on the right. Scroll-sync toggleable in the bar.
+          icon: ../images/split-editor.svg
         - title: Plain Markdown format
           text: Test cases and runs stored as Markdown. Test runs recorded with verdicts, timestamps, and comments.
+          icon: ../images/markdown.svg
         - title: Test case writer Claude Code skill
           text: Bundled Claude Code skill generates test cases directly from specs, tickets, or PR. Writes test cases in seconds.
+          icon: ../images/claude.svg
         - title: Offline with Git versioning
           text: No cloud, no vendor lock-in. Test cases live in your project directory. Everything works offline, versioned with Git.
+          icon: ../images/offline.svg
   - code:
       label: Data format
       heading: Your test cases are plain Markdown. No vendor lock-in, ever.

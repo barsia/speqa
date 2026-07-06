@@ -23,6 +23,7 @@ sections:
       items:
         - title: Generate test cases with Claude Code
           text: Use the bundled Claude Code skill to generate structured test cases directly from specs, user stories, Jira tickets, or PR descriptions. SpeQA writes Markdown - no manual formatting needed.
+          icon: /images/ai.svg
         - title: Create a test case (.tc.md)
           text: Right-click a directory, choose New > SpeQA Test Case, or run the action from the palette. A Markdown file with YAML frontmatter appears - split editor shows live preview as you type.
         - title: Describe steps in the interactive preview

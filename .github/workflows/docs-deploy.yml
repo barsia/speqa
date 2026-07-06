@@ -4,7 +4,11 @@ on:
   push:
     branches: [main]
     paths:
-      - 'site/**'
+      # Only what affects the BUILT site: authored content/config and this workflow.
+      # AGENTS.md is agent instructions - it never changes the output.
+      - 'site/docs/**'
+      - '!site/docs/AGENTS.md'
+      - '.github/workflows/docs-deploy.yml'
   workflow_dispatch:
 
 permissions:

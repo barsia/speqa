@@ -1,7 +1,8 @@
 header:
   - page: pages/getting-started.md
     title: Docs
-  - github: https://github.com/barsia/speqa
+  - href: https://github.com/barsia/speqa
+    icon: github
   - href: https://plugins.jetbrains.com/plugin/31268-speqa--test-management-system
     label: Get Plugin for Free
     button: true

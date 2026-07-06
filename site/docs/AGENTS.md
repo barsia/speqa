@@ -42,8 +42,11 @@ This agent is responsible for creating and maintaining high-quality technical do
 
 ## Navigation (`content/<docId>.tree.yml`)
 
-- `toc:` lists pages in reading order; `header:` also accepts (header-only):
-  `- github: <repo url>` (icon link) and `- href/label/button: true/color:` (CTA button).
+- `toc:` lists pages in reading order. `header:` and `footer:` also accept social/icon
+  links: `- href: <url>` with `icon: <brand>` (icon-only by default; add `label:` to show
+  text). Supported `icon` brands: github, gitlab, x, linkedin, youtube, discord, mastodon,
+  bluesky, telegram.
+- `header:` additionally accepts a CTA button (header-only): `- href/label/button: true/color:`.
 - Keep the CTA button label short; on ~390px phones long labels ellipsize.
 
 ## Technical Workflow

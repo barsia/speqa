@@ -50,7 +50,7 @@ After installation, you should see SpeQA features available:
 - Try opening a project folder first if you haven't already
 
 **Need help?**
-- Check the [Getting Started](./index.md) guide
+- Check the [Getting Started](./getting-started.md) guide
 - See [Creating a Test Case Project](./creating-project.md) for next steps
 
 ## What's Next?

@@ -1,4 +1,4 @@
-name: Deploy Site + Docs to GitHub Pages
+name: Deploy Docs to GitHub Pages
 
 on:
   push:
@@ -18,6 +18,9 @@ concurrency:
 
 env:
   # Pin the Codocation CLI version. Bump this to upgrade.
+  # The cli-v0.1.0 release must carry the landing feature (frontmatter `sections` /
+  # `layout: full`, tree.yml header `button`/`github`): an older jar's validation
+  # gate fails the build on these keys.
   CLI_TAG: cli-v0.1.0
 
 jobs:
@@ -51,15 +54,13 @@ jobs:
         working-directory: site/docs
         run: java -jar "$GITHUB_WORKSPACE/.tools/codocation-cli.jar" build --out dist
 
-      - name: Prepare combined artifact
+      - name: Prepare artifact
         run: |
           mkdir -p _site
-          # Landing page: site/ root excluding the docs source
-          rsync -a --exclude='docs/' site/ _site/
-          # Docs subtree CONTENTS -> /docs: CLI lays the site out under dist/<siteId> ("speqa-tms");
-          # trailing slash copies contents, so index.html lands at _site/docs/ (= served /speqa/docs/).
-          mkdir -p _site/docs
-          rsync -a site/docs/dist/speqa-tms/ _site/docs/
+          # The docs site IS the whole site now (its home page is the landing).
+          # CLI lays the site out under dist/<siteId> ("speqa-tms"); trailing slash
+          # copies contents, so index.html lands at _site/ (= served /speqa/).
+          rsync -a site/docs/dist/speqa-tms/ _site/
 
       - name: Setup Pages
         uses: actions/configure-pages@v5

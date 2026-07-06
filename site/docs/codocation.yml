@@ -2,8 +2,7 @@ sites:
   speqa-tms:
     title: SpeQA TMS
     type: docs
-    basePath: /speqa/docs
-    homeUrl: https://barsia.github.io/speqa/
+    basePath: /speqa
     branding:
       logo: images/speqa.svg
 build:
